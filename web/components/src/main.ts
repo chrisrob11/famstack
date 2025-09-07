@@ -68,28 +68,28 @@ if (document.readyState === 'loading') {
 }
 
 // Re-initialize components after HTMX content swaps
-document.addEventListener('htmx:afterSwap', (event) => {
+document.addEventListener('htmx:afterSwap', event => {
   const target = (event as CustomEvent).detail.target as HTMLElement;
-  
+
   // Only re-initialize if the swapped content contains our components
   if (target.querySelector('[data-component]')) {
     const configElement = document.querySelector('script[data-famstack-config]');
     if (configElement) {
       const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
-      
+
       // Initialize components within the swapped content
       const taskContainers = target.querySelectorAll('[data-component="task-manager"]');
       taskContainers.forEach((container, index) => {
-        const instanceId = container.getAttribute('data-instance-id') ?? 
-          `task-manager-${Date.now()}-${index}`;
+        const instanceId =
+          container.getAttribute('data-instance-id') ?? `task-manager-${Date.now()}-${index}`;
         const manager = new TaskManager(container as HTMLElement, config);
         window.FamStack.instances.taskManagers.set(instanceId, manager);
       });
 
       const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
       selectorContainers.forEach((container, index) => {
-        const instanceId = container.getAttribute('data-instance-id') ?? 
-          `family-selector-${Date.now()}-${index}`;
+        const instanceId =
+          container.getAttribute('data-instance-id') ?? `family-selector-${Date.now()}-${index}`;
         const selector = new FamilySelector(container as HTMLElement, config);
         window.FamStack.instances.familySelectors.set(instanceId, selector);
       });
@@ -98,9 +98,9 @@ document.addEventListener('htmx:afterSwap', (event) => {
 });
 
 // Clean up destroyed components
-document.addEventListener('htmx:beforeSwap', (event) => {
+document.addEventListener('htmx:beforeSwap', event => {
   const target = (event as CustomEvent).detail.target as HTMLElement;
-  
+
   // Clean up task managers
   const taskContainers = target.querySelectorAll('[data-component="task-manager"]');
   taskContainers.forEach(container => {
@@ -113,7 +113,7 @@ document.addEventListener('htmx:beforeSwap', (event) => {
       }
     }
   });
-  
+
   // Family selectors don't need explicit cleanup, but we should remove them from the map
   const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
   selectorContainers.forEach(container => {

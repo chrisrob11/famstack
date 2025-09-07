@@ -27,17 +27,17 @@ export class TaskManager {
       ghostClass: 'task-ghost',
       chosenClass: 'task-chosen',
       dragClass: 'task-drag',
-      onEnd: (evt) => {
+      onEnd: evt => {
         this.handleTaskReorder(evt);
       },
     });
   }
 
   private setupInlineEditing(): void {
-    this.container.addEventListener('dblclick', (e) => {
+    this.container.addEventListener('dblclick', e => {
       const target = e.target as HTMLElement;
       const taskTitle = target.closest('.task-title');
-      
+
       if (taskTitle) {
         this.enableInlineEdit(taskTitle as HTMLElement);
       }
@@ -45,9 +45,9 @@ export class TaskManager {
   }
 
   private setupTaskActions(): void {
-    this.container.addEventListener('click', (e) => {
+    this.container.addEventListener('click', e => {
       const target = e.target as HTMLElement;
-      
+
       if (target.matches('.task-complete-btn')) {
         this.handleTaskComplete(target);
       } else if (target.matches('.task-delete-btn')) {
@@ -61,7 +61,7 @@ export class TaskManager {
 
     const taskElement = evt.item;
     const taskId = taskElement.getAttribute('data-task-id');
-    
+
     if (!taskId) return;
 
     try {
@@ -96,16 +96,16 @@ export class TaskManager {
     const currentText = element.textContent ?? '';
     const taskElement = element.closest('.task-item');
     const taskId = taskElement?.getAttribute('data-task-id');
-    
+
     if (!taskId) return;
 
     const input = document.createElement('input');
     input.type = 'text';
     input.value = currentText;
     input.className = 'task-title-input';
-    
+
     input.addEventListener('blur', () => this.saveInlineEdit(element, input, taskId));
-    input.addEventListener('keydown', (e) => {
+    input.addEventListener('keydown', e => {
       if (e.key === 'Enter') {
         e.preventDefault();
         input.blur();
@@ -128,7 +128,7 @@ export class TaskManager {
     taskId: string
   ): Promise<void> {
     const newTitle = input.value.trim();
-    
+
     if (newTitle === titleElement.textContent) {
       titleElement.style.display = '';
       input.remove();
@@ -162,7 +162,7 @@ export class TaskManager {
   private async handleTaskComplete(button: HTMLElement): Promise<void> {
     const taskElement = button.closest('.task-item');
     const taskId = taskElement?.getAttribute('data-task-id');
-    
+
     if (!taskId) return;
 
     try {
@@ -189,7 +189,7 @@ export class TaskManager {
   private async handleTaskDelete(button: HTMLElement): Promise<void> {
     const taskElement = button.closest('.task-item');
     const taskId = taskElement?.getAttribute('data-task-id');
-    
+
     if (!taskId || !confirm('Are you sure you want to delete this task?')) {
       return;
     }
@@ -227,9 +227,9 @@ export class TaskManager {
       border-radius: 4px;
       z-index: 1000;
     `;
-    
+
     document.body.appendChild(errorDiv);
-    
+
     setTimeout(() => {
       errorDiv.remove();
     }, 3000);

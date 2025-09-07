@@ -3,12 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fam-Stack - Family Tasks</title>
+    <title>Fam-Stack - Daily Tasks</title>
     <link rel="stylesheet" href="/static/css/main.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body>
     <header class="header">
-        <h1>🏠 Fam-Stack Tasks</h1>
+        <h1>📅 Daily Tasks</h1>
+        <div class="date-display">{{.Date}}</div>
         <div class="header-actions">
             <button class="btn-filters">Filters ▼</button>
         </div>
@@ -25,7 +27,7 @@
                 <span class="task-count">{{len $column.Tasks}}</span>
             </div>
             
-            <div class="task-list" data-user-id="{{$column.User.ID}}">
+            <div class="task-list" id="task-list-{{$column.User.ID}}" data-user-id="{{$column.User.ID}}">
                 {{range $column.Tasks}}
                 <div class="task-item {{.Status}} {{.TaskType}}" data-task-id="{{.ID}}" draggable="true">
                     <div class="task-title">{{.Title}}</div>
@@ -41,9 +43,14 @@
                 {{end}}
             </div>
             
-            <button class="add-task-btn" data-user-id="{{$column.User.ID}}">
-                + Add Task
-            </button>
+            <div id="add-task-{{$column.User.ID}}">
+                <button class="add-task-btn" 
+                        hx-get="/api/tasks/new?user_id={{$column.User.ID}}" 
+                        hx-target="#add-task-{{$column.User.ID}}"
+                        hx-swap="outerHTML">
+                    + Add Task
+                </button>
+            </div>
         </div>
         {{else}}
         <div class="empty-state">

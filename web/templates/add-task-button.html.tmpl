@@ -1,0 +1,8 @@
+<div id="add-task-{{.UserID}}">
+	<button class="add-task-btn" 
+			hx-get="/api/tasks/new?user_id={{.UserID}}" 
+			hx-target="#add-task-{{.UserID}}"
+			hx-swap="outerHTML">
+		+ Add Task
+	</button>
+</div>

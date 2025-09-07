@@ -17,9 +17,9 @@ export class FamilySelector {
   }
 
   private setupEventListeners(): void {
-    this.container.addEventListener('click', (e) => {
+    this.container.addEventListener('click', e => {
       const target = e.target as HTMLElement;
-      
+
       if (target.matches('.user-avatar') || target.matches('.user-selector-item')) {
         this.toggleUserSelection(target);
       }
@@ -28,7 +28,7 @@ export class FamilySelector {
 
   private loadInitialSelections(): void {
     const preselected = this.container.querySelectorAll('.user-selector-item.selected');
-    preselected.forEach((item) => {
+    preselected.forEach(item => {
       const userId = item.getAttribute('data-user-id');
       if (userId) {
         this.selectedUsers.add(userId);
@@ -44,7 +44,7 @@ export class FamilySelector {
     if (!userId) return;
 
     const isSelected = this.selectedUsers.has(userId);
-    
+
     if (isSelected) {
       this.selectedUsers.delete(userId);
       selectorItem.classList.remove('selected');
@@ -59,7 +59,7 @@ export class FamilySelector {
 
   private updateVisualState(element: HTMLElement, selected: boolean): void {
     const avatar = element.querySelector('.user-avatar');
-    
+
     if (selected) {
       avatar?.classList.add('selected');
       element.setAttribute('aria-selected', 'true');
@@ -75,19 +75,19 @@ export class FamilySelector {
         selectedUsers: Array.from(this.selectedUsers),
       },
     });
-    
+
     this.container.dispatchEvent(event);
-    
+
     // Also update any hidden form inputs
     this.updateFormInputs();
   }
 
   private updateFormInputs(): void {
     const hiddenInputs = this.container.querySelectorAll('input[type="hidden"][name$="[]"]');
-    
+
     // Remove existing hidden inputs
     hiddenInputs.forEach(input => input.remove());
-    
+
     // Add new hidden inputs for selected users
     this.selectedUsers.forEach(userId => {
       const input = document.createElement('input');
@@ -104,31 +104,31 @@ export class FamilySelector {
 
   public setSelectedUsers(userIds: string[]): void {
     this.selectedUsers.clear();
-    
+
     userIds.forEach(userId => {
       this.selectedUsers.add(userId);
     });
-    
+
     // Update visual state
     this.container.querySelectorAll('.user-selector-item').forEach(item => {
       const userId = item.getAttribute('data-user-id');
       const isSelected = userId ? this.selectedUsers.has(userId) : false;
-      
+
       this.updateVisualState(item as HTMLElement, isSelected);
       item.classList.toggle('selected', isSelected);
     });
-    
+
     this.updateFormInputs();
   }
 
   public clearSelection(): void {
     this.selectedUsers.clear();
-    
+
     this.container.querySelectorAll('.user-selector-item').forEach(item => {
       item.classList.remove('selected');
       this.updateVisualState(item as HTMLElement, false);
     });
-    
+
     this.updateFormInputs();
   }
 }
