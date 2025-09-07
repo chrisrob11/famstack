@@ -4,8 +4,6 @@
 # Variables
 BINARY_NAME=famstack
 BINARY_PATH=cmd/famstack/$(BINARY_NAME)
-GO_VERSION=1.22
-NODE_VERSION=20
 
 # Build the application
 build: build-ts build-go ## Build TypeScript components and Go binary
@@ -89,21 +87,14 @@ migrate-down: ## Run database migrations down
 	@echo "Rolling back database migrations..."
 	./$(BINARY_PATH) -migrate-down
 
-# Docker support (future)
-docker-build: ## Build Docker image
-	@echo "Docker support not implemented yet"
-
-docker-run: ## Run Docker container
-	@echo "Docker support not implemented yet"
-
-# Release preparation
-prepare-release: clean lint test build ## Prepare for release (clean, lint, test, build)
-	@echo "Release preparation complete"
-
 # Development database reset
 reset-db: ## Reset development database
 	@echo "Resetting development database..."
 	rm -f famstack.db || true
+
+# Release preparation
+prepare-release: clean lint test build ## Prepare for release (clean, lint, test, build)
+	@echo "Release preparation complete"
 
 # Help
 help: ## Show this help message
