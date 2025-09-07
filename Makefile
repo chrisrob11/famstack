@@ -41,6 +41,17 @@ test-ts: install-node-deps ## Run TypeScript tests (if any)
 	@echo "Running TypeScript tests..."
 	cd web/components && npm run test 2>/dev/null || echo "No TypeScript tests configured yet"
 
+# Formatting
+fmt: fmt-go fmt-ts ## Format all code
+
+fmt-go: ## Format Go code
+	@echo "Formatting Go code..."
+	go fmt ./...
+
+fmt-ts: install-node-deps ## Format TypeScript code
+	@echo "Formatting TypeScript code..."
+	cd web/components && npm run format
+
 # Linting
 lint: lint-go lint-ts ## Run all linters
 

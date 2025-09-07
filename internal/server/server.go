@@ -72,6 +72,18 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 
 	// Task routes
 	mux.HandleFunc("/tasks", taskHandler.ListTasks)
+
+	// API routes
+	mux.HandleFunc("/api/tasks/new", taskHandler.NewTaskForm)
+	mux.HandleFunc("/api/tasks/cancel", taskHandler.CancelTaskForm)
+	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			taskHandler.CreateTask(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// Redirect root to tasks for now
 		http.Redirect(w, r, "/tasks", http.StatusFound)
