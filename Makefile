@@ -18,7 +18,8 @@ build-ts: install-node-deps ## Build TypeScript components
 
 # Run the application
 run: build ## Run the application locally
-	@echo "Starting famstack server..."
+	@echo "Starting famstack server on http://localhost:8080..."
+	@echo "Press Ctrl+C to stop the server"
 	./$(BINARY_PATH)
 
 # Development mode with file watching
@@ -92,6 +93,22 @@ migrate-down: ## Run database migrations down
 reset-db: ## Reset development database
 	@echo "Resetting development database..."
 	rm -f famstack.db || true
+
+# Setup development environment with sample data  
+dev-setup: reset-db build ## Setup development environment with sample data
+	@echo "Setting up development environment..."
+	@echo "Creating database with sample data..."
+	@timeout 2s ./$(BINARY_PATH) > /dev/null 2>&1 || true
+	@echo "✅ Development environment ready!"
+	@echo ""
+	@echo "Your Famstack development environment is set up with:"
+	@echo "  • SQLite database (famstack.db)"
+	@echo "  • Sample family: The Smith Family"
+	@echo "  • 4 sample tasks (todos and chores)"
+	@echo ""
+	@echo "To start developing:"
+	@echo "  make run    # Start the server on http://localhost:8080"
+	@echo "  make help   # See all available commands"
 
 # Release preparation
 prepare-release: clean lint test build ## Prepare for release (clean, lint, test, build)
