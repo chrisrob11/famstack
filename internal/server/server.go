@@ -8,6 +8,7 @@ import (
 
 	"famstack/internal/database"
 	"famstack/internal/handlers"
+	"famstack/internal/handlers/api"
 )
 
 // Config holds server configuration
@@ -59,6 +60,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// Initialize handlers
 	taskHandler := handlers.NewTaskHandler(s.db)
+	taskAPIHandler := api.NewTaskAPIHandler(s.db)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -70,16 +72,28 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		fmt.Fprintf(w, `{"status":"ok","message":"Fam-Stack is running"}`)
 	})
 
-	// Task routes
+	// HTML page routes (HTMX-based)
 	mux.HandleFunc("/tasks", taskHandler.ListTasks)
 
-	// API routes
-	mux.HandleFunc("/api/tasks/new", taskHandler.NewTaskForm)
-	mux.HandleFunc("/api/tasks/cancel", taskHandler.CancelTaskForm)
-	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "POST" {
-			taskHandler.CreateTask(w, r)
-		} else {
+	// JSON API routes
+	mux.HandleFunc("/api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			taskAPIHandler.ListTasks(w, r)
+		case "POST":
+			taskAPIHandler.CreateTask(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/v1/tasks/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "PATCH":
+			taskAPIHandler.UpdateTask(w, r)
+		case "DELETE":
+			taskAPIHandler.DeleteTask(w, r)
+		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})

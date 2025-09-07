@@ -1,10 +1,14 @@
-import { ComponentConfig } from './types';
-import Sortable from 'sortablejs';
+import { ComponentConfig } from './types.js';
+
+// Use global Sortable from CDN
+declare const Sortable: any;
 
 export class TaskManager {
   private config: ComponentConfig;
   private container: HTMLElement;
-  private sortable: Sortable | null = null;
+  private sortables: any[] = [];
+  private boundHandleDblClick?: (e: Event) => void;
+  private boundHandleClick?: (e: Event) => void;
 
   constructor(container: HTMLElement, config: ComponentConfig) {
     this.container = container;
@@ -19,33 +23,43 @@ export class TaskManager {
   }
 
   private setupDragAndDrop(): void {
-    const taskList = this.container.querySelector('.task-list');
-    if (!taskList) return;
+    // Set up drag and drop for all user columns
+    const userColumns = this.container.querySelectorAll('[data-user-id]');
+    
+    userColumns.forEach(column => {
+      const taskList = column.querySelector('.task-list');
+      if (!taskList) return;
 
-    this.sortable = new Sortable(taskList as HTMLElement, {
-      animation: 150,
-      ghostClass: 'task-ghost',
-      chosenClass: 'task-chosen',
-      dragClass: 'task-drag',
-      onEnd: evt => {
-        this.handleTaskReorder(evt);
-      },
+      const sortable = new Sortable(taskList as HTMLElement, {
+        group: 'tasks', // Allow dragging between different columns
+        animation: 150,
+        ghostClass: 'task-ghost',
+        chosenClass: 'task-chosen',
+        dragClass: 'task-drag',
+        onEnd: (evt: any) => {
+          this.handleTaskReorder(evt);
+        },
+      });
+      
+      this.sortables.push(sortable);
     });
   }
 
   private setupInlineEditing(): void {
-    this.container.addEventListener('dblclick', e => {
+    this.boundHandleDblClick = (e: Event) => {
       const target = e.target as HTMLElement;
       const taskTitle = target.closest('.task-title');
 
       if (taskTitle) {
         this.enableInlineEdit(taskTitle as HTMLElement);
       }
-    });
+    };
+    
+    this.container.addEventListener('dblclick', this.boundHandleDblClick);
   }
 
   private setupTaskActions(): void {
-    this.container.addEventListener('click', e => {
+    this.boundHandleClick = (e: Event) => {
       const target = e.target as HTMLElement;
 
       if (target.matches('.task-complete-btn')) {
@@ -53,43 +67,64 @@ export class TaskManager {
       } else if (target.matches('.task-delete-btn')) {
         this.handleTaskDelete(target);
       }
-    });
+    };
+    
+    this.container.addEventListener('click', this.boundHandleClick);
   }
 
-  private async handleTaskReorder(evt: Sortable.SortableEvent): Promise<void> {
-    if (evt.oldIndex === undefined || evt.newIndex === undefined) return;
-
+  private async handleTaskReorder(evt: any): Promise<void> {
     const taskElement = evt.item;
     const taskId = taskElement.getAttribute('data-task-id');
 
-    if (!taskId) return;
+    if (!taskId) {
+      return;
+    }
 
-    try {
-      const response = await fetch(`${this.config.apiBaseUrl}/tasks/${taskId}/reorder`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': this.config.csrfToken,
-        },
-        body: JSON.stringify({
-          oldIndex: evt.oldIndex,
-          newIndex: evt.newIndex,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to reorder task');
+    // Check if task was moved between different columns (assignment change)
+    if (evt.from !== evt.to) {
+      const sourceColumn = evt.from.closest('[data-user-id]');
+      const targetColumn = evt.to.closest('[data-user-id]');
+      
+      if (!targetColumn) {
+        return;
       }
-    } catch (error) {
-      // Revert the change on error
-      if (this.sortable) {
-        if (evt.oldIndex < evt.newIndex) {
-          evt.to.insertBefore(evt.item, evt.to.children[evt.oldIndex] ?? null);
-        } else {
-          evt.to.insertBefore(evt.item, evt.to.children[evt.oldIndex + 1] ?? null);
+
+      const newAssignedTo = targetColumn.getAttribute('data-user-id');
+      const oldAssignedTo = sourceColumn?.getAttribute('data-user-id');
+
+      const assignmentValue = newAssignedTo === 'unassigned' ? null : newAssignedTo;
+
+      try {
+        // Update assignment in database
+        const url = `${this.config.apiBaseUrl}/tasks/${taskId}`;
+        const payload = { assigned_to: assignmentValue };
+        
+        const response = await fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': this.config.csrfToken,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to update task assignment: ${errorText}`);
         }
+
+        await response.json();
+
+        // Update task count UI
+        this.updateTaskCounts(oldAssignedTo, newAssignedTo);
+
+      } catch (error) {
+        // Revert the drag operation on error
+        evt.from.insertBefore(evt.item, evt.from.children[evt.oldIndex] ?? null);
+        this.showError('Failed to update task assignment');
       }
     }
+    // If moved within same column, no API call needed (just reordering)
   }
 
   private enableInlineEdit(element: HTMLElement): void {
@@ -212,6 +247,24 @@ export class TaskManager {
     }
   }
 
+  private updateTaskCounts(oldUserId: string | null, newUserId: string): void {
+    // Update task count for source user (decrease)
+    if (oldUserId) {
+      const oldCountElement = document.querySelector(`[data-user-id="${oldUserId}"] .task-count`);
+      if (oldCountElement) {
+        const currentCount = parseInt(oldCountElement.textContent || '0');
+        oldCountElement.textContent = Math.max(0, currentCount - 1).toString();
+      }
+    }
+
+    // Update task count for target user (increase)
+    const newCountElement = document.querySelector(`[data-user-id="${newUserId}"] .task-count`);
+    if (newCountElement) {
+      const currentCount = parseInt(newCountElement.textContent || '0');
+      newCountElement.textContent = (currentCount + 1).toString();
+    }
+  }
+
   private showError(message: string): void {
     // Simple error display - could be enhanced with a proper notification system
     const errorDiv = document.createElement('div');
@@ -236,9 +289,19 @@ export class TaskManager {
   }
 
   public destroy(): void {
-    if (this.sortable) {
-      this.sortable.destroy();
-      this.sortable = null;
+    this.sortables.forEach(sortable => {
+      if (sortable) {
+        sortable.destroy();
+      }
+    });
+    this.sortables = [];
+    
+    // Remove event listeners
+    if (this.boundHandleDblClick) {
+      this.container.removeEventListener('dblclick', this.boundHandleDblClick);
+    }
+    if (this.boundHandleClick) {
+      this.container.removeEventListener('click', this.boundHandleClick);
     }
   }
 }
