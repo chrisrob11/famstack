@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"famstack/internal/database"
+	"famstack/internal/handlers"
 )
 
 // Config holds server configuration
@@ -56,6 +57,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // setupRoutes configures the HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
+	// Initialize handlers
+	taskHandler := handlers.NewTaskHandler(s.db)
+
+	// Static file serving
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
+
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -63,23 +70,10 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		fmt.Fprintf(w, `{"status":"ok","message":"Fam-Stack is running"}`)
 	})
 
-	// Root endpoint - temporary placeholder
+	// Task routes
+	mux.HandleFunc("/tasks", taskHandler.ListTasks)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Fam-Stack</title>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
-<body>
-    <h1>Welcome to Fam-Stack!</h1>
-    <p>Family task management system is starting up...</p>
-    <p><a href="/health">Health Check</a></p>
-</body>
-</html>`)
+		// Redirect root to tasks for now
+		http.Redirect(w, r, "/tasks", http.StatusFound)
 	})
 }

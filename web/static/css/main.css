@@ -1,0 +1,86 @@
+/* Fam-Stack Main Styles */
+body { 
+    font-family: Arial, sans-serif; 
+    max-width: 800px; 
+    margin: 0 auto; 
+    padding: 20px; 
+}
+
+.task-list { 
+    list-style: none; 
+    padding: 0; 
+}
+
+.task-item { 
+    background: #f5f5f5; 
+    margin: 10px 0; 
+    padding: 15px; 
+    border-radius: 5px; 
+    border-left: 4px solid #007bff; 
+}
+
+.task-item.completed { 
+    opacity: 0.7; 
+    border-left-color: #28a745; 
+}
+
+.task-item.chore { 
+    border-left-color: #fd7e14; 
+}
+
+.task-item.appointment { 
+    border-left-color: #6f42c1; 
+}
+
+.task-title { 
+    font-weight: bold; 
+    font-size: 1.1em; 
+    margin-bottom: 5px; 
+}
+
+.task-meta { 
+    font-size: 0.9em; 
+    color: #666; 
+    margin-top: 10px; 
+}
+
+.task-status { 
+    display: inline-block; 
+    padding: 2px 8px; 
+    border-radius: 3px; 
+    font-size: 0.8em; 
+    font-weight: bold; 
+}
+
+.status-pending { 
+    background: #ffeaa7; 
+    color: #2d3436; 
+}
+
+.status-completed { 
+    background: #00b894; 
+    color: white; 
+}
+
+.task-type { 
+    display: inline-block; 
+    padding: 2px 8px; 
+    border-radius: 3px; 
+    font-size: 0.8em; 
+    margin-left: 10px; 
+}
+
+.type-todo { 
+    background: #74b9ff; 
+    color: white; 
+}
+
+.type-chore { 
+    background: #fd79a8; 
+    color: white; 
+}
+
+.type-appointment { 
+    background: #a29bfe; 
+    color: white; 
+}

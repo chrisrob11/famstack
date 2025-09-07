@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fam-Stack - Tasks</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <h1>🏠 Fam-Stack Tasks</h1>
+    <div class="task-container">
+        <ul class="task-list">
+            {{range .Tasks}}
+            <li class="task-item {{.Status}} {{.TaskType}}" data-task-id="{{.ID}}">
+                <div class="task-title">{{.Title}}</div>
+                {{if .Description}}<div class="task-description">{{.Description}}</div>{{end}}
+                <div class="task-meta">
+                    <span class="task-status status-{{.Status}}">{{.Status}}</span>
+                    <span class="task-type type-{{.TaskType}}">{{.TaskType}}</span>
+                    {{if .AssignedToName}}
+                    <span>Assigned to: <strong>{{.AssignedToName}}</strong></span>
+                    {{end}}
+                    <span>Created by: <strong>{{.CreatedByName}}</strong></span>
+                    {{if .DueDate}}
+                    <span>Due: {{.DueDate.Format "Jan 2, 2006"}}</span>
+                    {{end}}
+                </div>
+            </li>
+            {{else}}
+            <li style="text-align: center; color: #666; padding: 40px;">
+                No tasks found. Add some tasks to get started!
+            </li>
+            {{end}}
+        </ul>
+    </div>
+</body>
+</html>
