@@ -46,7 +46,7 @@ lint: lint-go lint-ts ## Run all linters
 lint-go: install-golangci-lint ## Run Go linter
 	@echo "Running golangci-lint..."
 	golangci-lint --version
-	golangci-lint run
+	golangci-lint run -v
 
 lint-ts: install-node-deps ## Run TypeScript linter
 	@echo "Running TypeScript linter..."
