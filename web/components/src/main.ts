@@ -40,16 +40,11 @@ function initializeComponents(config: ComponentConfig): void {
 function autoInit(): void {
   const configElement = document.querySelector('script[data-famstack-config]');
   if (!configElement) {
-    console.warn('FamStack: No configuration found. Components will not be initialized.');
     return;
   }
 
-  try {
-    const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
-    window.FamStack.init(config);
-  } catch (error) {
-    console.error('FamStack: Failed to parse configuration:', error);
-  }
+  const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
+  window.FamStack.init(config);
 }
 
 // Set up global FamStack object
@@ -80,28 +75,24 @@ document.addEventListener('htmx:afterSwap', (event) => {
   if (target.querySelector('[data-component]')) {
     const configElement = document.querySelector('script[data-famstack-config]');
     if (configElement) {
-      try {
-        const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
-        
-        // Initialize components within the swapped content
-        const taskContainers = target.querySelectorAll('[data-component="task-manager"]');
-        taskContainers.forEach((container, index) => {
-          const instanceId = container.getAttribute('data-instance-id') ?? 
-            `task-manager-${Date.now()}-${index}`;
-          const manager = new TaskManager(container as HTMLElement, config);
-          window.FamStack.instances.taskManagers.set(instanceId, manager);
-        });
+      const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
+      
+      // Initialize components within the swapped content
+      const taskContainers = target.querySelectorAll('[data-component="task-manager"]');
+      taskContainers.forEach((container, index) => {
+        const instanceId = container.getAttribute('data-instance-id') ?? 
+          `task-manager-${Date.now()}-${index}`;
+        const manager = new TaskManager(container as HTMLElement, config);
+        window.FamStack.instances.taskManagers.set(instanceId, manager);
+      });
 
-        const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
-        selectorContainers.forEach((container, index) => {
-          const instanceId = container.getAttribute('data-instance-id') ?? 
-            `family-selector-${Date.now()}-${index}`;
-          const selector = new FamilySelector(container as HTMLElement, config);
-          window.FamStack.instances.familySelectors.set(instanceId, selector);
-        });
-      } catch (error) {
-        console.error('FamStack: Failed to re-initialize components after HTMX swap:', error);
-      }
+      const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
+      selectorContainers.forEach((container, index) => {
+        const instanceId = container.getAttribute('data-instance-id') ?? 
+          `family-selector-${Date.now()}-${index}`;
+        const selector = new FamilySelector(container as HTMLElement, config);
+        window.FamStack.instances.familySelectors.set(instanceId, selector);
+      });
     }
   }
 });

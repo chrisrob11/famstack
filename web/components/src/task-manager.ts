@@ -1,4 +1,4 @@
-import { Task, ComponentConfig } from './types';
+import { ComponentConfig } from './types';
 import Sortable from 'sortablejs';
 
 export class TaskManager {
@@ -81,7 +81,6 @@ export class TaskManager {
         throw new Error('Failed to reorder task');
       }
     } catch (error) {
-      console.error('Error reordering task:', error);
       // Revert the change on error
       if (this.sortable) {
         if (evt.oldIndex < evt.newIndex) {
@@ -152,7 +151,6 @@ export class TaskManager {
         throw new Error('Failed to update task title');
       }
     } catch (error) {
-      console.error('Error updating task:', error);
       // Show error feedback to user
       this.showError('Failed to update task title');
     } finally {
@@ -184,7 +182,6 @@ export class TaskManager {
         throw new Error('Failed to complete task');
       }
     } catch (error) {
-      console.error('Error completing task:', error);
       this.showError('Failed to complete task');
     }
   }
@@ -211,7 +208,6 @@ export class TaskManager {
         throw new Error('Failed to delete task');
       }
     } catch (error) {
-      console.error('Error deleting task:', error);
       this.showError('Failed to delete task');
     }
   }

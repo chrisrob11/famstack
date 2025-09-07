@@ -1,4 +1,4 @@
-import { User, ComponentConfig } from './types';
+import { ComponentConfig } from './types';
 
 export class FamilySelector {
   private config: ComponentConfig;
