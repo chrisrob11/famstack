@@ -1,0 +1,39 @@
+{
+  "name": "famstack-components",
+  "version": "1.0.0",
+  "description": "TypeScript components for Fam-Stack family task management",
+  "private": true,
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "build:watch": "tsc --watch",
+    "copy-assets": "mkdir -p ../static/js && cp -r dist/* ../static/js/",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "test": "echo \"No tests configured yet\" && exit 0",
+    "clean": "rm -rf dist && rm -rf ../static/js/*.js && rm -rf ../static/js/*.js.map"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/sortablejs": "^1.15.8",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "sortablejs": "^1.15.0"
+  },
+  "keywords": [
+    "typescript",
+    "family",
+    "task-management",
+    "htmx",
+    "components"
+  ],
+  "author": "Fam-Stack Contributors",
+  "license": "MIT"
+}

@@ -1,0 +1,37 @@
+# golangci-lint configuration for Fam-Stack
+# Minimal configuration for cross-version compatibility
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code  
+    - govet         # Vet examines Go source code
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Staticcheck is a go vet on steroids
+    - unused        # Check for unused constants, variables, functions
+    - gofmt         # Check whether code was gofmt-ed
+    - goimports     # Check import statements are formatted
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # Too noisy for most projects
+
+issues:
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gocyclo
+        - dupl
