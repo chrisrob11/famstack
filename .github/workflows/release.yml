@@ -1,0 +1,206 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  GO_VERSION: '1.23.2'
+  NODE_VERSION: '23.2.0'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Need full history for versioning
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ env.GO_VERSION }}
+        cache: true
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install dependencies
+      run: make install-tools
+
+    - name: Generate version tag
+      id: version
+      run: |
+        # Generate semantic version based on commit count and short SHA
+        COUNT=$(git rev-list --count HEAD)
+        SHORT_SHA=$(git rev-parse --short HEAD)
+        VERSION="v0.1.${COUNT}-${SHORT_SHA}"
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+        echo "Generated version: ${VERSION}"
+
+    - name: Check if tag already exists
+      id: check_tag
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        if git rev-parse --verify "refs/tags/${VERSION}" >/dev/null 2>&1; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+          echo "Tag ${VERSION} already exists, skipping release"
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+          echo "Tag ${VERSION} does not exist, proceeding with release"
+        fi
+
+    - name: Build TypeScript components
+      if: steps.check_tag.outputs.exists == 'false'
+      run: make build-ts
+
+    - name: Build multi-platform binaries
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        
+        # Create dist directory
+        mkdir -p dist
+        
+        # Build Go binaries for different platforms
+        echo "Building Linux AMD64..."
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-amd64 ./cmd/famstack
+        
+        echo "Building Linux ARM64..."
+        GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-arm64 ./cmd/famstack
+        
+        echo "Building macOS AMD64..."
+        GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-darwin-amd64 ./cmd/famstack
+        
+        echo "Building macOS ARM64..."
+        GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-darwin-arm64 ./cmd/famstack
+        
+        echo "Building Windows AMD64..."
+        GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-windows-amd64.exe ./cmd/famstack
+        
+        echo "Build complete!"
+        ls -la dist/
+
+    - name: Create release artifacts
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        
+        # Create tarballs for each platform
+        cd dist
+        
+        echo "Creating release archives..."
+        
+        # Linux AMD64
+        tar -czf famstack-${VERSION}-linux-amd64.tar.gz famstack-linux-amd64
+        
+        # Linux ARM64
+        tar -czf famstack-${VERSION}-linux-arm64.tar.gz famstack-linux-arm64
+        
+        # macOS AMD64
+        tar -czf famstack-${VERSION}-darwin-amd64.tar.gz famstack-darwin-amd64
+        
+        # macOS ARM64
+        tar -czf famstack-${VERSION}-darwin-arm64.tar.gz famstack-darwin-arm64
+        
+        # Windows AMD64
+        zip famstack-${VERSION}-windows-amd64.zip famstack-windows-amd64.exe
+        
+        # Create checksums
+        echo "Generating checksums..."
+        sha256sum *.tar.gz *.zip > checksums.txt
+        
+        echo "Release artifacts created:"
+        ls -la
+
+    - name: Create Git tag
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a ${VERSION} -m "Release ${VERSION} - Automated release from main branch"
+        git push origin ${VERSION}
+        echo "Created and pushed tag: ${VERSION}"
+
+    - name: Generate release notes
+      if: steps.check_tag.outputs.exists == 'false'
+      id: release_notes
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        
+        # Get recent commits since last tag
+        LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        if [ -z "$LAST_TAG" ]; then
+          COMMITS=$(git log --oneline --no-merges -10)
+        else
+          COMMITS=$(git log --oneline --no-merges ${LAST_TAG}..HEAD)
+        fi
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        ## Famstack Release ${VERSION}
+        
+        ### Recent Changes
+        \`\`\`
+        ${COMMITS}
+        \`\`\`
+        
+        ### Downloads
+        Choose the appropriate binary for your platform:
+        - **Linux (AMD64)**: \`famstack-${VERSION}-linux-amd64.tar.gz\`
+        - **Linux (ARM64)**: \`famstack-${VERSION}-linux-arm64.tar.gz\`
+        - **macOS (Intel)**: \`famstack-${VERSION}-darwin-amd64.tar.gz\`
+        - **macOS (Apple Silicon)**: \`famstack-${VERSION}-darwin-arm64.tar.gz\`
+        - **Windows (AMD64)**: \`famstack-${VERSION}-windows-amd64.zip\`
+        
+        ### Installation
+        1. Download the appropriate archive for your platform
+        2. Extract the binary: \`tar -xzf famstack-*.tar.gz\` (or unzip for Windows)
+        3. Run: \`./famstack\` (or \`famstack.exe\` on Windows)
+        
+        ### Verification
+        Verify download integrity using the provided \`checksums.txt\` file:
+        \`\`\`bash
+        sha256sum -c checksums.txt
+        \`\`\`
+        EOF
+        
+        echo "Release notes generated"
+
+    - name: Create GitHub Release
+      if: steps.check_tag.outputs.exists == 'false'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.version.outputs.version }}
+        name: Famstack ${{ steps.version.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+        files: |
+          dist/famstack-${{ steps.version.outputs.version }}-linux-amd64.tar.gz
+          dist/famstack-${{ steps.version.outputs.version }}-linux-arm64.tar.gz
+          dist/famstack-${{ steps.version.outputs.version }}-darwin-amd64.tar.gz
+          dist/famstack-${{ steps.version.outputs.version }}-darwin-arm64.tar.gz
+          dist/famstack-${{ steps.version.outputs.version }}-windows-amd64.zip
+          dist/checksums.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Release Summary
+      if: steps.check_tag.outputs.exists == 'false'
+      run: |
+        VERSION=${{ steps.version.outputs.version }}
+        echo "✅ Release ${VERSION} created successfully!"
+        echo "🔗 Release URL: https://github.com/${{ github.repository }}/releases/tag/${VERSION}"
+        echo "📦 Artifacts uploaded:"
+        echo "  - Linux AMD64 & ARM64 binaries"
+        echo "  - macOS Intel & Apple Silicon binaries" 
+        echo "  - Windows AMD64 binary"
+        echo "  - SHA256 checksums"
