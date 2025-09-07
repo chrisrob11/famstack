@@ -20,6 +20,12 @@ func NewTaskHandler(db *database.DB) *TaskHandler {
 
 type TaskListData struct {
 	Tasks []TaskWithUser
+	TasksByUser map[string]UserColumn
+}
+
+type UserColumn struct {
+	User  models.User
+	Tasks []TaskWithUser
 }
 
 type TaskWithUser struct {
@@ -83,19 +89,73 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get all family members
+	usersQuery := "SELECT id, family_id, name, email, role, created_at FROM users WHERE family_id = ? ORDER BY role DESC, name ASC"
+	userRows, err := h.db.Query(usersQuery, familyID)
+	if err != nil {
+		http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
+		return
+	}
+	defer userRows.Close()
+
+	var users []models.User
+	for userRows.Next() {
+		var user models.User
+		if err := userRows.Scan(&user.ID, &user.FamilyID, &user.Name, &user.Email, &user.Role, &user.CreatedAt); err != nil {
+			http.Error(w, "Failed to scan user", http.StatusInternalServerError)
+			return
+		}
+		users = append(users, user)
+	}
+
+	// Group tasks by user
+	tasksByUser := make(map[string]UserColumn)
+	
+	// Initialize columns for each user (including those with no tasks)
+	for _, user := range users {
+		tasksByUser[user.ID] = UserColumn{
+			User:  user,
+			Tasks: []TaskWithUser{},
+		}
+	}
+
+	// Add tasks to appropriate user columns
+	for _, task := range tasks {
+		if task.AssignedTo != nil {
+			if column, exists := tasksByUser[*task.AssignedTo]; exists {
+				column.Tasks = append(column.Tasks, task)
+				tasksByUser[*task.AssignedTo] = column
+			}
+		} else {
+			// Handle unassigned tasks - create a special "Unassigned" column
+			if _, exists := tasksByUser["unassigned"]; !exists {
+				tasksByUser["unassigned"] = UserColumn{
+					User:  models.User{ID: "unassigned", Name: "Unassigned", Role: "unassigned"},
+					Tasks: []TaskWithUser{},
+				}
+			}
+			column := tasksByUser["unassigned"]
+			column.Tasks = append(column.Tasks, task)
+			tasksByUser["unassigned"] = column
+		}
+	}
+
 	// Render template
-	data := TaskListData{Tasks: tasks}
+	data := TaskListData{
+		Tasks:       tasks,
+		TasksByUser: tasksByUser,
+	}
 
 	// Load template from file
 	tmplPath := filepath.Join("web", "templates", "tasks.html.tmpl")
-	t, err := template.ParseFiles(tmplPath)
+	tmpl, err := template.ParseFiles(tmplPath)
 	if err != nil {
 		http.Error(w, "Template error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if err := t.Execute(w, data); err != nil {
+	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}

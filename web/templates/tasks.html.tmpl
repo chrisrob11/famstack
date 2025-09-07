@@ -3,35 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fam-Stack - Tasks</title>
+    <title>Fam-Stack - Family Tasks</title>
     <link rel="stylesheet" href="/static/css/main.css">
 </head>
 <body>
-    <h1>🏠 Fam-Stack Tasks</h1>
-    <div class="task-container">
-        <ul class="task-list">
-            {{range .Tasks}}
-            <li class="task-item {{.Status}} {{.TaskType}}" data-task-id="{{.ID}}">
-                <div class="task-title">{{.Title}}</div>
-                {{if .Description}}<div class="task-description">{{.Description}}</div>{{end}}
-                <div class="task-meta">
-                    <span class="task-status status-{{.Status}}">{{.Status}}</span>
-                    <span class="task-type type-{{.TaskType}}">{{.TaskType}}</span>
-                    {{if .AssignedToName}}
-                    <span>Assigned to: <strong>{{.AssignedToName}}</strong></span>
-                    {{end}}
-                    <span>Created by: <strong>{{.CreatedByName}}</strong></span>
-                    {{if .DueDate}}
-                    <span>Due: {{.DueDate.Format "Jan 2, 2006"}}</span>
-                    {{end}}
+    <header class="header">
+        <h1>🏠 Fam-Stack Tasks</h1>
+        <div class="header-actions">
+            <button class="btn-filters">Filters ▼</button>
+        </div>
+    </header>
+
+    <div class="task-board">
+        {{range $userID, $column := .TasksByUser}}
+        <div class="task-column" data-user-id="{{$column.User.ID}}">
+            <div class="column-header">
+                <h2 class="column-title">
+                    {{if eq $column.User.Role "parent"}}👨‍💼{{else if eq $column.User.Role "child"}}🧒{{else}}📝{{end}}
+                    {{$column.User.Name}}
+                </h2>
+                <span class="task-count">{{len $column.Tasks}}</span>
+            </div>
+            
+            <div class="task-list" data-user-id="{{$column.User.ID}}">
+                {{range $column.Tasks}}
+                <div class="task-item {{.Status}} {{.TaskType}}" data-task-id="{{.ID}}" draggable="true">
+                    <div class="task-title">{{.Title}}</div>
+                    {{if .Description}}<div class="task-description">{{.Description}}</div>{{end}}
+                    <div class="task-meta">
+                        <span class="task-status status-{{.Status}}">{{.Status}}</span>
+                        <span class="task-type type-{{.TaskType}}">{{.TaskType}}</span>
+                        {{if .DueDate}}
+                        <span class="task-due">Due: {{.DueDate.Format "Jan 2"}}</span>
+                        {{end}}
+                    </div>
                 </div>
-            </li>
-            {{else}}
-            <li style="text-align: center; color: #666; padding: 40px;">
-                No tasks found. Add some tasks to get started!
-            </li>
-            {{end}}
-        </ul>
+                {{end}}
+            </div>
+            
+            <button class="add-task-btn" data-user-id="{{$column.User.ID}}">
+                + Add Task
+            </button>
+        </div>
+        {{else}}
+        <div class="empty-state">
+            <p>No family members found. Please check your database setup.</p>
+        </div>
+        {{end}}
     </div>
 </body>
 </html>
