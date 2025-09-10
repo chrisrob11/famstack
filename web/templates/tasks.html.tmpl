@@ -3,60 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fam-Stack - Daily Tasks</title>
-    <link rel="stylesheet" href="/static/css/main.css">
+    <title>Daily Tasks</title>
+    <link rel="stylesheet" href="/static/js/index.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://unpkg.com/sortablejs@1.15.0/Sortable.min.js"></script>
 </head>
 <body>
-    <header class="header">
-        <h1>📅 Daily Tasks</h1>
-        <div class="date-display">{{.Date}}</div>
-        <div class="header-actions">
-            <button class="btn-filters">Filters ▼</button>
-        </div>
-    </header>
+    <!-- Component container for TypeScript TaskList -->
+    <div data-component="task-list" data-instance-id="main-tasks"></div>
 
-    <div class="task-board">
-        {{range $userID, $column := .TasksByUser}}
-        <div class="task-column" data-user-id="{{$column.User.ID}}">
-            <div class="column-header">
-                <h2 class="column-title">
-                    {{if eq $column.User.Role "parent"}}👨‍💼{{else if eq $column.User.Role "child"}}🧒{{else}}📝{{end}}
-                    {{$column.User.Name}}
-                </h2>
-                <span class="task-count">{{len $column.Tasks}}</span>
-            </div>
-            
-            <div class="task-list" id="task-list-{{$column.User.ID}}" data-user-id="{{$column.User.ID}}">
-                {{range $column.Tasks}}
-                <div class="task-item {{.Status}} {{.TaskType}}" data-task-id="{{.ID}}" draggable="true">
-                    <div class="task-title">{{.Title}}</div>
-                    {{if .Description}}<div class="task-description">{{.Description}}</div>{{end}}
-                    <div class="task-meta">
-                        <span class="task-status status-{{.Status}}">{{.Status}}</span>
-                        <span class="task-type type-{{.TaskType}}">{{.TaskType}}</span>
-                        {{if .DueDate}}
-                        <span class="task-due">Due: {{.DueDate.Format "Jan 2"}}</span>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
-            </div>
-            
-            <div id="add-task-{{$column.User.ID}}">
-                <button class="add-task-btn" 
-                        hx-get="/api/tasks/new?user_id={{$column.User.ID}}" 
-                        hx-target="#add-task-{{$column.User.ID}}"
-                        hx-swap="outerHTML">
-                    + Add Task
-                </button>
-            </div>
-        </div>
-        {{else}}
-        <div class="empty-state">
-            <p>No family members found. Please check your database setup.</p>
-        </div>
-        {{end}}
-    </div>
+    <!-- FamStack Component Configuration -->
+    <script data-famstack-config type="application/json">
+    {
+        "apiBaseUrl": "/api/v1",
+        "csrfToken": "{{.CSRFToken}}"
+    }
+    </script>
+
+    <!-- FamStack Components JavaScript -->
+    <script type="module" src="/static/js/main.js"></script>
 </body>
 </html>

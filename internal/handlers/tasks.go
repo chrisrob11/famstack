@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"database/sql"
 	"html"
 	"html/template"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"famstack/internal/database"
@@ -39,121 +39,12 @@ type TaskWithUser struct {
 }
 
 func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
-	// For now, show tasks for the first family (we'll add auth later)
-	familyID := "fam1"
-
-	// Get today's date for filtering daily tasks
-	today := time.Now().Format("2006-01-02")
-
-	query := `
-		SELECT 
-			t.id, t.family_id, t.assigned_to, t.title, t.description, t.task_type,
-			t.status, t.priority, t.due_date, t.points, t.created_by, t.created_at, t.completed_at,
-			COALESCE(assigned_user.name, '') as assigned_to_name,
-			creator.name as created_by_name
-		FROM tasks t
-		LEFT JOIN users assigned_user ON t.assigned_to = assigned_user.id
-		JOIN users creator ON t.created_by = creator.id
-		WHERE t.family_id = ? 
-		AND (t.due_date IS NULL OR DATE(t.due_date) <= ? OR t.status = 'pending')
-		AND t.status != 'completed'
-		ORDER BY t.status ASC, t.priority DESC, t.created_at DESC
-	`
-
-	rows, err := h.db.Query(query, familyID, today)
-	if err != nil {
-		http.Error(w, "Failed to fetch tasks", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
-	var tasks []TaskWithUser
-	for rows.Next() {
-		var task TaskWithUser
-		var dueDate, completedAt sql.NullTime
-
-		scanErr := rows.Scan(
-			&task.ID, &task.FamilyID, &task.AssignedTo, &task.Title, &task.Description,
-			&task.TaskType, &task.Status, &task.Priority, &dueDate, &task.Points,
-			&task.CreatedBy, &task.CreatedAt, &completedAt,
-			&task.AssignedToName, &task.CreatedByName,
-		)
-		if scanErr != nil {
-			http.Error(w, "Failed to scan task", http.StatusInternalServerError)
-			return
-		}
-
-		if dueDate.Valid {
-			task.DueDate = &dueDate.Time
-		}
-		if completedAt.Valid {
-			task.CompletedAt = &completedAt.Time
-		}
-
-		tasks = append(tasks, task)
-	}
-
-	if err = rows.Err(); err != nil {
-		http.Error(w, "Error reading tasks", http.StatusInternalServerError)
-		return
-	}
-
-	// Get all family members
-	usersQuery := "SELECT id, family_id, name, email, role, created_at FROM users WHERE family_id = ? ORDER BY role DESC, name ASC"
-	userRows, err := h.db.Query(usersQuery, familyID)
-	if err != nil {
-		http.Error(w, "Failed to fetch users", http.StatusInternalServerError)
-		return
-	}
-	defer userRows.Close()
-
-	var users []models.User
-	for userRows.Next() {
-		var user models.User
-		if scanErr := userRows.Scan(&user.ID, &user.FamilyID, &user.Name, &user.Email, &user.Role, &user.CreatedAt); scanErr != nil {
-			http.Error(w, "Failed to scan user", http.StatusInternalServerError)
-			return
-		}
-		users = append(users, user)
-	}
-
-	// Group tasks by user
-	tasksByUser := make(map[string]UserColumn)
-
-	// Initialize columns for each user (including those with no tasks)
-	for _, user := range users {
-		tasksByUser[user.ID] = UserColumn{
-			User:  user,
-			Tasks: []TaskWithUser{},
-		}
-	}
-
-	// Add tasks to appropriate user columns
-	for _, task := range tasks {
-		if task.AssignedTo != nil {
-			if column, exists := tasksByUser[*task.AssignedTo]; exists {
-				column.Tasks = append(column.Tasks, task)
-				tasksByUser[*task.AssignedTo] = column
-			}
-		} else {
-			// Handle unassigned tasks - create a special "Unassigned" column
-			if _, exists := tasksByUser["unassigned"]; !exists {
-				tasksByUser["unassigned"] = UserColumn{
-					User:  models.User{ID: "unassigned", Name: "Unassigned", Role: "unassigned"},
-					Tasks: []TaskWithUser{},
-				}
-			}
-			column := tasksByUser["unassigned"]
-			column.Tasks = append(column.Tasks, task)
-			tasksByUser["unassigned"] = column
-		}
-	}
-
-	// Render template
-	data := TaskListData{
-		Tasks:       tasks,
-		TasksByUser: tasksByUser,
-		Date:        time.Now().Format("Monday, January 2, 2006"),
+	// Simple data for the TypeScript component page
+	// The component will fetch actual task data via JSON API
+	data := struct {
+		CSRFToken string
+	}{
+		CSRFToken: generateCSRFToken(), // Simple CSRF token for now
 	}
 
 	// Load template from file
@@ -169,6 +60,12 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
 		return
 	}
+}
+
+// generateCSRFToken creates a simple CSRF token
+// In production, you'd want a more secure implementation
+func generateCSRFToken() string {
+	return "csrf-token-placeholder" // TODO: Implement proper CSRF token generation
 }
 
 // NewTaskForm returns an HTMX form for creating a new task
@@ -221,7 +118,7 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate and sanitize title
-	title := validation.SanitizeTitle(r.FormValue("title"))
+	title := r.FormValue("title")
 	if err := validation.ValidateTitle(title); err != nil {
 		http.Error(w, "Invalid title: "+err.Error(), http.StatusBadRequest)
 		return
@@ -272,14 +169,44 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get the ID of the newly created task
+	var newTaskID string
+	err = h.db.QueryRow("SELECT id FROM tasks WHERE family_id = ? AND title = ? AND created_by = ? ORDER BY created_at DESC LIMIT 1",
+		familyID, title, createdBy).Scan(&newTaskID)
+	if err != nil {
+		http.Error(w, "Failed to retrieve task ID", http.StatusInternalServerError)
+		return
+	}
+
 	// Return the new task HTML
 	safeTitle := html.EscapeString(title)
+	safeTaskID := html.EscapeString(newTaskID)
 	taskHTML := `
-	<div class="task-item pending todo" draggable="true">
+	<div class="task-item pending todo" data-task-id="` + safeTaskID + `" draggable="true">
 		<div class="task-title">` + safeTitle + `</div>
 		<div class="task-meta">
 			<span class="task-status status-pending">pending</span>
 			<span class="task-type type-todo">todo</span>
+		</div>
+		<div class="task-actions">
+			<button class="task-complete-btn" 
+					hx-patch="/api/tasks/` + safeTaskID + `/complete"
+					hx-target="closest .task-item"
+					hx-swap="outerHTML">
+				✓ Complete
+			</button>
+			<details class="task-actions-dropdown">
+				<summary class="task-actions-toggle">⋯</summary>
+				<div class="actions-menu">
+					<button class="task-delete-btn" 
+							hx-delete="/api/tasks/` + safeTaskID + `"
+							hx-target="closest .task-item"
+							hx-swap="outerHTML"
+							hx-confirm="⚠️ PERMANENTLY DELETE this task? This cannot be undone!">
+						🗑️ Delete Forever
+					</button>
+				</div>
+			</details>
 		</div>
 	</div>`
 
@@ -316,6 +243,231 @@ func (h *TaskHandler) CancelTaskForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "Failed to render template", http.StatusInternalServerError)
+		return
+	}
+}
+
+// CompleteTask handles PATCH /api/tasks/{id}/complete
+func (h *TaskHandler) CompleteTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PATCH" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract task ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+	taskID := pathParts[3] // /api/tasks/{id}/complete
+
+	// Validate task ID
+	if err := validation.ValidateUserID(taskID); err != nil {
+		http.Error(w, "Invalid task ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Update task status in database
+	query := `UPDATE tasks SET status = 'completed', completed_at = ? WHERE id = ? AND family_id = ?`
+	result, err := h.db.Exec(query, time.Now(), taskID, "fam1")
+	if err != nil {
+		http.Error(w, "Failed to complete task", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if task was actually updated
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	// Get task details to return updated HTML
+	var title, taskType string
+	err = h.db.QueryRow("SELECT title, task_type FROM tasks WHERE id = ? AND family_id = ?", taskID, "fam1").Scan(&title, &taskType)
+	if err != nil {
+		http.Error(w, "Failed to retrieve task details", http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated task HTML with completed styling
+	safeTitle := html.EscapeString(title)
+	safeTaskID := html.EscapeString(taskID)
+	taskHTML := `
+	<div class="task-item completed ` + taskType + `" data-task-id="` + safeTaskID + `" draggable="true">
+		<div class="task-title">` + safeTitle + `</div>
+		<div class="task-meta">
+			<span class="task-status status-completed">completed</span>
+			<span class="task-type type-` + taskType + `">` + taskType + `</span>
+		</div>
+		<div class="task-actions">
+			<details class="task-actions-dropdown">
+				<summary class="task-actions-toggle">⋯</summary>
+				<div class="actions-menu">
+					<button class="task-reopen-btn" 
+							hx-patch="/api/tasks/` + safeTaskID + `/reopen"
+							hx-target="closest .task-item"
+							hx-swap="outerHTML">
+						↺ Reopen Task
+					</button>
+					<button class="task-delete-btn" 
+							hx-delete="/api/tasks/` + safeTaskID + `"
+							hx-target="closest .task-item"
+							hx-swap="outerHTML"
+							hx-confirm="⚠️ PERMANENTLY DELETE this task? This cannot be undone!">
+						🗑️ Delete Forever
+					</button>
+				</div>
+			</details>
+		</div>
+	</div>`
+
+	w.Header().Set("Content-Type", "text/html")
+	if _, err := w.Write([]byte(taskHTML)); err != nil {
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// ReopenTask handles PATCH /api/tasks/{id}/reopen
+func (h *TaskHandler) ReopenTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PATCH" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract task ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+	taskID := pathParts[3] // /api/tasks/{id}/reopen
+
+	// Validate task ID
+	if err := validation.ValidateUserID(taskID); err != nil {
+		http.Error(w, "Invalid task ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Update task status back to pending
+	query := `UPDATE tasks SET status = 'pending', completed_at = NULL WHERE id = ? AND family_id = ?`
+	result, err := h.db.Exec(query, taskID, "fam1")
+	if err != nil {
+		http.Error(w, "Failed to reopen task", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if task was actually updated
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	// Get task details to return updated HTML
+	var title, taskType string
+	err = h.db.QueryRow("SELECT title, task_type FROM tasks WHERE id = ? AND family_id = ?", taskID, "fam1").Scan(&title, &taskType)
+	if err != nil {
+		http.Error(w, "Failed to retrieve task details", http.StatusInternalServerError)
+		return
+	}
+
+	// Return updated task HTML with pending styling
+	safeTitle := html.EscapeString(title)
+	safeTaskID := html.EscapeString(taskID)
+	taskHTML := `
+	<div class="task-item pending ` + taskType + `" data-task-id="` + safeTaskID + `" draggable="true">
+		<div class="task-title">` + safeTitle + `</div>
+		<div class="task-meta">
+			<span class="task-status status-pending">pending</span>
+			<span class="task-type type-` + taskType + `">` + taskType + `</span>
+		</div>
+		<div class="task-actions">
+			<button class="task-complete-btn" 
+					hx-patch="/api/tasks/` + safeTaskID + `/complete"
+					hx-target="closest .task-item"
+					hx-swap="outerHTML">
+				✓ Complete
+			</button>
+			<details class="task-actions-dropdown">
+				<summary class="task-actions-toggle">⋯</summary>
+				<div class="actions-menu">
+					<button class="task-delete-btn" 
+							hx-delete="/api/tasks/` + safeTaskID + `"
+							hx-target="closest .task-item"
+							hx-swap="outerHTML"
+							hx-confirm="⚠️ PERMANENTLY DELETE this task? This cannot be undone!">
+						🗑️ Delete Forever
+					</button>
+				</div>
+			</details>
+		</div>
+	</div>`
+
+	w.Header().Set("Content-Type", "text/html")
+	if _, err := w.Write([]byte(taskHTML)); err != nil {
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// DeleteTask handles DELETE /api/tasks/{id}
+func (h *TaskHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Note: In production, you'd want to add proper authentication and role-based access control here
+
+	// Extract task ID from URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 4 {
+		http.Error(w, "Invalid task ID", http.StatusBadRequest)
+		return
+	}
+	taskID := pathParts[3] // /api/tasks/{id}
+
+	// Validate task ID
+	if err := validation.ValidateUserID(taskID); err != nil {
+		http.Error(w, "Invalid task ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Delete task from database
+	query := `DELETE FROM tasks WHERE id = ? AND family_id = ?`
+	result, err := h.db.Exec(query, taskID, "fam1")
+	if err != nil {
+		http.Error(w, "Failed to delete task", http.StatusInternalServerError)
+		return
+	}
+
+	// Check if task was actually deleted
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+
+	// Return success response (HTMX will remove the task from the DOM)
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte("Task deleted")); err != nil {
+		http.Error(w, "Failed to write response", http.StatusInternalServerError)
 		return
 	}
 }

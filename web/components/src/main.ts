@@ -1,21 +1,61 @@
-import { TaskManager } from './task-manager';
-import { FamilySelector } from './family-selector';
-import { ComponentConfig } from './types';
+import { TaskManager } from './task-manager.js';
+import { FamilySelector } from './family-selector.js';
+import { TaskCard, Task } from './task-card.js';
+import { TaskList } from './task-list.js';
+import { ComponentConfig } from './types.js';
 
-// Global namespace for Fam-Stack components
-declare global {
-  interface Window {
-    FamStack: {
-      TaskManager: typeof TaskManager;
-      FamilySelector: typeof FamilySelector;
-      init: (config: ComponentConfig) => void;
-      instances: {
-        taskManagers: Map<string, TaskManager>;
-        familySelectors: Map<string, FamilySelector>;
-      };
-    };
+// Component registry - avoid global window pollution
+class ComponentRegistry {
+  private taskManagers = new Map<string, TaskManager>();
+  private familySelectors = new Map<string, FamilySelector>();
+  private taskLists = new Map<string, TaskList>();
+
+  addTaskManager(id: string, manager: TaskManager) {
+    this.taskManagers.set(id, manager);
+  }
+
+  addTaskList(id: string, taskList: TaskList) {
+    this.taskLists.set(id, taskList);
+  }
+
+  addFamilySelector(id: string, selector: FamilySelector) {
+    this.familySelectors.set(id, selector);
+  }
+
+  getTaskManager(id: string): TaskManager | undefined {
+    return this.taskManagers.get(id);
+  }
+
+  getTaskList(id: string): TaskList | undefined {
+    return this.taskLists.get(id);
+  }
+
+  getFamilySelector(id: string): FamilySelector | undefined {
+    return this.familySelectors.get(id);
+  }
+
+  removeTaskManager(id: string) {
+    const manager = this.taskManagers.get(id);
+    if (manager) {
+      manager.destroy();
+      this.taskManagers.delete(id);
+    }
+  }
+
+  removeTaskList(id: string) {
+    const taskList = this.taskLists.get(id);
+    if (taskList) {
+      taskList.destroy();
+      this.taskLists.delete(id);
+    }
+  }
+
+  removeFamilySelector(id: string) {
+    this.familySelectors.delete(id);
   }
 }
+
+const registry = new ComponentRegistry();
 
 // Initialize components when DOM is ready
 function initializeComponents(config: ComponentConfig): void {
@@ -24,7 +64,15 @@ function initializeComponents(config: ComponentConfig): void {
   taskContainers.forEach((container, index) => {
     const instanceId = container.getAttribute('data-instance-id') ?? `task-manager-${index}`;
     const manager = new TaskManager(container as HTMLElement, config);
-    window.FamStack.instances.taskManagers.set(instanceId, manager);
+    registry.addTaskManager(instanceId, manager);
+  });
+
+  // Initialize Task Lists
+  const taskListContainers = document.querySelectorAll('[data-component="task-list"]');
+  taskListContainers.forEach((container, index) => {
+    const instanceId = container.getAttribute('data-instance-id') ?? `task-list-${index}`;
+    const taskList = new TaskList(container as HTMLElement, config);
+    registry.addTaskList(instanceId, taskList);
   });
 
   // Initialize Family Selectors
@@ -32,7 +80,7 @@ function initializeComponents(config: ComponentConfig): void {
   selectorContainers.forEach((container, index) => {
     const instanceId = container.getAttribute('data-instance-id') ?? `family-selector-${index}`;
     const selector = new FamilySelector(container as HTMLElement, config);
-    window.FamStack.instances.familySelectors.set(instanceId, selector);
+    registry.addFamilySelector(instanceId, selector);
   });
 }
 
@@ -44,21 +92,8 @@ function autoInit(): void {
   }
 
   const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
-  window.FamStack.init(config);
+  initializeComponents(config);
 }
-
-// Set up global FamStack object
-window.FamStack = {
-  TaskManager,
-  FamilySelector,
-  init: (config: ComponentConfig) => {
-    initializeComponents(config);
-  },
-  instances: {
-    taskManagers: new Map(),
-    familySelectors: new Map(),
-  },
-};
 
 // Auto-initialize if DOM is already ready, or wait for it
 if (document.readyState === 'loading') {
@@ -83,7 +118,15 @@ document.addEventListener('htmx:afterSwap', event => {
         const instanceId =
           container.getAttribute('data-instance-id') ?? `task-manager-${Date.now()}-${index}`;
         const manager = new TaskManager(container as HTMLElement, config);
-        window.FamStack.instances.taskManagers.set(instanceId, manager);
+        registry.addTaskManager(instanceId, manager);
+      });
+
+      const taskListContainers = target.querySelectorAll('[data-component="task-list"]');
+      taskListContainers.forEach((container, index) => {
+        const instanceId =
+          container.getAttribute('data-instance-id') ?? `task-list-${Date.now()}-${index}`;
+        const taskList = new TaskList(container as HTMLElement, config);
+        registry.addTaskList(instanceId, taskList);
       });
 
       const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
@@ -91,7 +134,7 @@ document.addEventListener('htmx:afterSwap', event => {
         const instanceId =
           container.getAttribute('data-instance-id') ?? `family-selector-${Date.now()}-${index}`;
         const selector = new FamilySelector(container as HTMLElement, config);
-        window.FamStack.instances.familySelectors.set(instanceId, selector);
+        registry.addFamilySelector(instanceId, selector);
       });
     }
   }
@@ -106,22 +149,28 @@ document.addEventListener('htmx:beforeSwap', event => {
   taskContainers.forEach(container => {
     const instanceId = container.getAttribute('data-instance-id');
     if (instanceId) {
-      const manager = window.FamStack.instances.taskManagers.get(instanceId);
-      if (manager) {
-        manager.destroy();
-        window.FamStack.instances.taskManagers.delete(instanceId);
-      }
+      registry.removeTaskManager(instanceId);
     }
   });
 
-  // Family selectors don't need explicit cleanup, but we should remove them from the map
+  // Clean up task lists
+  const taskListContainers = target.querySelectorAll('[data-component="task-list"]');
+  taskListContainers.forEach(container => {
+    const instanceId = container.getAttribute('data-instance-id');
+    if (instanceId) {
+      registry.removeTaskList(instanceId);
+    }
+  });
+
+  // Clean up family selectors
   const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
   selectorContainers.forEach(container => {
     const instanceId = container.getAttribute('data-instance-id');
     if (instanceId) {
-      window.FamStack.instances.familySelectors.delete(instanceId);
+      registry.removeFamilySelector(instanceId);
     }
   });
 });
 
-export { TaskManager, FamilySelector };
+export { TaskManager, FamilySelector, TaskCard, TaskList };
+export type { Task };
