@@ -59,8 +59,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // setupRoutes configures the HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// Initialize handlers
-	taskHandler := handlers.NewTaskHandler(s.db)
+	pageHandler := handlers.NewPageHandler(s.db)
 	taskAPIHandler := api.NewTaskAPIHandler(s.db)
+	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -72,8 +73,10 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		fmt.Fprintf(w, `{"status":"ok","message":"Fam-Stack is running"}`)
 	})
 
-	// HTML page routes (HTMX-based)
-	mux.HandleFunc("/tasks", taskHandler.ListTasks)
+	// Page routes - single handler for all pages
+	mux.HandleFunc("/tasks", pageHandler.ServePage)
+	mux.HandleFunc("/family/setup", pageHandler.ServePage)
+	mux.HandleFunc("/family", pageHandler.ServePage)
 
 	// JSON API routes
 	mux.HandleFunc("/api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
@@ -98,8 +101,29 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		}
 	})
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Redirect root to tasks for now
-		http.Redirect(w, r, "/tasks", http.StatusFound)
+	// Family API routes
+	mux.HandleFunc("/api/v1/families", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			familyAPIHandler.ListFamilies(w, r)
+		case "POST":
+			familyAPIHandler.CreateFamily(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
 	})
+
+	mux.HandleFunc("/api/v1/users", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			familyAPIHandler.ListUsers(w, r)
+		case "POST":
+			familyAPIHandler.CreateUser(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Root route serves tasks page
+	mux.HandleFunc("/", pageHandler.ServePage)
 }

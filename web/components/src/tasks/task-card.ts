@@ -1,4 +1,4 @@
-import { ComponentConfig } from './types.js';
+import { ComponentConfig } from '../common/types.js';
 
 export interface Task {
   id: string;

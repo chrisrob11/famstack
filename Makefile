@@ -20,6 +20,7 @@ build-ts: install-node-deps ## Build TypeScript components
 run: build ## Run the application locally
 	@echo "Starting famstack server on http://localhost:8080..."
 	@echo "Press Ctrl+C to stop the server"
+	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 	./$(BINARY_PATH)
 
 # Development mode with file watching
@@ -37,9 +38,17 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v ./...
 
-test-ts: install-node-deps ## Run TypeScript tests (if any)
+test-ts: install-node-deps ## Run TypeScript tests with Jest
 	@echo "Running TypeScript tests..."
-	cd web/components && npm run test 2>/dev/null || echo "No TypeScript tests configured yet"
+	cd web/components && npm run test
+
+test-ts-watch: install-node-deps ## Run TypeScript tests in watch mode
+	@echo "Running TypeScript tests in watch mode..."
+	cd web/components && npm run test:watch
+
+test-ts-coverage: install-node-deps ## Run TypeScript tests with coverage
+	@echo "Running TypeScript tests with coverage..."
+	cd web/components && npm run test:coverage
 
 # Formatting
 fmt: fmt-go fmt-ts ## Format all code

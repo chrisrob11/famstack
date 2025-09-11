@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.PageTitle}}</title>
+    <link rel="stylesheet" href="/static/js/index.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    {{if eq .PageType "tasks"}}
+    <script src="https://unpkg.com/sortablejs@1.15.0/Sortable.min.js"></script>
+    {{end}}
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="main-nav">
+        <div class="nav-container">
+            <h1 class="nav-title">FamStack</h1>
+            <div class="nav-menu">
+                <div class="dropdown">
+                    <button class="dropdown-btn" aria-expanded="false">
+                        Menu ▼
+                    </button>
+                    <div class="dropdown-content">
+                        <a href="/tasks" {{if eq .PageType "tasks"}}class="active"{{end}}>Daily Tasks</a>
+                        <a href="/family/setup" {{if eq .PageType "family"}}class="active"{{end}}>Family Setup</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content - Page Component Container -->
+    <main class="page-container">
+        <!-- Page component will be initialized here -->
+        <div data-component="page" data-page-type="{{.PageType}}" data-instance-id="main-page"></div>
+    </main>
+
+    <!-- FamStack Component Configuration -->
+    <script data-famstack-config type="application/json">
+    {
+        "apiBaseUrl": "/api/v1",
+        "csrfToken": "{{.CSRFToken}}"
+    }
+    </script>
+
+    <!-- JavaScript for navigation -->
+    <script>
+        // Dropdown navigation
+        document.querySelector('.dropdown-btn').addEventListener('click', function() {
+            const dropdown = this.parentElement;
+            const isOpen = dropdown.classList.contains('open');
+            dropdown.classList.toggle('open', !isOpen);
+            this.setAttribute('aria-expanded', !isOpen);
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            const dropdown = document.querySelector('.dropdown');
+            if (!dropdown.contains(e.target)) {
+                dropdown.classList.remove('open');
+                dropdown.querySelector('.dropdown-btn').setAttribute('aria-expanded', 'false');
+            }
+        });
+    </script>
+
+    <!-- FamStack Components JavaScript -->
+    <script type="module" src="/static/js/main.js"></script>
+</body>
+</html>

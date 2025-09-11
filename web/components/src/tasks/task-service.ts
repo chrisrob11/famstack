@@ -1,4 +1,4 @@
-import { ComponentConfig } from './types.js';
+import { ComponentConfig } from '../common/types.js';
 import { Task } from './task-card.js';
 
 export interface TaskColumn {
@@ -7,7 +7,7 @@ export interface TaskColumn {
     name: string;
     role: string;
   };
-  tasks: Task[];
+  tasks: Task[] | null;
 }
 
 export interface TasksResponse {
