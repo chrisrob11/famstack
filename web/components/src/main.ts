@@ -1,86 +1,41 @@
-import { TaskManager } from './task-manager.js';
-import { FamilySelector } from './family-selector.js';
-import { TaskCard, Task } from './task-card.js';
-import { TaskList } from './task-list.js';
-import { ComponentConfig } from './types.js';
+import { PageManager } from './pages/page-factory.js';
+import { ComponentConfig } from './common/types.js';
 
-// Component registry - avoid global window pollution
+/**
+ * Page-centric architecture - main entry point
+ * Pages are responsible for managing their own components
+ */
+
 class ComponentRegistry {
-  private taskManagers = new Map<string, TaskManager>();
-  private familySelectors = new Map<string, FamilySelector>();
-  private taskLists = new Map<string, TaskList>();
+  private pageManagers = new Map<string, PageManager>();
 
-  addTaskManager(id: string, manager: TaskManager) {
-    this.taskManagers.set(id, manager);
+  addPageManager(id: string, manager: PageManager) {
+    this.pageManagers.set(id, manager);
   }
 
-  addTaskList(id: string, taskList: TaskList) {
-    this.taskLists.set(id, taskList);
-  }
-
-  addFamilySelector(id: string, selector: FamilySelector) {
-    this.familySelectors.set(id, selector);
-  }
-
-  getTaskManager(id: string): TaskManager | undefined {
-    return this.taskManagers.get(id);
-  }
-
-  getTaskList(id: string): TaskList | undefined {
-    return this.taskLists.get(id);
-  }
-
-  getFamilySelector(id: string): FamilySelector | undefined {
-    return this.familySelectors.get(id);
-  }
-
-  removeTaskManager(id: string) {
-    const manager = this.taskManagers.get(id);
+  removePageManager(id: string) {
+    const manager = this.pageManagers.get(id);
     if (manager) {
       manager.destroy();
-      this.taskManagers.delete(id);
+      this.pageManagers.delete(id);
     }
-  }
-
-  removeTaskList(id: string) {
-    const taskList = this.taskLists.get(id);
-    if (taskList) {
-      taskList.destroy();
-      this.taskLists.delete(id);
-    }
-  }
-
-  removeFamilySelector(id: string) {
-    this.familySelectors.delete(id);
   }
 }
 
 const registry = new ComponentRegistry();
 
-// Initialize components when DOM is ready
+// Initialize pages only - no global component scanning
 function initializeComponents(config: ComponentConfig): void {
-  // Initialize Task Managers
-  const taskContainers = document.querySelectorAll('[data-component="task-manager"]');
-  taskContainers.forEach((container, index) => {
-    const instanceId = container.getAttribute('data-instance-id') ?? `task-manager-${index}`;
-    const manager = new TaskManager(container as HTMLElement, config);
-    registry.addTaskManager(instanceId, manager);
-  });
-
-  // Initialize Task Lists
-  const taskListContainers = document.querySelectorAll('[data-component="task-list"]');
-  taskListContainers.forEach((container, index) => {
-    const instanceId = container.getAttribute('data-instance-id') ?? `task-list-${index}`;
-    const taskList = new TaskList(container as HTMLElement, config);
-    registry.addTaskList(instanceId, taskList);
-  });
-
-  // Initialize Family Selectors
-  const selectorContainers = document.querySelectorAll('[data-component="family-selector"]');
-  selectorContainers.forEach((container, index) => {
-    const instanceId = container.getAttribute('data-instance-id') ?? `family-selector-${index}`;
-    const selector = new FamilySelector(container as HTMLElement, config);
-    registry.addFamilySelector(instanceId, selector);
+  // Initialize Page Managers only - they manage their own components
+  const pageContainers = document.querySelectorAll('[data-component="page"]');
+  
+  pageContainers.forEach((container, index) => {
+    const instanceId = container.getAttribute('data-instance-id') ?? `page-${index}`;
+    const pageType = container.getAttribute('data-page-type') ?? 'tasks';
+    
+    const pageManager = new PageManager(container as HTMLElement, config);
+    pageManager.navigateToPage(pageType);
+    registry.addPageManager(instanceId, pageManager);
   });
 }
 
@@ -90,87 +45,48 @@ function autoInit(): void {
   if (!configElement) {
     return;
   }
-
-  const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
+  
+  const config: ComponentConfig = JSON.parse(configElement.textContent ?? '{}');
   initializeComponents(config);
 }
 
-// Auto-initialize if DOM is already ready, or wait for it
+// Initialize on DOM ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', autoInit);
 } else {
   autoInit();
 }
 
-// Re-initialize components after HTMX content swaps
-document.addEventListener('htmx:afterSwap', event => {
-  const target = (event as CustomEvent).detail.target as HTMLElement;
-
-  // Only re-initialize if the swapped content contains our components
-  if (target.querySelector('[data-component]')) {
+// Handle HTMX page swaps (clean page component management)
+document.addEventListener('htmx:afterSwap', (event: any) => {
+  const target = event.detail.target;
+  
+  if (target.querySelector('[data-component="page"]')) {
     const configElement = document.querySelector('script[data-famstack-config]');
     if (configElement) {
-      const config = JSON.parse(configElement.textContent ?? '{}') as ComponentConfig;
-
-      // Initialize components within the swapped content
-      const taskContainers = target.querySelectorAll('[data-component="task-manager"]');
-      taskContainers.forEach((container, index) => {
-        const instanceId =
-          container.getAttribute('data-instance-id') ?? `task-manager-${Date.now()}-${index}`;
-        const manager = new TaskManager(container as HTMLElement, config);
-        registry.addTaskManager(instanceId, manager);
-      });
-
-      const taskListContainers = target.querySelectorAll('[data-component="task-list"]');
-      taskListContainers.forEach((container, index) => {
-        const instanceId =
-          container.getAttribute('data-instance-id') ?? `task-list-${Date.now()}-${index}`;
-        const taskList = new TaskList(container as HTMLElement, config);
-        registry.addTaskList(instanceId, taskList);
-      });
-
-      const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
-      selectorContainers.forEach((container, index) => {
-        const instanceId =
-          container.getAttribute('data-instance-id') ?? `family-selector-${Date.now()}-${index}`;
-        const selector = new FamilySelector(container as HTMLElement, config);
-        registry.addFamilySelector(instanceId, selector);
+      const config: ComponentConfig = JSON.parse(configElement.textContent ?? '{}');
+      
+      const pageContainers = target.querySelectorAll('[data-component="page"]');
+      pageContainers.forEach((container: Element, index: number) => {
+        const instanceId = container.getAttribute('data-instance-id') ?? `page-${Date.now()}-${index}`;
+        const pageType = container.getAttribute('data-page-type') ?? 'tasks';
+        
+        const pageManager = new PageManager(container as HTMLElement, config);
+        pageManager.navigateToPage(pageType);
+        registry.addPageManager(instanceId, pageManager);
       });
     }
   }
 });
 
-// Clean up destroyed components
-document.addEventListener('htmx:beforeSwap', event => {
-  const target = (event as CustomEvent).detail.target as HTMLElement;
-
-  // Clean up task managers
-  const taskContainers = target.querySelectorAll('[data-component="task-manager"]');
-  taskContainers.forEach(container => {
+document.addEventListener('htmx:beforeSwap', (event: any) => {
+  const target = event.detail.target;
+  const pageContainers = target.querySelectorAll('[data-component="page"]');
+  
+  pageContainers.forEach((container: Element) => {
     const instanceId = container.getAttribute('data-instance-id');
     if (instanceId) {
-      registry.removeTaskManager(instanceId);
-    }
-  });
-
-  // Clean up task lists
-  const taskListContainers = target.querySelectorAll('[data-component="task-list"]');
-  taskListContainers.forEach(container => {
-    const instanceId = container.getAttribute('data-instance-id');
-    if (instanceId) {
-      registry.removeTaskList(instanceId);
-    }
-  });
-
-  // Clean up family selectors
-  const selectorContainers = target.querySelectorAll('[data-component="family-selector"]');
-  selectorContainers.forEach(container => {
-    const instanceId = container.getAttribute('data-instance-id');
-    if (instanceId) {
-      registry.removeFamilySelector(instanceId);
+      registry.removePageManager(instanceId);
     }
   });
 });
-
-export { TaskManager, FamilySelector, TaskCard, TaskList };
-export type { Task };

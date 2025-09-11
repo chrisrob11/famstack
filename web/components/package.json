@@ -2,6 +2,7 @@
   "name": "famstack-components",
   "version": "1.0.0",
   "description": "TypeScript components for Fam-Stack family task management",
+  "type": "module",
   "private": true,
   "scripts": {
     "build": "tsc && npm run copy-assets",
@@ -10,10 +11,14 @@
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",
-    "test": "echo \"No tests configured yet\" && exit 0",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "clean": "rm -rf dist && rm -rf ../static/js/*.js && rm -rf ../static/js/*.js.map"
   },
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.10.0",
     "@types/sortablejs": "^1.15.8",
     "@typescript-eslint/eslint-plugin": "^6.21.0",
@@ -21,7 +26,11 @@
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.1.0",
+    "jest": "^30.1.3",
+    "jest-environment-jsdom": "^29.7.0",
+    "jsdom": "^26.1.0",
     "prettier": "^3.1.1",
+    "ts-jest": "^29.4.1",
     "typescript": "^5.3.3"
   },
   "dependencies": {

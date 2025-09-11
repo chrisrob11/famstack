@@ -1,5 +1,5 @@
 .task-list-container {
-  max-width: 1600px;
+  max-width: 1800px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -37,8 +37,8 @@
 
 .task-columns {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .task-column {
