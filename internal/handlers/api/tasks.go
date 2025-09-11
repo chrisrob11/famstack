@@ -219,20 +219,16 @@ func (h *TaskAPIHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	query := `
 		INSERT INTO tasks (title, description, status, task_type, assigned_to, family_id, created_by, priority, created_at) 
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		RETURNING id
 	`
 
-	result, err := h.db.Exec(query, task.Title, task.Description, task.Status, task.TaskType, task.AssignedTo, task.FamilyID, task.CreatedBy, task.Priority, task.CreatedAt)
+	var newID string
+	err := h.db.QueryRow(query, task.Title, task.Description, task.Status, task.TaskType, task.AssignedTo, task.FamilyID, task.CreatedBy, task.Priority, task.CreatedAt).Scan(&newID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create task: %v", err), http.StatusInternalServerError)
 		return
 	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		http.Error(w, "Failed to get task ID", http.StatusInternalServerError)
-		return
-	}
-	task.ID = fmt.Sprintf("%d", id)
+	task.ID = newID
 
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(task); err != nil {
