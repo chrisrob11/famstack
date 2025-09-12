@@ -75,7 +75,6 @@ export class TaskCard {
       ` : ''}
       <div class="task-meta">
         <span class="task-type ${this.task.task_type}">${this.task.task_type}</span>
-        ${this.task.assigned_to ? `<span class="task-assignee">@${this.task.assigned_to}</span>` : ''}
         ${isCompleted && completedAt ? `<span class="completed-date">Completed ${completedAt}</span>` : ''}
       </div>
     `;
