@@ -155,10 +155,6 @@ describe('TaskList Drag and Drop Revert Bug', () => {
 
       // Capture state before drag
       const stateBefore = stateManager.getState();
-      console.log('State before drag:', {
-        unassignedCount: stateBefore.tasks?.tasks_by_user['unassigned']?.tasks?.length,
-        userCount: stateBefore.tasks?.tasks_by_user['user_user1']?.tasks?.length
-      });
 
       // Execute the drag operation
       await onEndCallback(mockEvent);

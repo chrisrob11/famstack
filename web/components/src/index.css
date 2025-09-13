@@ -2,6 +2,7 @@
 @import './task-card.css';
 @import './task-list.css';
 @import './family-members.css';
+@import './schedules.css';
 
 /* Base styles for component integration */
 * {

@@ -57,6 +57,16 @@ if (document.readyState === 'loading') {
   autoInit();
 }
 
+// Add a global debug function for manual testing
+(window as any).famstackDebug = {
+  testInit: () => {
+    autoInit();
+  },
+  getState: () => {
+    return 'Debug functions available';
+  }
+};
+
 // Handle HTMX page swaps (clean page component management)
 document.addEventListener('htmx:afterSwap', (event: any) => {
   const target = event.detail.target;

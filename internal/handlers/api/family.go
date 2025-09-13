@@ -196,7 +196,7 @@ func (h *FamilyAPIHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	// Insert into database (note: password_hash would be set during actual registration)
 	// Handle optional email - use NULL if empty
-	var emailValue interface{}
+	var emailValue any
 	if user.Email == "" {
 		emailValue = nil
 	} else {
@@ -278,4 +278,194 @@ func (h *FamilyAPIHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+}
+
+// GetUser retrieves a specific user by ID
+func (h *FamilyAPIHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract user ID from URL path
+	userID := path.Base(r.URL.Path)
+	if userID == "" || userID == "/" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Query user from database
+	query := `SELECT id, family_id, name, email, role, created_at FROM users WHERE id = ?`
+	var user models.User
+	var email sql.NullString
+	err := h.db.QueryRow(query, userID).Scan(&user.ID, &user.FamilyID, &user.Name, &email, &user.Role, &user.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "User not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to query user", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Handle nullable email
+	if email.Valid {
+		user.Email = email.String
+	} else {
+		user.Email = ""
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// UpdateUser updates a user's information
+func (h *FamilyAPIHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PATCH" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract user ID from URL path
+	userID := path.Base(r.URL.Path)
+	if userID == "" || userID == "/" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse JSON data
+	var updates map[string]any
+	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
+		http.Error(w, "Invalid JSON data", http.StatusBadRequest)
+		return
+	}
+
+	// Build dynamic update query
+	setParts := []string{}
+	args := []any{}
+
+	for field, value := range updates {
+		switch field {
+		case "name":
+			if name, ok := value.(string); ok {
+				name = strings.TrimSpace(name)
+				if name == "" {
+					http.Error(w, "Name cannot be empty", http.StatusBadRequest)
+					return
+				}
+				setParts = append(setParts, "name = ?")
+				args = append(args, name)
+			}
+		case "email":
+			if email, ok := value.(string); ok {
+				email = strings.TrimSpace(email)
+				setParts = append(setParts, "email = ?")
+				if email == "" {
+					args = append(args, nil) // NULL for empty email
+				} else {
+					args = append(args, email)
+				}
+			}
+		case "role":
+			if role, ok := value.(string); ok {
+				if !models.IsValidUserRole(role) {
+					http.Error(w, "Invalid user role", http.StatusBadRequest)
+					return
+				}
+				setParts = append(setParts, "role = ?")
+				args = append(args, role)
+			}
+		}
+	}
+
+	if len(setParts) == 0 {
+		http.Error(w, "No valid fields to update", http.StatusBadRequest)
+		return
+	}
+
+	// Add user ID to args
+	args = append(args, userID)
+
+	// Execute update
+	query := "UPDATE users SET " + strings.Join(setParts, ", ") + " WHERE id = ?"
+	result, err := h.db.Exec(query, args...)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			http.Error(w, "Email already exists", http.StatusConflict)
+		} else {
+			http.Error(w, "Failed to update user", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Failed to check update result", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	// Fetch and return the updated user
+	query = `SELECT id, family_id, name, email, role, created_at FROM users WHERE id = ?`
+	var user models.User
+	var email sql.NullString
+	err = h.db.QueryRow(query, userID).Scan(&user.ID, &user.FamilyID, &user.Name, &email, &user.Role, &user.CreatedAt)
+	if err != nil {
+		http.Error(w, "Failed to fetch updated user", http.StatusInternalServerError)
+		return
+	}
+
+	// Handle nullable email
+	if email.Valid {
+		user.Email = email.String
+	} else {
+		user.Email = ""
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// DeleteUser deletes a user
+func (h *FamilyAPIHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "DELETE" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract user ID from URL path
+	userID := path.Base(r.URL.Path)
+	if userID == "" || userID == "/" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Delete user from database
+	query := `DELETE FROM users WHERE id = ?`
+	result, err := h.db.Exec(query, userID)
+	if err != nil {
+		http.Error(w, "Failed to delete user", http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		http.Error(w, "Failed to check delete result", http.StatusInternalServerError)
+		return
+	}
+	if rowsAffected == 0 {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

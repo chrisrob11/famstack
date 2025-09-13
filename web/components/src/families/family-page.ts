@@ -7,8 +7,6 @@ import { ComponentConfig } from '../common/types.js';
  */
 export class FamilyPage extends BasePage {
   private familyMembers?: FamilyMembers;
-  private boundShowModal?: () => void;
-  private boundHideModal?: () => void;
   private boundHandleSuccess?: (e: Event) => void;
 
   constructor(container: HTMLElement, config: ComponentConfig) {
@@ -106,8 +104,6 @@ export class FamilyPage extends BasePage {
 
   private setupEventHandlers(): void {
     // Bind methods to preserve `this` context
-    this.boundShowModal = this.showAddMemberModal.bind(this);
-    this.boundHideModal = this.hideAddMemberModal.bind(this);
     this.boundHandleSuccess = this.handleFormSuccess.bind(this);
 
     // Add event listeners

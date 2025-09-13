@@ -62,6 +62,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	pageHandler := handlers.NewPageHandler(s.db)
 	taskAPIHandler := api.NewTaskAPIHandler(s.db)
 	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
+	scheduleAPIHandler := api.NewScheduleHandler(s.db)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -73,10 +74,40 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		fmt.Fprintf(w, `{"status":"ok","message":"Fam-Stack is running"}`)
 	})
 
+	// Debug endpoint to test task data server-side
+	mux.HandleFunc("/debug/tasks", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+
+		// We'll create a simple HTML page showing the task data
+		fmt.Fprintf(w, `
+			<!DOCTYPE html>
+			<html>
+			<head><title>Debug Tasks</title></head>
+			<body>
+				<h1>Debug: Task Data from Server</h1>
+				<p>This endpoint shows task data rendered server-side to verify data availability.</p>
+				<div id="debug-info">Loading...</div>
+					<script>
+						// Make API call and display results
+						fetch('/api/v1/tasks')
+							.then(response => response.json())
+							.then(data => {
+								document.getElementById('debug-info').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+							})
+							.catch(error => {
+								document.getElementById('debug-info').innerHTML = '<p style="color: red;">Error: ' + error + '</p>';
+							});
+					</script>
+			</body>
+			</html>
+		`)
+	})
+
 	// Page routes - single handler for all pages
 	mux.HandleFunc("/tasks", pageHandler.ServePage)
 	mux.HandleFunc("/family/setup", pageHandler.ServePage)
 	mux.HandleFunc("/family", pageHandler.ServePage)
+	mux.HandleFunc("/schedules", pageHandler.ServePage)
 
 	// JSON API routes
 	mux.HandleFunc("/api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +150,44 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			familyAPIHandler.ListUsers(w, r)
 		case "POST":
 			familyAPIHandler.CreateUser(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/v1/users/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			familyAPIHandler.GetUser(w, r)
+		case "PATCH":
+			familyAPIHandler.UpdateUser(w, r)
+		case "DELETE":
+			familyAPIHandler.DeleteUser(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Schedule API routes
+	mux.HandleFunc("/api/v1/schedules", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			scheduleAPIHandler.ListSchedules(w, r)
+		case "POST":
+			scheduleAPIHandler.CreateSchedule(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/v1/schedules/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			scheduleAPIHandler.GetSchedule(w, r)
+		case "PATCH":
+			scheduleAPIHandler.UpdateSchedule(w, r)
+		case "DELETE":
+			scheduleAPIHandler.DeleteSchedule(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}

@@ -11,6 +11,7 @@ import (
 
 	"famstack/internal/database"
 	"famstack/internal/server"
+	"famstack/internal/workers"
 )
 
 func main() {
@@ -58,6 +59,13 @@ func main() {
 		Dev:  *dev,
 	})
 
+	// Start queue worker in a goroutine
+	queueWorker := workers.NewQueueWorker(db, 5*time.Minute)
+	go func() {
+		log.Println("Starting queue worker...")
+		queueWorker.Start()
+	}()
+
 	// Start server in a goroutine
 	go func() {
 		log.Printf("Starting server on port %s", *port)
@@ -72,7 +80,13 @@ func main() {
 	<-c
 
 	// Graceful shutdown
-	log.Println("Shutting down server...")
+	log.Println("Shutting down server and queue worker...")
+
+	// Stop queue worker
+	queueWorker.Stop()
+	log.Println("Queue worker stopped")
+
+	// Stop server
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 

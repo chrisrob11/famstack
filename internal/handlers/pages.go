@@ -59,6 +59,8 @@ func (h *PageHandler) getPageTypeFromPath(urlPath string) string {
 	switch urlPath {
 	case "/tasks", "/":
 		return "tasks"
+	case "/schedules":
+		return "schedules"
 	case "/family/setup", "/family":
 		return "family"
 	default:
@@ -76,6 +78,9 @@ func (h *PageHandler) getPageTemplate(pageType string) (string, PageData) {
 	switch pageType {
 	case "tasks":
 		baseData.PageTitle = "Daily Tasks - FamStack"
+		return "web/templates/app.html.tmpl", baseData
+	case "schedules":
+		baseData.PageTitle = "Schedules - FamStack"
 		return "web/templates/app.html.tmpl", baseData
 	case "family":
 		baseData.PageTitle = "Family Setup - FamStack"
