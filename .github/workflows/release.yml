@@ -67,27 +67,20 @@ jobs:
         
         # Install the ARM64 cross-compiler
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu osxcross
-        osxcross-prepare
+        sudo apt-get install -y gcc-aarch64-linux-gnu
 
         # Create dist directory
         mkdir -p dist
         
         # Build Go binaries for different platforms
         echo "Building Linux AMD64..."
-        GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-amd64 ./cmd/famstack
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-amd64 ./cmd/famstack
         
         echo "Building Linux ARM64..."
-        GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-arm64 ./cmd/famstack
-        
-        echo "Building macOS AMD64..."
-        GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-darwin-amd64 ./cmd/famstack
-        
-        echo "Building macOS ARM64..."
-        GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-darwin-arm64 ./cmd/famstack
+        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-arm64 ./cmd/famstack
         
         echo "Building Windows AMD64..."
-        GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-windows-amd64.exe ./cmd/famstack
+        GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-windows-amd64.exe ./cmd/famstack
         
         echo "Build complete!"
         ls -la dist/
@@ -107,12 +100,6 @@ jobs:
         
         # Linux ARM64
         tar -czf famstack-${VERSION}-linux-arm64.tar.gz famstack-linux-arm64
-        
-        # macOS AMD64
-        tar -czf famstack-${VERSION}-darwin-amd64.tar.gz famstack-darwin-amd64
-        
-        # macOS ARM64
-        tar -czf famstack-${VERSION}-darwin-arm64.tar.gz famstack-darwin-arm64
         
         # Windows AMD64
         zip famstack-${VERSION}-windows-amd64.zip famstack-windows-amd64.exe
