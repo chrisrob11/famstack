@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
+    # Add this block to grant write permissions
+    permissions:
+      contents: write
+      
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -79,6 +83,12 @@ jobs:
         echo "Building Linux ARM64..."
         GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-linux-arm64 ./cmd/famstack
         
+        echo "Building macOS AMD64..."
+        GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-darwin-amd64 ./cmd/famstack
+        
+        echo "Building macOS ARM64..."
+        GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-darwin-arm64 ./cmd/famstack
+        
         echo "Building Windows AMD64..."
         GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o dist/famstack-windows-amd64.exe ./cmd/famstack
         
@@ -100,6 +110,12 @@ jobs:
         
         # Linux ARM64
         tar -czf famstack-${VERSION}-linux-arm64.tar.gz famstack-linux-arm64
+        
+        # macOS AMD64
+        tar -czf famstack-${VERSION}-darwin-amd64.tar.gz famstack-darwin-amd64
+        
+        # macOS ARM64
+        tar -czf famstack-${VERSION}-darwin-arm64.tar.gz famstack-darwin-arm64
         
         # Windows AMD64
         zip famstack-${VERSION}-windows-amd64.zip famstack-windows-amd64.exe
