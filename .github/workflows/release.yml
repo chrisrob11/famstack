@@ -67,7 +67,8 @@ jobs:
         
         # Install the ARM64 cross-compiler
         sudo apt-get update
-        sudo apt-get install -y gcc-aarch64-linux-gnu
+        sudo apt-get install -y gcc-aarch64-linux-gnu osxcross
+        osxcross-prepare
 
         # Create dist directory
         mkdir -p dist
