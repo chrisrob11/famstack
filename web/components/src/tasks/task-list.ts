@@ -96,7 +96,9 @@ export class TaskList {
 
   private createTaskCards(): void {
     const state = stateManager.getState();
-    if (!state.tasks) return;
+    if (!state.tasks) {
+      return;
+    }
 
     // Clear existing cards
     this.taskCards.forEach(card => card.destroy());
@@ -108,14 +110,12 @@ export class TaskList {
       
       tasks.forEach(task => {
         const container = this.container.querySelector(`[data-task-container="${task.id}"]`) as HTMLElement;
-        if (container) {
-          const taskCard = new TaskCard(task, this.config, {
-            onTaskUpdate: this.handleTaskUpdate.bind(this),
-            onTaskDelete: this.handleTaskDelete.bind(this)
-          });
-          container.appendChild(taskCard.getElement());
-          this.taskCards.set(task.id, taskCard);
-        }
+        const taskCard = new TaskCard(task, this.config, {
+          onTaskUpdate: this.handleTaskUpdate.bind(this),
+          onTaskDelete: this.handleTaskDelete.bind(this)
+        });
+        container.appendChild(taskCard.getElement());
+        this.taskCards.set(task.id, taskCard);
       });
     });
   }
@@ -240,32 +240,7 @@ export class TaskList {
     }
   }
 
-  private getTaskCount(userKey: string): number {
-    return this.renderer.getTaskCount(userKey);
-  }
 
-  private setTaskCount(userKey: string, count: number): void {
-    this.renderer.updateTaskCount(userKey, count);
-  }
-
-  private updateTaskCounts(sourceUserKey: string | null, targetUserKey: string): void {
-    // Update task count for source user (decrease)
-    if (sourceUserKey) {
-      const currentCount = this.getTaskCount(sourceUserKey);
-      this.setTaskCount(sourceUserKey, Math.max(0, currentCount - 1));
-    }
-
-    // Update task count for target user (increase)
-    const currentCount = this.getTaskCount(targetUserKey);
-    this.setTaskCount(targetUserKey, currentCount + 1);
-  }
-
-  private updateTaskCardAssignment(taskId: string, newAssignedTo: string | null): void {
-    const taskCard = this.taskCards.get(taskId);
-    if (taskCard) {
-      taskCard.updateAssignment(newAssignedTo);
-    }
-  }
 
   private handleTaskUpdate(_task: Task): void {
     // Task was updated, we could update local state here if needed

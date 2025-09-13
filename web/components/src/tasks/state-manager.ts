@@ -53,11 +53,7 @@ export class StateManager {
   subscribe(callback: (state: AppState) => void): () => void {
     this.subscribers.push(callback);
     
-    try {
-      callback(this.getState());
-    } catch (error) {
-      console.error('Error in state subscriber:', error);
-    }
+    callback(this.getState());
     
     // Return unsubscribe function
     return () => {
@@ -74,11 +70,7 @@ export class StateManager {
   private notifySubscribers(): void {
     const currentState = this.getState();
     this.subscribers.forEach(callback => {
-      try {
-        callback(currentState);
-      } catch (error) {
-        console.error('Error in state subscriber:', error);
-      }
+      callback(currentState);
     });
   }
 

@@ -25,9 +25,7 @@ export class TasksPage extends BasePage {
 
       // Page directly creates and owns the TaskList - no global scanning
       const taskContainer = this.container.querySelector('#main-task-container') as HTMLElement;
-      if (taskContainer) {
-        this.taskList = new TaskList(taskContainer, this.config);
-      }
+      this.taskList = new TaskList(taskContainer, this.config);
 
     } catch (error) {
       this.showError('Failed to load tasks page');

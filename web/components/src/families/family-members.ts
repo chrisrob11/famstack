@@ -1,27 +1,32 @@
 import { ComponentConfig } from '../common/types.js';
-
-export interface FamilyMember {
-  id: string;
-  family_id: string;
-  name: string;
-  email: string;
-  role: string;
-  created_at: string;
-}
+import { FamilyService, FamilyMember } from './family-service.js';
+import { FamilyMemberModal, FamilyMemberFormData } from './family-member-modal.js';
+import { ComponentUtils } from '../common/component-utils.js';
 
 export class FamilyMembers {
   private config: ComponentConfig;
   private container: HTMLElement;
+  private familyService: FamilyService;
+  private familyMemberModal!: FamilyMemberModal;
   private members: FamilyMember[] = [];
+  private boundHandleClick?: (e: Event) => void;
 
   constructor(container: HTMLElement, config: ComponentConfig) {
     this.container = container;
     this.config = config;
+    this.familyService = new FamilyService(config);
     this.init();
   }
 
   private async init(): Promise<void> {
     this.container.className = 'family-members-container';
+    
+    // Setup event handling
+    this.boundHandleClick = this.handleClick.bind(this);
+    this.container.addEventListener('click', this.boundHandleClick);
+    
+    // Initialize modal
+    this.initializeModal();
     
     // Listen for refresh events
     this.container.addEventListener('refresh', () => {
@@ -31,19 +36,20 @@ export class FamilyMembers {
     await this.loadMembers();
   }
 
+  private initializeModal(): void {
+    this.familyMemberModal = new FamilyMemberModal(this.container.parentElement || document.body, this.config, {
+      onSave: this.handleModalSave.bind(this),
+      onCancel: () => {}
+    });
+  }
+
   private async loadMembers(): Promise<void> {
     try {
       this.showLoading();
-      const response = await fetch(`${this.config.apiBaseUrl}/users`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to load members: ${response.statusText}`);
-      }
-      
-      this.members = await response.json();
+      this.members = await this.familyService.listFamilyMembers();
       this.renderMembers();
     } catch (error) {
-      this.showError('Failed to load family members');
+      this.showErrorInContainer('Failed to load family members');
     }
   }
 
@@ -56,7 +62,7 @@ export class FamilyMembers {
     `;
   }
 
-  private showError(message: string): void {
+  private showErrorInContainer(message: string): void {
     this.container.innerHTML = `
       <div class="error-container">
         <p class="error-message">${message}</p>
@@ -115,11 +121,80 @@ export class FamilyMembers {
     `;
   }
 
+  private handleClick(e: Event): void {
+    const target = e.target as HTMLElement;
+    const action = target.getAttribute('data-action');
+    const memberId = target.getAttribute('data-member-id');
+
+    if (!action || !memberId) return;
+
+    switch (action) {
+      case 'edit':
+        this.editMember(memberId);
+        break;
+      case 'delete':
+        this.deleteMember(memberId);
+        break;
+    }
+  }
+
+  private editMember(memberId: string): void {
+    const member = this.members.find(m => m.id === memberId);
+    if (!member) return;
+
+    this.familyMemberModal.showEdit(member);
+  }
+
+  private async handleModalSave(data: FamilyMemberFormData, memberId?: string): Promise<void> {
+    if (memberId) {
+      // Edit existing member
+      await this.familyService.updateFamilyMember(memberId, data);
+      this.showSuccess('Member updated successfully!');
+    } else {
+      // Create new member
+      const memberData = { ...data, family_id: 'fam1' }; // TODO: Get actual family ID
+      await this.familyService.createFamilyMember(memberData);
+      this.showSuccess('Member added successfully!');
+    }
+    
+    await this.loadMembers(); // Refresh the list
+  }
+
+  private async deleteMember(memberId: string): Promise<void> {
+    const member = this.members.find(m => m.id === memberId);
+    if (!member) return;
+
+    const confirmed = confirm(`Are you sure you want to delete ${member.name}?`);
+    if (!confirmed) return;
+
+    try {
+      await this.familyService.deleteFamilyMember(memberId);
+      await this.loadMembers(); // Refresh the list
+      this.showSuccess('Member deleted successfully!');
+    } catch (error) {
+      this.showError('Failed to delete member. Please try again.');
+    }
+  }
+
+  private showSuccess(message: string): void {
+    ComponentUtils.showSuccess(message);
+  }
+
+  private showError(message: string): void {
+    ComponentUtils.showError(message);
+  }
+
   public async refresh(): Promise<void> {
     await this.loadMembers();
   }
 
   public destroy(): void {
-    // Clean up any event listeners if needed
+    if (this.boundHandleClick) {
+      this.container.removeEventListener('click', this.boundHandleClick);
+    }
+    
+    if (this.familyMemberModal) {
+      this.familyMemberModal.destroy();
+    }
   }
 }

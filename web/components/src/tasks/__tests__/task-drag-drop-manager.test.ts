@@ -203,31 +203,4 @@ describe('TaskDragDropManager', () => {
       expect(mockSortableConstructor).toHaveBeenCalledTimes(4); // 2 initial + 2 after destroy
     });
   });
-
-  describe('Error Handling', () => {
-    it('should handle errors in onTaskReorder callback gracefully', async () => {
-      const errorCallback = jest.fn().mockRejectedValue(new Error('Test error'));
-      const errorDragDropManager = new TaskDragDropManager(container, {
-        onTaskReorder: errorCallback
-      });
-
-      errorDragDropManager.setupSortable();
-
-      const sortableConfig = mockSortableConstructor.mock.calls[mockSortableConstructor.mock.calls.length - 1][1]; // Last call
-      const onEndCallback = sortableConfig.onEnd;
-
-      const mockEvent = {
-        item: container.querySelector('[data-task-container="task1"]'),
-        from: container.querySelector('[data-user-tasks="unassigned"]'),
-        to: container.querySelector('[data-user-tasks="user_user1"]'),
-        oldIndex: 0,
-        newIndex: 1
-      };
-
-      // Should not throw even if callback throws
-      await expect(onEndCallback(mockEvent)).resolves.toBeUndefined();
-      
-      expect(errorCallback).toHaveBeenCalledWith(mockEvent);
-    });
-  });
 });

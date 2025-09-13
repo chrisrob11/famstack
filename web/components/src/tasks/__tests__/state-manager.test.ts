@@ -117,24 +117,6 @@ describe('StateManager', () => {
       expect(callback1).toHaveBeenCalledWith(expect.objectContaining({ loading: true }));
       expect(callback2).toHaveBeenCalledWith(expect.objectContaining({ loading: true }));
     });
-
-    it('should handle subscriber errors gracefully', () => {
-      const errorCallback = jest.fn(() => { throw new Error('Test error'); });
-      const goodCallback = jest.fn();
-      
-      stateManager.subscribe(errorCallback);
-      stateManager.subscribe(goodCallback);
-      
-      errorCallback.mockClear();
-      goodCallback.mockClear();
-      
-      // Should not throw, should call good callback despite error in first
-      expect(() => {
-        stateManager.setState({ loading: true });
-      }).not.toThrow();
-      
-      expect(goodCallback).toHaveBeenCalledWith(expect.objectContaining({ loading: true }));
-    });
   });
 
   describe('Convenience Methods', () => {

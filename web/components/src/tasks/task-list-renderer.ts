@@ -21,7 +21,7 @@ export class TaskListRenderer {
   }
 
   renderTaskList(data: TasksResponse): void {
-    this.container.innerHTML = `
+    const html = `
       <div class="task-list-header">
         <h2>Tasks for ${data.date}</h2>
         <button class="add-task-btn" data-action="add-task">
@@ -33,6 +33,7 @@ export class TaskListRenderer {
       </div>
       ${this.renderAddTaskModal(data)}
     `;
+    this.container.innerHTML = html;
   }
 
   private renderTaskColumns(data: TasksResponse): string {
@@ -63,7 +64,10 @@ export class TaskListRenderer {
   }
 
   private renderUserTasks(tasks: any[]): string {
-    return tasks.map(task => `<div data-task-container="${task.id}"></div>`).join('');
+    const html = tasks.map(task => {
+      return `<div data-task-container="${task.id}"></div>`;
+    }).join('');
+    return html;
   }
 
   private renderAddTaskModal(tasksData: TasksResponse): string {

@@ -57,11 +57,7 @@ export class TaskDragDropManager {
       return;
     }
     
-    try {
-      await this.onTaskReorder(evt);
-    } catch (error) {
-      console.error('Error in task reorder callback:', error);
-    }
+    await this.onTaskReorder(evt);
   }
 
   destroy(): void {

@@ -2,6 +2,7 @@ import { ComponentConfig } from '../common/types.js';
 import { PageComponent } from './base-page.js';
 import { TasksPage } from '../tasks/tasks-page.js';
 import { FamilyPage } from '../families/family-page.js';
+import { SchedulesPage } from '../schedules/schedules-page.js';
 
 /**
  * Factory for creating page components based on page type
@@ -17,13 +18,15 @@ export class PageFactory {
         return new TasksPage(container, config);
       case 'family':
         return new FamilyPage(container, config);
+      case 'schedules':
+        return new SchedulesPage(container, config);
       default:
         return new TasksPage(container, config); // Default to tasks page
     }
   }
 
   static getAvailablePageTypes(): string[] {
-    return ['tasks', 'family'];
+    return ['tasks', 'family', 'schedules'];
   }
 }
 

@@ -1,13 +1,11 @@
 import { ComponentConfig } from '../common/types.js';
 
 export class FamilySelector {
-  private config: ComponentConfig;
   private container: HTMLElement;
   private selectedUsers: Set<string> = new Set();
 
-  constructor(container: HTMLElement, config: ComponentConfig) {
+  constructor(container: HTMLElement, _config: ComponentConfig) {
     this.container = container;
-    this.config = config;
     this.init();
   }
 
@@ -44,7 +42,6 @@ export class FamilySelector {
     if (!userId) return;
 
     const isSelected = this.selectedUsers.has(userId);
-
     if (isSelected) {
       this.selectedUsers.delete(userId);
       selectorItem.classList.remove('selected');

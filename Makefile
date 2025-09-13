@@ -1,4 +1,4 @@
-.PHONY: build run test lint clean install-tools dev help
+.PHONY: build build-go build-ts run test lint clean install-tools dev help
 .DEFAULT_GOAL := help
 
 # Variables
