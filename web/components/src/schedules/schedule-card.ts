@@ -10,12 +10,16 @@ export class ScheduleCard {
   private onScheduleEdit?: (schedule: TaskSchedule) => void;
   private boundHandleClick?: (e: Event) => void;
 
-  constructor(schedule: TaskSchedule, _config: ComponentConfig, options: {
-    onScheduleUpdate?: (schedule: TaskSchedule) => void;
-    onScheduleDelete?: (scheduleId: string) => void;
-    onScheduleToggle?: (scheduleId: string) => void;
-    onScheduleEdit?: (schedule: TaskSchedule) => void;
-  } = {}) {
+  constructor(
+    schedule: TaskSchedule,
+    _config: ComponentConfig,
+    options: {
+      onScheduleUpdate?: (schedule: TaskSchedule) => void;
+      onScheduleDelete?: (scheduleId: string) => void;
+      onScheduleToggle?: (scheduleId: string) => void;
+      onScheduleEdit?: (schedule: TaskSchedule) => void;
+    } = {}
+  ) {
     this.schedule = schedule;
     if (options.onScheduleUpdate) {
       this.onScheduleUpdate = options.onScheduleUpdate;
@@ -42,12 +46,13 @@ export class ScheduleCard {
   }
 
   private getCardHTML(): string {
-    const daysString = this.schedule.days_of_week.map(day => 
-      day.charAt(0).toUpperCase() + day.slice(1, 3)
-    ).join(', ');
+    const daysString = this.schedule.days_of_week
+      .map(day => day.charAt(0).toUpperCase() + day.slice(1, 3))
+      .join(', ');
 
-    const timeDisplay = this.schedule.time_of_day ? 
-      ` at ${this.formatTime(this.schedule.time_of_day)}` : '';
+    const timeDisplay = this.schedule.time_of_day
+      ? ` at ${this.formatTime(this.schedule.time_of_day)}`
+      : '';
 
     return `
       <div class="schedule-header">
@@ -71,11 +76,15 @@ export class ScheduleCard {
           </button>
         </div>
       </div>
-      ${this.schedule.description ? `
+      ${
+        this.schedule.description
+          ? `
         <div class="schedule-description">
           ${this.schedule.description}
         </div>
-      ` : ''}
+      `
+          : ''
+      }
       <div class="schedule-details">
         <div class="schedule-recurrence">
           <span class="schedule-days">${daysString}${timeDisplay}</span>
@@ -93,11 +102,11 @@ export class ScheduleCard {
     // Convert 24-hour time to 12-hour format
     const parts = time.split(':').map(Number);
     if (parts.length < 2) return time; // Return original if invalid format
-    
+
     const hours = parts[0];
     const minutes = parts[1];
     if (hours === undefined || minutes === undefined) return time;
-    
+
     const period = hours >= 12 ? 'PM' : 'AM';
     const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
     return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
@@ -128,13 +137,16 @@ export class ScheduleCard {
         this.onScheduleEdit?.(this.schedule);
         break;
       case 'delete':
-        if (confirm('Are you sure you want to delete this schedule? This will not affect tasks already created from it.')) {
+        if (
+          confirm(
+            'Are you sure you want to delete this schedule? This will not affect tasks already created from it.'
+          )
+        ) {
           this.onScheduleDelete?.(this.schedule.id);
         }
         break;
     }
   }
-
 
   public updateSchedule(updatedSchedule: TaskSchedule): void {
     this.schedule = updatedSchedule;

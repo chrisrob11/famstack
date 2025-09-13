@@ -1,5 +1,5 @@
 import { ComponentConfig } from '../common/types.js';
-import { Task } from './task-card.js';
+import { Task } from './task-types.js';
 
 export interface TaskColumn {
   user: {
@@ -32,11 +32,11 @@ export class TaskService {
 
   async getTasks(): Promise<TasksResponse> {
     const response = await fetch(`${this.config.apiBaseUrl}/tasks`);
-    
+
     if (!response.ok) {
       throw new Error(`Failed to load tasks: ${response.statusText}`);
     }
-    
+
     return await response.json();
   }
 
@@ -58,7 +58,10 @@ export class TaskService {
     return await response.json();
   }
 
-  async updateTask(taskId: string, updates: Partial<Task> & { assigned_to?: string | null }): Promise<Task> {
+  async updateTask(
+    taskId: string,
+    updates: Partial<Task> & { assigned_to?: string | null }
+  ): Promise<Task> {
     const response = await fetch(`${this.config.apiBaseUrl}/tasks/${taskId}`, {
       method: 'PATCH',
       headers: {

@@ -21,7 +21,7 @@ export class FamilyMemberModal {
   constructor(container: HTMLElement, config: ComponentConfig, options: FamilyMemberModalOptions) {
     this.onSave = options.onSave;
     this.onCancel = options.onCancel;
-    
+
     this.createElement(container);
     this.attachEventListeners();
   }
@@ -86,33 +86,33 @@ export class FamilyMemberModal {
   private attachEventListeners(): void {
     this.boundHandleClick = this.handleClick.bind(this);
     this.boundHandleSubmit = this.handleSubmit.bind(this);
-    
+
     this.element.addEventListener('click', this.boundHandleClick);
     this.element.addEventListener('submit', this.boundHandleSubmit);
   }
 
   public showCreate(): void {
     this.currentMember = undefined;
-    
+
     const title = this.element.querySelector('#modal-title') as HTMLElement;
     const submitBtn = this.element.querySelector('#submit-btn') as HTMLButtonElement;
-    
+
     title.textContent = 'Add Family Member';
     submitBtn.textContent = 'Add Member';
-    
+
     this.resetForm();
     this.show();
   }
 
   public showEdit(member: FamilyMember): void {
     this.currentMember = member;
-    
+
     const title = this.element.querySelector('#modal-title') as HTMLElement;
     const submitBtn = this.element.querySelector('#submit-btn') as HTMLButtonElement;
-    
+
     title.textContent = 'Edit Family Member';
     submitBtn.textContent = 'Update Member';
-    
+
     this.populateForm(member);
     this.show();
   }
@@ -120,7 +120,7 @@ export class FamilyMemberModal {
   private show(): void {
     this.element.style.display = 'flex';
     this.backdrop.style.display = 'block';
-    
+
     const nameInput = this.element.querySelector('#member-name') as HTMLInputElement;
     nameInput?.focus();
   }
@@ -134,7 +134,7 @@ export class FamilyMemberModal {
   private resetForm(): void {
     const form = this.element.querySelector('#family-member-form') as HTMLFormElement;
     form.reset();
-    
+
     // Clear any error messages
     const errors = form.querySelectorAll('.field-error');
     errors.forEach(error => error.remove());
@@ -142,7 +142,7 @@ export class FamilyMemberModal {
 
   private populateForm(member: FamilyMember): void {
     const form = this.element.querySelector('#family-member-form') as HTMLFormElement;
-    
+
     (form.querySelector('#member-id') as HTMLInputElement).value = member.id;
     (form.querySelector('#member-name') as HTMLInputElement).value = member.name;
     (form.querySelector('#member-email') as HTMLInputElement).value = member.email || '';
@@ -152,7 +152,7 @@ export class FamilyMemberModal {
   private handleClick(e: Event): void {
     const target = e.target as HTMLElement;
     const action = target.getAttribute('data-action');
-    
+
     if (action === 'close-modal') {
       e.preventDefault();
       this.hide();
@@ -163,24 +163,27 @@ export class FamilyMemberModal {
   private handleSubmit(e: Event): void {
     e.preventDefault();
     if (this.isSubmitting) return;
-    
+
     const form = e.target as HTMLFormElement;
     this.handleFormSubmit(form);
   }
 
   private async handleFormSubmit(form: HTMLFormElement): Promise<void> {
     if (this.isSubmitting) return;
-    
+
     this.isSubmitting = true;
-    
+
     try {
       const formData = this.getFormData(form);
       const memberId = this.currentMember?.id;
-      
+
       await this.onSave(formData, memberId);
       this.hide();
     } catch (error) {
-      this.showFormError(form, error instanceof Error ? error.message : 'Failed to save family member');
+      this.showFormError(
+        form,
+        error instanceof Error ? error.message : 'Failed to save family member'
+      );
     } finally {
       this.isSubmitting = false;
     }
@@ -188,23 +191,23 @@ export class FamilyMemberModal {
 
   private getFormData(form: HTMLFormElement): FamilyMemberFormData {
     const formData = new FormData(form);
-    
+
     const name = formData.get('name') as string;
     const email = formData.get('email') as string;
     const role = formData.get('role') as string;
-    
+
     if (!name.trim()) {
       throw new Error('Name is required');
     }
-    
+
     if (!role) {
       throw new Error('Role is required');
     }
-    
+
     return {
       name: name.trim(),
       email: email.trim() || '',
-      role: role
+      role: role,
     };
   }
 
@@ -212,7 +215,7 @@ export class FamilyMemberModal {
     // Clear existing errors
     const existingErrors = form.querySelectorAll('.field-error');
     existingErrors.forEach(error => error.remove());
-    
+
     // Add new error
     const errorDiv = document.createElement('div');
     errorDiv.className = 'field-error form-error-general';
@@ -225,7 +228,7 @@ export class FamilyMemberModal {
       background: #fed7d7;
       border-radius: 4px;
     `;
-    
+
     form.appendChild(errorDiv);
   }
 
@@ -236,7 +239,7 @@ export class FamilyMemberModal {
     if (this.boundHandleSubmit) {
       this.element.removeEventListener('submit', this.boundHandleSubmit);
     }
-    
+
     this.element.remove();
     this.backdrop.remove();
   }

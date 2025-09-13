@@ -16,19 +16,20 @@ export class FamilyPage extends BasePage {
   async init(): Promise<void> {
     try {
       this.showLoading('Loading family setup...');
-      
+
       // Create the page structure
       this.container.innerHTML = this.renderPageContent();
 
       // Initialize the family members component
-      const membersContainer = this.container.querySelector('#family-members-container') as HTMLElement;
+      const membersContainer = this.container.querySelector(
+        '#family-members-container'
+      ) as HTMLElement;
       if (membersContainer) {
         this.familyMembers = new FamilyMembers(membersContainer, this.config);
       }
 
       // Set up event handlers
       this.setupEventHandlers();
-
     } catch (error) {
       this.showError('Failed to load family setup page');
     }
@@ -109,7 +110,7 @@ export class FamilyPage extends BasePage {
     // Add event listeners
     this.container.addEventListener('click', this.handleClick.bind(this));
     this.container.addEventListener('submit', this.handleSubmit.bind(this));
-    
+
     // Listen for successful form submissions
     this.container.addEventListener('form-success', this.boundHandleSuccess);
   }
@@ -146,9 +147,9 @@ export class FamilyPage extends BasePage {
   private async handleCreateFamily(form: HTMLFormElement): Promise<void> {
     const formData = new FormData(form);
     const familyData = {
-      name: formData.get('name') as string
+      name: formData.get('name') as string,
     };
-    
+
     try {
       const response = await fetch(`${this.config.apiBaseUrl}/families`, {
         method: 'POST',
@@ -156,7 +157,7 @@ export class FamilyPage extends BasePage {
           'Content-Type': 'application/json',
           'X-CSRF-Token': this.config.csrfToken,
         },
-        body: JSON.stringify(familyData)
+        body: JSON.stringify(familyData),
       });
 
       if (response.ok) {
@@ -176,9 +177,9 @@ export class FamilyPage extends BasePage {
     const userData = {
       name: formData.get('name') as string,
       email: formData.get('email') as string,
-      role: formData.get('role') as string
+      role: formData.get('role') as string,
     };
-    
+
     try {
       const response = await fetch(`${this.config.apiBaseUrl}/users`, {
         method: 'POST',
@@ -186,7 +187,7 @@ export class FamilyPage extends BasePage {
           'Content-Type': 'application/json',
           'X-CSRF-Token': this.config.csrfToken,
         },
-        body: JSON.stringify(userData)
+        body: JSON.stringify(userData),
       });
 
       if (response.ok) {
@@ -194,16 +195,18 @@ export class FamilyPage extends BasePage {
         this.showSuccessMessage(`Member "${member.name}" added successfully!`);
         this.hideAddMemberModal();
         form.reset();
-        
+
         // Refresh the family members component
         if (this.familyMembers) {
           await this.familyMembers.refresh();
         }
-        
+
         // Dispatch success event
-        this.container.dispatchEvent(new CustomEvent('form-success', { 
-          detail: { type: 'add-member', data: member } 
-        }));
+        this.container.dispatchEvent(
+          new CustomEvent('form-success', {
+            detail: { type: 'add-member', data: member },
+          })
+        );
       } else {
         throw new Error('Failed to add member');
       }
@@ -254,7 +257,7 @@ export class FamilyPage extends BasePage {
 
   private clearMessages(): void {
     const resultDivs = this.container.querySelectorAll('#family-info-result, #add-member-result');
-    resultDivs.forEach(div => div.innerHTML = '');
+    resultDivs.forEach(div => (div.innerHTML = ''));
   }
 
   async refresh(): Promise<void> {

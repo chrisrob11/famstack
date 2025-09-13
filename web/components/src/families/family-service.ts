@@ -116,10 +116,10 @@ export class FamilyService {
 
   // Family Member Management
   async listFamilyMembers(familyId?: string): Promise<FamilyMember[]> {
-    const url = familyId 
+    const url = familyId
       ? `${this.config.apiBaseUrl}/users?family_id=${familyId}`
       : `${this.config.apiBaseUrl}/users`;
-      
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -169,7 +169,10 @@ export class FamilyService {
     return response.json();
   }
 
-  async updateFamilyMember(memberId: string, updates: Partial<CreateFamilyMemberRequest>): Promise<FamilyMember> {
+  async updateFamilyMember(
+    memberId: string,
+    updates: Partial<CreateFamilyMemberRequest>
+  ): Promise<FamilyMember> {
     const response = await fetch(`${this.config.apiBaseUrl}/users/${memberId}`, {
       method: 'PATCH',
       headers: {

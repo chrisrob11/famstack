@@ -14,7 +14,7 @@ export class SchedulesPage {
 
   public render(targetContainer: HTMLElement): void {
     targetContainer.appendChild(this.container);
-    
+
     // Initialize the schedule list
     this.scheduleList = new ScheduleList(this.container, this.config);
   }

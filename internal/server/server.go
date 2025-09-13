@@ -63,6 +63,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	taskAPIHandler := api.NewTaskAPIHandler(s.db)
 	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
 	scheduleAPIHandler := api.NewScheduleHandler(s.db)
+	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -105,6 +106,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 
 	// Page routes - single handler for all pages
 	mux.HandleFunc("/tasks", pageHandler.ServePage)
+	mux.HandleFunc("/daily", pageHandler.ServePage)
 	mux.HandleFunc("/family/setup", pageHandler.ServePage)
 	mux.HandleFunc("/family", pageHandler.ServePage)
 	mux.HandleFunc("/schedules", pageHandler.ServePage)
@@ -193,6 +195,31 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		}
 	})
 
-	// Root route serves tasks page
+	// Calendar API routes
+	mux.HandleFunc("/api/v1/calendar/events", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			calendarAPIHandler.GetEvents(w, r)
+		case "POST":
+			calendarAPIHandler.CreateEvent(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	mux.HandleFunc("/api/v1/calendar/events/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			calendarAPIHandler.GetEvent(w, r)
+		case "PATCH":
+			calendarAPIHandler.UpdateEvent(w, r)
+		case "DELETE":
+			calendarAPIHandler.DeleteEvent(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Root route serves daily page
 	mux.HandleFunc("/", pageHandler.ServePage)
 }
