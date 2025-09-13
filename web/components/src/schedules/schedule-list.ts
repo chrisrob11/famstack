@@ -50,8 +50,7 @@ export class ScheduleList {
   private initializeModal(): void {
     this.scheduleModal = new ScheduleModal(this.container, this.config, {
       onSave: this.handleModalSave.bind(this),
-      onCancel: () => {
-      }
+      onCancel: () => {},
     });
   }
 
@@ -84,7 +83,7 @@ export class ScheduleList {
 
   private renderSchedules(schedules: TaskSchedule[]): void {
     const grid = this.container.querySelector('#schedule-grid') as HTMLElement;
-    
+
     if (schedules.length === 0) {
       grid.innerHTML = `
         <div class="empty-state">
@@ -96,7 +95,7 @@ export class ScheduleList {
     }
 
     grid.innerHTML = '';
-    
+
     // Clear existing cards
     this.scheduleCards.forEach(card => card.destroy());
     this.scheduleCards.clear();
@@ -107,9 +106,9 @@ export class ScheduleList {
         onScheduleUpdate: this.handleScheduleUpdate.bind(this),
         onScheduleDelete: this.handleScheduleDelete.bind(this),
         onScheduleToggle: this.handleScheduleToggle.bind(this),
-        onScheduleEdit: this.handleScheduleEdit.bind(this)
+        onScheduleEdit: this.handleScheduleEdit.bind(this),
       });
-      
+
       grid.appendChild(scheduleCard.getElement());
       this.scheduleCards.set(schedule.id, scheduleCard);
     });
@@ -118,7 +117,7 @@ export class ScheduleList {
   private addScheduleToList(schedule: TaskSchedule): void {
     const grid = this.container.querySelector('#schedule-grid') as HTMLElement;
     const emptyState = grid.querySelector('.empty-state');
-    
+
     if (emptyState) {
       grid.innerHTML = '';
     }
@@ -127,7 +126,7 @@ export class ScheduleList {
       onScheduleUpdate: this.handleScheduleUpdate.bind(this),
       onScheduleDelete: this.handleScheduleDelete.bind(this),
       onScheduleToggle: this.handleScheduleToggle.bind(this),
-      onScheduleEdit: this.handleScheduleEdit.bind(this)
+      onScheduleEdit: this.handleScheduleEdit.bind(this),
     });
 
     grid.appendChild(scheduleCard.getElement());
@@ -137,7 +136,7 @@ export class ScheduleList {
   private handleClick(e: Event): void {
     const target = e.target as HTMLElement;
     const action = target.getAttribute('data-action');
-    
+
     switch (action) {
       case 'add-schedule':
         this.scheduleModal.showCreate();
@@ -166,7 +165,7 @@ export class ScheduleList {
   private async handleScheduleDelete(scheduleId: string): Promise<void> {
     try {
       await this.scheduleService.deleteSchedule(scheduleId);
-      
+
       const scheduleCard = this.scheduleCards.get(scheduleId);
       if (scheduleCard) {
         scheduleCard.destroy();

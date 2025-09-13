@@ -20,27 +20,31 @@ export class FamilyMembers {
 
   private async init(): Promise<void> {
     this.container.className = 'family-members-container';
-    
+
     // Setup event handling
     this.boundHandleClick = this.handleClick.bind(this);
     this.container.addEventListener('click', this.boundHandleClick);
-    
+
     // Initialize modal
     this.initializeModal();
-    
+
     // Listen for refresh events
     this.container.addEventListener('refresh', () => {
       this.loadMembers();
     });
-    
+
     await this.loadMembers();
   }
 
   private initializeModal(): void {
-    this.familyMemberModal = new FamilyMemberModal(this.container.parentElement || document.body, this.config, {
-      onSave: this.handleModalSave.bind(this),
-      onCancel: () => {}
-    });
+    this.familyMemberModal = new FamilyMemberModal(
+      this.container.parentElement || document.body,
+      this.config,
+      {
+        onSave: this.handleModalSave.bind(this),
+        onCancel: () => {},
+      }
+    );
   }
 
   private async loadMembers(): Promise<void> {
@@ -71,7 +75,7 @@ export class FamilyMembers {
         </button>
       </div>
     `;
-    
+
     this.container.addEventListener('retry', () => this.loadMembers());
   }
 
@@ -96,7 +100,7 @@ export class FamilyMembers {
   private renderMemberCard(member: FamilyMember): string {
     const roleColor = member.role === 'parent' ? 'role-parent' : 'role-child';
     const roleIcon = member.role === 'parent' ? '👨‍👩‍👧‍👦' : '👶';
-    
+
     return `
       <div class="member-card" data-member-id="${member.id}">
         <div class="member-header">
@@ -156,7 +160,7 @@ export class FamilyMembers {
       await this.familyService.createFamilyMember(memberData);
       this.showSuccess('Member added successfully!');
     }
-    
+
     await this.loadMembers(); // Refresh the list
   }
 
@@ -192,7 +196,7 @@ export class FamilyMembers {
     if (this.boundHandleClick) {
       this.container.removeEventListener('click', this.boundHandleClick);
     }
-    
+
     if (this.familyMemberModal) {
       this.familyMemberModal.destroy();
     }

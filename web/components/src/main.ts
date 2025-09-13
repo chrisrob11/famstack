@@ -31,7 +31,7 @@ function initializeComponents(config: ComponentConfig): void {
   
   pageContainers.forEach((container, index) => {
     const instanceId = container.getAttribute('data-instance-id') ?? `page-${index}`;
-    const pageType = container.getAttribute('data-page-type') ?? 'tasks';
+    const pageType = container.getAttribute('data-page-type') ?? 'daily';
     
     const pageManager = new PageManager(container as HTMLElement, config);
     pageManager.navigateToPage(pageType);
@@ -79,7 +79,7 @@ document.addEventListener('htmx:afterSwap', (event: any) => {
       const pageContainers = target.querySelectorAll('[data-component="page"]');
       pageContainers.forEach((container: Element, index: number) => {
         const instanceId = container.getAttribute('data-instance-id') ?? `page-${Date.now()}-${index}`;
-        const pageType = container.getAttribute('data-page-type') ?? 'tasks';
+        const pageType = container.getAttribute('data-page-type') ?? 'daily';
         
         const pageManager = new PageManager(container as HTMLElement, config);
         pageManager.navigateToPage(pageType);

@@ -8,12 +8,12 @@ export interface PageComponent {
    * Initialize the page component
    */
   init(): Promise<void>;
-  
+
   /**
    * Clean up the page component when navigating away
    */
   destroy(): void;
-  
+
   /**
    * Refresh the page component data
    */
@@ -60,6 +60,16 @@ export abstract class BasePage implements PageComponent {
   }
 
   /**
+   * Hide loading state - clears the container
+   */
+  protected hideLoading(): void {
+    const loadingElement = this.container.querySelector('.page-loading');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+  }
+
+  /**
    * Show error state
    */
   protected showError(message: string, canRetry: boolean = true): void {
@@ -67,11 +77,15 @@ export abstract class BasePage implements PageComponent {
       <div class="page-error">
         <h3>Something went wrong</h3>
         <p>${message}</p>
-        ${canRetry ? `
+        ${
+          canRetry
+            ? `
           <button class="btn btn-primary" onclick="this.closest('.page-error').dispatchEvent(new CustomEvent('retry'))">
             Try Again
           </button>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
 

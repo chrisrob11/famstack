@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc && npm run copy-assets",
     "build:watch": "tsc --watch",
-    "copy-assets": "mkdir -p ../static/js && cp -r dist/* ../static/js/ && cp src/*.css ../static/js/",
+    "copy-assets": "mkdir -p ../static/js && cp -r dist/* ../static/js/ && cp -r src/* ../static/js/",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write src/**/*.ts",

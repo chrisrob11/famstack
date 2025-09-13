@@ -39,10 +39,7 @@ go.work.sum
 *.db-wal
 
 # TypeScript build artifacts
-web/static/js/**/*.js
-web/static/js/**/*.js.map
-web/static/js/**/*.d.ts
-web/static/js/**/*.d.ts.map
+web/static/js/
 web/components/dist/
 web/components/test-dist/
 web/components/node_modules/

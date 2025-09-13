@@ -23,7 +23,9 @@ export class SchedulesPage extends BasePage {
     `;
 
     // Page directly creates and owns the ScheduleList - no global scanning
-    const scheduleContainer = this.container.querySelector('#main-schedule-container') as HTMLElement;
+    const scheduleContainer = this.container.querySelector(
+      '#main-schedule-container'
+    ) as HTMLElement;
     if (scheduleContainer) {
       this.scheduleList = new ScheduleList(scheduleContainer, this.config);
     }

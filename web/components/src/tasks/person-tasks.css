@@ -1,0 +1,165 @@
+/* PersonTasks Component Styles */
+
+/* Container for individual person tasks */
+.person-tasks-container {
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
+  min-height: 100px;
+}
+
+.person-tasks-container:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e0;
+}
+
+/* Person header with name and add button */
+.person-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.person-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0;
+  border-bottom: 2px solid #8b5cf6;
+  padding-bottom: 8px;
+  flex: 1;
+}
+
+/* Add task button for each person */
+.person-add-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+  border: none;
+  color: white;
+  font-size: 16px;
+  font-weight: 300;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 12px;
+}
+
+.person-add-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.4);
+}
+
+.person-add-btn:active {
+  transform: translateY(0);
+}
+
+.person-add-icon {
+  line-height: 1;
+}
+
+/* Task list container */
+.person-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.person-task-item {
+  position: relative;
+}
+
+/* Task content layout */
+.person-task-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.person-task-content:hover {
+  background: rgba(139, 92, 246, 0.05);
+}
+
+/* Checkbox styling */
+.person-task-checkbox {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #cbd5e0;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+}
+
+.person-task-checkbox:checked {
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+.person-task-checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 11px;
+  font-weight: bold;
+  line-height: 1;
+}
+
+/* Task text styling */
+.person-task-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #2d3748;
+  line-height: 1.4;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.person-task-text:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+/* Inline editing input */
+.person-task-input {
+  font-size: 15px;
+  font-weight: 500;
+  color: #2d3748;
+  line-height: 1.4;
+  border: 2px solid #8b5cf6;
+  border-radius: 4px;
+  padding: 4px 8px;
+  background: white;
+  outline: none;
+}
+
+/* Completed task styling */
+.person-task-checkbox:checked + .person-task-text {
+  text-decoration: line-through;
+  color: #a0aec0;
+}
+
+.person-task-content .person-task-checkbox:checked ~ .person-task-text {
+  text-decoration: line-through;
+  color: #a0aec0;
+}

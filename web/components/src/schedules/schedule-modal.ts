@@ -18,10 +18,10 @@ export class ScheduleModal {
   private boundHandleClick?: (e: Event) => void;
   private boundHandleSubmit?: (e: Event) => void;
 
-  constructor(container: HTMLElement, config: ComponentConfig, options: ScheduleModalOptions) {
+  constructor(container: HTMLElement, _config: ComponentConfig, options: ScheduleModalOptions) {
     this.onSave = options.onSave;
     this.onCancel = options.onCancel;
-    
+
     this.createElement(container);
     this.attachEventListeners();
     this.populateUserOptions();
@@ -134,7 +134,7 @@ export class ScheduleModal {
   private attachEventListeners(): void {
     this.boundHandleClick = this.handleClick.bind(this);
     this.boundHandleSubmit = this.handleSubmit.bind(this);
-    
+
     this.element.addEventListener('click', this.boundHandleClick);
     this.element.addEventListener('submit', this.boundHandleSubmit);
   }
@@ -154,26 +154,26 @@ export class ScheduleModal {
 
   public showCreate(): void {
     this.currentSchedule = undefined;
-    
+
     const title = this.element.querySelector('#modal-title') as HTMLElement;
     const submitBtn = this.element.querySelector('#submit-btn') as HTMLButtonElement;
-    
+
     title.textContent = 'Create New Schedule';
     submitBtn.textContent = 'Create Schedule';
-    
+
     this.resetForm();
     this.show();
   }
 
   public showEdit(schedule: TaskSchedule): void {
     this.currentSchedule = schedule;
-    
+
     const title = this.element.querySelector('#modal-title') as HTMLElement;
     const submitBtn = this.element.querySelector('#submit-btn') as HTMLButtonElement;
-    
+
     title.textContent = 'Edit Schedule';
     submitBtn.textContent = 'Update Schedule';
-    
+
     this.populateForm(schedule);
     this.show();
   }
@@ -181,7 +181,7 @@ export class ScheduleModal {
   private show(): void {
     this.element.style.display = 'flex';
     this.backdrop.style.display = 'block';
-    
+
     const titleInput = this.element.querySelector('#schedule-title') as HTMLInputElement;
     titleInput?.focus();
   }
@@ -195,11 +195,11 @@ export class ScheduleModal {
   private resetForm(): void {
     const form = this.element.querySelector('#schedule-form') as HTMLFormElement;
     form.reset();
-    
+
     // Set default priority
     const prioritySelect = form.querySelector('#schedule-priority') as HTMLSelectElement;
     prioritySelect.value = '1';
-    
+
     // Clear any error messages
     const errors = form.querySelectorAll('.field-error');
     errors.forEach(error => error.remove());
@@ -207,16 +207,21 @@ export class ScheduleModal {
 
   private populateForm(schedule: TaskSchedule): void {
     const form = this.element.querySelector('#schedule-form') as HTMLFormElement;
-    
+
     (form.querySelector('#schedule-id') as HTMLInputElement).value = schedule.id;
     (form.querySelector('#schedule-title') as HTMLInputElement).value = schedule.title;
-    (form.querySelector('#schedule-description') as HTMLTextAreaElement).value = schedule.description || '';
+    (form.querySelector('#schedule-description') as HTMLTextAreaElement).value =
+      schedule.description || '';
     (form.querySelector('#schedule-type') as HTMLSelectElement).value = schedule.task_type;
-    (form.querySelector('#schedule-assigned-to') as HTMLSelectElement).value = schedule.assigned_to || '';
-    (form.querySelector('#schedule-priority') as HTMLSelectElement).value = schedule.priority.toString();
-    
+    (form.querySelector('#schedule-assigned-to') as HTMLSelectElement).value =
+      schedule.assigned_to || '';
+    (form.querySelector('#schedule-priority') as HTMLSelectElement).value =
+      schedule.priority.toString();
+
     // Set checkboxes for days of the week
-    const dayCheckboxes = form.querySelectorAll('input[name="days_of_week"]') as NodeListOf<HTMLInputElement>;
+    const dayCheckboxes = form.querySelectorAll(
+      'input[name="days_of_week"]'
+    ) as NodeListOf<HTMLInputElement>;
     dayCheckboxes.forEach(checkbox => {
       checkbox.checked = schedule.days_of_week.includes(checkbox.value);
     });
@@ -225,7 +230,7 @@ export class ScheduleModal {
   private handleClick(e: Event): void {
     const target = e.target as HTMLElement;
     const action = target.getAttribute('data-action');
-    
+
     if (action === 'close-modal') {
       e.preventDefault();
       this.hide();
@@ -236,20 +241,20 @@ export class ScheduleModal {
   private handleSubmit(e: Event): void {
     e.preventDefault();
     if (this.isSubmitting) return;
-    
+
     const form = e.target as HTMLFormElement;
     this.handleFormSubmit(form);
   }
 
   private async handleFormSubmit(form: HTMLFormElement): Promise<void> {
     if (this.isSubmitting) return;
-    
+
     this.isSubmitting = true;
-    
+
     try {
       const formData = this.getFormData(form);
       const scheduleId = this.currentSchedule?.id;
-      
+
       await this.onSave(formData, scheduleId);
       this.hide();
     } catch (error) {
@@ -261,27 +266,29 @@ export class ScheduleModal {
 
   private getFormData(form: HTMLFormElement): ScheduleFormData {
     const formData = new FormData(form);
-    
+
     // Get selected days
     const selectedDays: string[] = [];
-    const dayCheckboxes = form.querySelectorAll('input[name="days_of_week"]:checked') as NodeListOf<HTMLInputElement>;
+    const dayCheckboxes = form.querySelectorAll(
+      'input[name="days_of_week"]:checked'
+    ) as NodeListOf<HTMLInputElement>;
     dayCheckboxes.forEach(checkbox => {
       selectedDays.push(checkbox.value);
     });
-    
+
     if (selectedDays.length === 0) {
       throw new Error('Please select at least one day of the week');
     }
-    
+
     return {
       title: formData.get('title') as string,
-      description: formData.get('description') as string || '',
+      description: (formData.get('description') as string) || '',
       task_type: formData.get('task_type') as 'todo' | 'chore' | 'appointment',
-      assigned_to: formData.get('assigned_to') as string || null,
+      assigned_to: (formData.get('assigned_to') as string) || null,
       days_of_week: selectedDays,
       time_of_day: null,
       priority: parseInt(formData.get('priority') as string),
-      points: 0
+      points: 0,
     };
   }
 
@@ -289,7 +296,7 @@ export class ScheduleModal {
     // Clear existing errors
     const existingErrors = form.querySelectorAll('.field-error');
     existingErrors.forEach(error => error.remove());
-    
+
     // Add new error
     const errorDiv = document.createElement('div');
     errorDiv.className = 'field-error form-error-general';
@@ -302,7 +309,7 @@ export class ScheduleModal {
       background: #fed7d7;
       border-radius: 4px;
     `;
-    
+
     form.appendChild(errorDiv);
   }
 
@@ -313,7 +320,7 @@ export class ScheduleModal {
     if (this.boundHandleSubmit) {
       this.element.removeEventListener('submit', this.boundHandleSubmit);
     }
-    
+
     this.element.remove();
     this.backdrop.remove();
   }

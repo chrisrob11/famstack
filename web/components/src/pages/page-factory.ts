@@ -1,6 +1,6 @@
 import { ComponentConfig } from '../common/types.js';
 import { PageComponent } from './base-page.js';
-import { TasksPage } from '../tasks/tasks-page.js';
+import { DailyPage } from './daily-page.js';
 import { FamilyPage } from '../families/family-page.js';
 import { SchedulesPage } from '../schedules/schedules-page.js';
 
@@ -9,24 +9,24 @@ import { SchedulesPage } from '../schedules/schedules-page.js';
  */
 export class PageFactory {
   static createPage(
-    pageType: string, 
-    container: HTMLElement, 
+    pageType: string,
+    container: HTMLElement,
     config: ComponentConfig
   ): PageComponent {
     switch (pageType) {
-      case 'tasks':
-        return new TasksPage(container, config);
+      case 'daily':
+        return new DailyPage(container, config);
       case 'family':
         return new FamilyPage(container, config);
       case 'schedules':
         return new SchedulesPage(container, config);
       default:
-        return new TasksPage(container, config); // Default to tasks page
+        return new DailyPage(container, config); // Default to daily page
     }
   }
 
   static getAvailablePageTypes(): string[] {
-    return ['tasks', 'family', 'schedules'];
+    return ['daily', 'family', 'schedules'];
   }
 }
 

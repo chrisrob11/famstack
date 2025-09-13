@@ -34,9 +34,9 @@ export class ComponentUtils {
       animation: slideIn 0.3s ease;
     `;
     errorDiv.textContent = message;
-    
+
     document.body.appendChild(errorDiv);
-    
+
     // Auto-remove after duration
     setTimeout(() => {
       if (errorDiv.parentNode) {
@@ -52,11 +52,15 @@ export class ComponentUtils {
     container.innerHTML = `
       <div class="error-container">
         <div class="error-message">${message}</div>
-        ${onRetry ? `
+        ${
+          onRetry
+            ? `
           <button class="retry-btn" onclick="this.dispatchEvent(new CustomEvent('retry', { bubbles: true }))">
             Try Again
           </button>
-        ` : ''}
+        `
+            : ''
+        }
       </div>
     `;
 
@@ -84,9 +88,9 @@ export class ComponentUtils {
       animation: slideIn 0.3s ease;
     `;
     successDiv.textContent = message;
-    
+
     document.body.appendChild(successDiv);
-    
+
     // Auto-remove after duration
     setTimeout(() => {
       if (successDiv.parentNode) {
@@ -118,7 +122,10 @@ export class ComponentUtils {
   /**
    * Validate form and show field errors
    */
-  static showFormErrors(form: HTMLFormElement, errors: string | Array<{field: string, message: string}>): void {
+  static showFormErrors(
+    form: HTMLFormElement,
+    errors: string | Array<{ field: string; message: string }>
+  ): void {
     // Clear existing errors
     form.querySelectorAll('.field-error').forEach(el => el.remove());
 

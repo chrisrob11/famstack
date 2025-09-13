@@ -85,7 +85,10 @@ export class ScheduleService {
     return response.json();
   }
 
-  async updateSchedule(scheduleId: string, updates: Partial<CreateScheduleRequest & { active?: boolean }>): Promise<TaskSchedule> {
+  async updateSchedule(
+    scheduleId: string,
+    updates: Partial<CreateScheduleRequest & { active?: boolean }>
+  ): Promise<TaskSchedule> {
     const response = await fetch(`${this.config.apiBaseUrl}/schedules/${scheduleId}`, {
       method: 'PATCH',
       headers: {
@@ -122,7 +125,7 @@ export class ScheduleService {
 
     // Update the active field
     await this.updateSchedule(scheduleId, { active: newActiveState });
-    
+
     return { active: newActiveState };
   }
 }

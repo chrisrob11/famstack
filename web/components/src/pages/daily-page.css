@@ -1,0 +1,107 @@
+/* Daily Page Layout Styles */
+.daily-page {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.daily-header {
+  margin-bottom: 2rem;
+}
+
+.family-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.family-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.family-initial {
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.family-title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.date-nav-btn {
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #4b5563;
+  transition: all 0.2s ease;
+}
+
+.date-nav-btn:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.daily-content {
+  display: grid;
+  grid-template-columns: 60% 40%;
+  gap: 2rem;
+  align-items: start;
+}
+
+.daily-left-panel,
+.daily-right-panel {
+  width: 100%;
+}
+
+/* Responsive design for daily page */
+@media (max-width: 1200px) {
+  .daily-content {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .daily-page {
+    padding: 0.5rem;
+  }
+  
+  .family-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .family-title h1 {
+    font-size: 1.5rem;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .date-nav-btn {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .daily-content {
+    gap: 1rem;
+  }
+}
