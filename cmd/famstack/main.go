@@ -34,24 +34,24 @@ func main() {
 
 	// Handle migration commands
 	if *migrateUp {
-		if err := database.MigrateUp(db); err != nil {
-			log.Fatalf("Failed to run migrations up: %v", err)
+		if migErr := database.MigrateUp(db); migErr != nil {
+			log.Fatalf("Failed to run migrations up: %v", migErr)
 		}
 		log.Println("Migrations completed successfully")
 		return
 	}
 
 	if *migrateDown {
-		if err := database.MigrateDown(db); err != nil {
-			log.Fatalf("Failed to run migrations down: %v", err)
+		if migErr := database.MigrateDown(db); migErr != nil {
+			log.Fatalf("Failed to run migrations down: %v", migErr)
 		}
 		log.Println("Migrations rolled back successfully")
 		return
 	}
 
 	// Run migrations automatically if not explicitly handling them
-	if err := database.MigrateUp(db); err != nil {
-		log.Fatalf("Failed to run automatic migrations: %v", err)
+	if migErr := database.MigrateUp(db); migErr != nil {
+		log.Fatalf("Failed to run automatic migrations: %v", migErr)
 	}
 
 	// Configure job system
@@ -67,12 +67,30 @@ func main() {
 
 	// Register job handlers
 	jobSystem.Register("generate_scheduled_task", jobs.NewTaskGenerationHandler(db))
+	jobSystem.Register("monthly_task_generation", jobs.NewMonthlyTaskGenerationHandler(db))
+	jobSystem.Register("schedule_maintenance", jobs.NewScheduleMaintenanceHandler(db, jobSystem))
+	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(db))
 
 	// Create and start server
 	srv := server.New(db, jobSystem, &server.Config{
 		Port: *port,
 		Dev:  *dev,
 	})
+
+	// Set up daily maintenance job scheduling
+	err = jobSystem.Schedule(&jobsystem.ScheduleRequest{
+		Name:      "daily_schedule_maintenance",
+		QueueName: "task_generation",
+		JobType:   "schedule_maintenance",
+		Payload:   map[string]interface{}{},
+		CronExpr:  "0 0 * * *", // Daily at midnight
+		Enabled:   true,
+	})
+	if err != nil {
+		log.Printf("Failed to schedule daily maintenance job: %v", err)
+	} else {
+		log.Println("Scheduled daily maintenance job")
+	}
 
 	// Start job system
 	ctx, cancel := context.WithCancel(context.Background())
@@ -82,6 +100,26 @@ func main() {
 		log.Println("Starting job system...")
 		if err := jobSystem.Start(ctx); err != nil {
 			log.Fatalf("Job system failed to start: %v", err)
+		}
+	}()
+
+	// Run immediate startup check for schedules needing generation
+	go func() {
+		// Wait a moment for job system to be fully started
+		time.Sleep(2 * time.Second)
+
+		log.Println("Running startup check for schedules needing task generation...")
+		_, err := jobSystem.Enqueue(&jobsystem.EnqueueRequest{
+			QueueName:  "task_generation",
+			JobType:    "schedule_maintenance",
+			Payload:    map[string]interface{}{},
+			Priority:   2, // Higher priority than regular maintenance
+			MaxRetries: 3,
+		})
+		if err != nil {
+			log.Printf("Failed to enqueue startup maintenance job: %v", err)
+		} else {
+			log.Println("Enqueued startup maintenance check")
 		}
 	}()
 

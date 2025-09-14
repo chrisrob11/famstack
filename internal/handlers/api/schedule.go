@@ -188,6 +188,10 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "At least one day of the week is required", http.StatusBadRequest)
 		return
 	}
+	if req.AssignedTo == nil || *req.AssignedTo == "" {
+		http.Error(w, "Assigned person is required", http.StatusBadRequest)
+		return
+	}
 	if req.FamilyID == "" {
 		req.FamilyID = "fam1" // Default family
 	}
@@ -270,8 +274,39 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 		CreatedAt:   createdAt,
 	}
 
-	// Queue initial task generation for the next 14 days
+	// Queue initial task generation for the next 6 months
 	if h.jobSystem != nil {
+		// First, immediately check if we need to create a task for today
+		today := time.Now()
+		todayWeekday := strings.ToLower(today.Weekday().String())
+		shouldCreateToday := false
+
+		for _, day := range req.DaysOfWeek {
+			if strings.ToLower(day) == todayWeekday {
+				shouldCreateToday = true
+				break
+			}
+		}
+
+		if shouldCreateToday {
+			// Enqueue a high-priority job to create today's task immediately
+			payload := map[string]any{
+				"schedule_id": newID,
+				"target_date": today.Format("2006-01-02"),
+			}
+			_, err = h.jobSystem.Enqueue(&jobsystem.EnqueueRequest{
+				QueueName:  "task_generation",
+				JobType:    "generate_scheduled_task",
+				Payload:    payload,
+				Priority:   3, // High priority for immediate execution
+				MaxRetries: 3,
+			})
+			if err != nil {
+				log.Printf("Failed to enqueue today's task for schedule %s: %v", newID, err)
+			}
+		}
+
+		// Then queue bulk generation for the next 6 months
 		err = h.queueTaskGeneration(newID)
 		if err != nil {
 			log.Printf("Failed to queue task generation for schedule %s: %v", newID, err)
@@ -481,60 +516,92 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request) {
 	scheduleID := extractIDFromPath(r.URL.Path, "/api/v1/schedules")
 
-	// Soft delete by setting active = false
-	query := "UPDATE task_schedules SET active = false WHERE id = ?"
-	result, err := h.db.Exec(query, scheduleID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to delete schedule: %v", err), http.StatusInternalServerError)
+	if scheduleID == "" {
+		http.Error(w, "Schedule ID is required", http.StatusBadRequest)
 		return
 	}
 
-	rowsAffected, err := result.RowsAffected()
+	// First check if the schedule exists
+	var exists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM task_schedules WHERE id = ? AND active = true)"
+	err := h.db.QueryRow(checkQuery, scheduleID).Scan(&exists)
 	if err != nil {
-		http.Error(w, "Failed to check operation result", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to check schedule: %v", err), http.StatusInternalServerError)
 		return
 	}
-	if rowsAffected == 0 {
+	if !exists {
 		http.Error(w, "Schedule not found", http.StatusNotFound)
 		return
 	}
 
-	// Note: With the job system, pending jobs will naturally not execute
-	// if the schedule is deleted since the handler checks if the schedule exists
+	// If job system is available, enqueue async deletion job
+	if h.jobSystem != nil {
+		payload := map[string]any{
+			"schedule_id": scheduleID,
+		}
+		_, err := h.jobSystem.Enqueue(&jobsystem.EnqueueRequest{
+			QueueName:  "default",
+			JobType:    "delete_schedule",
+			Payload:    payload,
+			Priority:   2, // Higher priority for deletion
+			MaxRetries: 3,
+		})
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to enqueue deletion job: %v", err), http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Enqueued deletion job for schedule %s", scheduleID)
+	} else {
+		// Fallback: soft delete if no job system
+		query := "UPDATE task_schedules SET active = false WHERE id = ?"
+		_, err := h.db.Exec(query, scheduleID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to deactivate schedule: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
 
-	w.WriteHeader(http.StatusOK)
+	// Return success response
+	response := map[string]interface{}{
+		"success":     true,
+		"message":     "Schedule deletion initiated",
+		"schedule_id": scheduleID,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted) // 202 Accepted for async operation
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
-// queueTaskGeneration queues task generation for a schedule over the next 14 days
+// queueTaskGeneration queues 6 monthly task generation jobs for a new schedule
 func (h *ScheduleHandler) queueTaskGeneration(scheduleID string) error {
 	now := time.Now()
 
-	// Generate jobs for the next 14 days
-	for i := range 14 {
-		targetDate := now.AddDate(0, 0, i)
+	// Enqueue 6 monthly generation jobs for 6 months of tasks
+	for i := 0; i < 6; i++ {
+		startDate := time.Date(now.Year(), now.Month()+time.Month(i), 1, 0, 0, 0, 0, now.Location())
+		endDate := startDate.AddDate(0, 1, -1) // Last day of the month
+
 		payload := map[string]any{
 			"schedule_id": scheduleID,
-			"target_date": targetDate.Format("2006-01-02"),
-		}
-
-		// Schedule processing for midnight of the target date minus 1 day
-		scheduledFor := targetDate.AddDate(0, 0, -1).Truncate(24 * time.Hour)
-		if scheduledFor.Before(now) {
-			scheduledFor = now // Process immediately if it's in the past
+			"start_date":  startDate.Format("2006-01-02"),
+			"end_date":    endDate.Format("2006-01-02"),
 		}
 
 		_, err := h.jobSystem.Enqueue(&jobsystem.EnqueueRequest{
 			QueueName:  "task_generation",
-			JobType:    "generate_scheduled_task",
+			JobType:    "monthly_task_generation",
 			Payload:    payload,
-			Priority:   0,
+			Priority:   1,
 			MaxRetries: 3,
-			RunAt:      &scheduledFor,
 		})
 		if err != nil {
-			return fmt.Errorf("failed to enqueue task generation job: %w", err)
+			return fmt.Errorf("failed to enqueue monthly task generation job for %s: %w", startDate.Format("2006-01"), err)
 		}
 	}
 
+	log.Printf("Enqueued 6 monthly task generation jobs for schedule %s", scheduleID)
 	return nil
 }

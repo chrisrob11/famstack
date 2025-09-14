@@ -77,9 +77,9 @@ export class ScheduleModal {
             </div>
 
             <div class="form-group">
-              <label for="schedule-assigned-to">Assigned To</label>
-              <select id="schedule-assigned-to" name="assigned_to">
-                <option value="">Unassigned</option>
+              <label for="schedule-assigned-to">Assigned To *</label>
+              <select id="schedule-assigned-to" name="assigned_to" required>
+                <option value="">Select person...</option>
               </select>
             </div>
 
@@ -144,7 +144,7 @@ export class ScheduleModal {
     if (select) {
       // TODO: Replace with actual user fetching
       select.innerHTML = `
-        <option value="">Unassigned</option>
+        <option value="">Select person...</option>
         <option value="user1">John Smith</option>
         <option value="user2">Jane Smith</option>
         <option value="user3">Bobby Smith</option>
@@ -278,6 +278,11 @@ export class ScheduleModal {
 
     if (selectedDays.length === 0) {
       throw new Error('Please select at least one day of the week');
+    }
+
+    const assignedTo = formData.get('assigned_to') as string;
+    if (!assignedTo || assignedTo.trim() === '') {
+      throw new Error('Please assign this schedule to a person');
     }
 
     return {

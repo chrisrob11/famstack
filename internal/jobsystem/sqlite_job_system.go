@@ -395,9 +395,12 @@ func (js *SQLiteJobSystem) pollJobs(pool *workerPool) {
 			continue
 		}
 
+		// Try parsing with multiple time formats
 		if job.RunAt, err = time.Parse("2006-01-02 15:04:05", runAtStr); err != nil {
-			log.Printf("Failed to parse run_at time: %v", err)
-			continue
+			if job.RunAt, err = time.Parse(time.RFC3339, runAtStr); err != nil {
+				log.Printf("Failed to parse run_at time: %v", err)
+				continue
+			}
 		}
 
 		select {
