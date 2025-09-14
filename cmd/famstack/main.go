@@ -10,8 +10,9 @@ import (
 	"time"
 
 	"famstack/internal/database"
+	"famstack/internal/jobs"
+	"famstack/internal/jobsystem"
 	"famstack/internal/server"
-	"famstack/internal/workers"
 )
 
 func main() {
@@ -53,17 +54,35 @@ func main() {
 		log.Fatalf("Failed to run automatic migrations: %v", err)
 	}
 
+	// Configure job system
+	config := jobsystem.DefaultConfig()
+	config.DatabasePath = *dbPath
+	config.WorkerConcurrency = map[string]int{
+		"default":         3,
+		"task_generation": 2,
+	}
+
+	// Create job system
+	jobSystem := jobsystem.NewSQLiteJobSystem(config, db)
+
+	// Register job handlers
+	jobSystem.Register("generate_scheduled_task", jobs.NewTaskGenerationHandler(db))
+
 	// Create and start server
-	srv := server.New(db, &server.Config{
+	srv := server.New(db, jobSystem, &server.Config{
 		Port: *port,
 		Dev:  *dev,
 	})
 
-	// Start queue worker in a goroutine
-	queueWorker := workers.NewQueueWorker(db, 5*time.Minute)
+	// Start job system
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	go func() {
-		log.Println("Starting queue worker...")
-		queueWorker.Start()
+		log.Println("Starting job system...")
+		if err := jobSystem.Start(ctx); err != nil {
+			log.Fatalf("Job system failed to start: %v", err)
+		}
 	}()
 
 	// Start server in a goroutine
@@ -80,17 +99,17 @@ func main() {
 	<-c
 
 	// Graceful shutdown
-	log.Println("Shutting down server and queue worker...")
+	log.Println("Shutting down server and job system...")
 
-	// Stop queue worker
-	queueWorker.Stop()
-	log.Println("Queue worker stopped")
+	// Stop job system
+	jobSystem.Stop()
+	log.Println("Job system stopped")
 
 	// Stop server
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	} else {
 		log.Println("Server stopped gracefully")

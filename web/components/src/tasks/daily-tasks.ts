@@ -89,11 +89,9 @@ export class DailyTasks {
     userColumns.forEach(column => {
       const user = column.user;
       const tasks = column.tasks || [];
-      
+
       // Filter to today's tasks (all pending tasks)
-      const todayTasks = tasks.filter(task => 
-        task.status === 'pending'
-      );
+      const todayTasks = tasks.filter(task => task.status === 'pending');
 
       if (user.name !== 'Unassigned') {
         gridItems.push(`
@@ -124,8 +122,11 @@ export class DailyTasks {
           >
           <div class="grid-task-content">
             <span class="grid-task-text">${task.title}</span>
-            ${task.description && task.description !== task.title ? 
-              `<span class="grid-task-description">(${task.description})</span>` : ''}
+            ${
+              task.description && task.description !== task.title
+                ? `<span class="grid-task-description">(${task.description})</span>`
+                : ''
+            }
           </div>
         </label>
       </div>
@@ -171,10 +172,12 @@ export class DailyTasks {
 
   private handleAddTask(): void {
     // Emit event for parent component to handle
-    this.container.dispatchEvent(new CustomEvent('add-task-requested', {
-      bubbles: true,
-      detail: { source: 'daily-tasks' }
-    }));
+    this.container.dispatchEvent(
+      new CustomEvent('add-task-requested', {
+        bubbles: true,
+        detail: { source: 'daily-tasks' },
+      })
+    );
   }
 
   private async handleToggleTask(checkboxElement: HTMLElement): Promise<void> {
@@ -187,10 +190,10 @@ export class DailyTasks {
     try {
       const newStatus = checkbox.checked ? 'completed' : 'pending';
       await this.taskService.updateTask(taskId, { status: newStatus });
-      
+
       // Update local state
       this.updateTaskStatus(taskId, newStatus);
-      
+
       // Re-render to update UI
       this.renderTasks();
     } catch (error) {

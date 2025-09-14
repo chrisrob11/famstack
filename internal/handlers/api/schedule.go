@@ -7,20 +7,27 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"famstack/internal/database"
-	"famstack/internal/services"
+	"famstack/internal/jobsystem"
 )
 
 type ScheduleHandler struct {
-	db           *database.DB
-	queueService *services.QueueService
+	db        *database.DB
+	jobSystem *jobsystem.SQLiteJobSystem
 }
 
 func NewScheduleHandler(db *database.DB) *ScheduleHandler {
 	return &ScheduleHandler{
-		db:           db,
-		queueService: services.NewQueueService(db),
+		db: db,
+	}
+}
+
+func NewScheduleHandlerWithJobSystem(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem) *ScheduleHandler {
+	return &ScheduleHandler{
+		db:        db,
+		jobSystem: jobSystem,
 	}
 }
 
@@ -264,10 +271,12 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Queue initial task generation for the next 14 days
-	err = h.queueService.QueueTaskGeneration(newID)
-	if err != nil {
-		log.Printf("Failed to queue task generation for schedule %s: %v", newID, err)
-		// Don't fail the request, just log the error
+	if h.jobSystem != nil {
+		err = h.queueTaskGeneration(newID)
+		if err != nil {
+			log.Printf("Failed to queue task generation for schedule %s: %v", newID, err)
+			// Don't fail the request, just log the error
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -408,9 +417,11 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 	}
 
 	// If the schedule was updated, re-queue task generation
-	err = h.queueService.QueueTaskGenerationUpdate(scheduleID)
-	if err != nil {
-		log.Printf("Failed to queue task generation after update for schedule %s: %v", scheduleID, err)
+	if h.jobSystem != nil {
+		err = h.queueTaskGeneration(scheduleID)
+		if err != nil {
+			log.Printf("Failed to queue task generation after update for schedule %s: %v", scheduleID, err)
+		}
 	}
 
 	// Fetch and return the updated schedule
@@ -488,11 +499,42 @@ func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Remove from queue since it's deleted
-	err = h.queueService.RemoveScheduleFromQueue(scheduleID)
-	if err != nil {
-		log.Printf("Failed to remove schedule from queue after deletion for schedule %s: %v", scheduleID, err)
-	}
+	// Note: With the job system, pending jobs will naturally not execute
+	// if the schedule is deleted since the handler checks if the schedule exists
 
 	w.WriteHeader(http.StatusOK)
+}
+
+// queueTaskGeneration queues task generation for a schedule over the next 14 days
+func (h *ScheduleHandler) queueTaskGeneration(scheduleID string) error {
+	now := time.Now()
+
+	// Generate jobs for the next 14 days
+	for i := range 14 {
+		targetDate := now.AddDate(0, 0, i)
+		payload := map[string]any{
+			"schedule_id": scheduleID,
+			"target_date": targetDate.Format("2006-01-02"),
+		}
+
+		// Schedule processing for midnight of the target date minus 1 day
+		scheduledFor := targetDate.AddDate(0, 0, -1).Truncate(24 * time.Hour)
+		if scheduledFor.Before(now) {
+			scheduledFor = now // Process immediately if it's in the past
+		}
+
+		_, err := h.jobSystem.Enqueue(&jobsystem.EnqueueRequest{
+			QueueName:  "task_generation",
+			JobType:    "generate_scheduled_task",
+			Payload:    payload,
+			Priority:   0,
+			MaxRetries: 3,
+			RunAt:      &scheduledFor,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to enqueue task generation job: %w", err)
+		}
+	}
+
+	return nil
 }
