@@ -109,12 +109,14 @@ func main() {
 		time.Sleep(2 * time.Second)
 
 		log.Println("Running startup check for schedules needing task generation...")
+		startupKey := "startup_maintenance"
 		_, err := jobSystem.Enqueue(&jobsystem.EnqueueRequest{
-			QueueName:  "task_generation",
-			JobType:    "schedule_maintenance",
-			Payload:    map[string]interface{}{},
-			Priority:   2, // Higher priority than regular maintenance
-			MaxRetries: 3,
+			QueueName:      "task_generation",
+			JobType:        "schedule_maintenance",
+			Payload:        map[string]interface{}{},
+			Priority:       2, // Higher priority than regular maintenance
+			MaxRetries:     3,
+			IdempotencyKey: &startupKey, // Prevent multiple startup jobs
 		})
 		if err != nil {
 			log.Printf("Failed to enqueue startup maintenance job: %v", err)
