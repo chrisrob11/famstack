@@ -9,6 +9,7 @@ import (
 	"famstack/internal/database"
 	"famstack/internal/handlers"
 	"famstack/internal/handlers/api"
+	"famstack/internal/jobsystem"
 )
 
 // Config holds server configuration
@@ -19,16 +20,18 @@ type Config struct {
 
 // Server represents the HTTP server
 type Server struct {
-	db     *database.DB
-	config *Config
-	server *http.Server
+	db        *database.DB
+	jobSystem *jobsystem.SQLiteJobSystem
+	config    *Config
+	server    *http.Server
 }
 
 // New creates a new server instance
-func New(db *database.DB, config *Config) *Server {
+func New(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem, config *Config) *Server {
 	s := &Server{
-		db:     db,
-		config: config,
+		db:        db,
+		jobSystem: jobSystem,
+		config:    config,
 	}
 
 	// Set up routes
@@ -62,7 +65,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	pageHandler := handlers.NewPageHandler(s.db)
 	taskAPIHandler := api.NewTaskAPIHandler(s.db)
 	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
-	scheduleAPIHandler := api.NewScheduleHandler(s.db)
+	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.db, s.jobSystem)
 	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
 
 	// Static file serving
