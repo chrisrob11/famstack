@@ -130,7 +130,8 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		WorkerConcurrency: map[string]int{
-			"default": 5,
+			"default":         5,
+			"task_generation": 3,
 		},
 		DefaultConcurrency: 5,
 		PollInterval:       5 * time.Second,
