@@ -66,7 +66,6 @@ func main() {
 	jobSystem := jobsystem.NewSQLiteJobSystem(config, db)
 
 	// Register job handlers
-	jobSystem.Register("generate_scheduled_task", jobs.NewTaskGenerationHandler(db))
 	jobSystem.Register("monthly_task_generation", jobs.NewMonthlyTaskGenerationHandler(db))
 	jobSystem.Register("schedule_maintenance", jobs.NewScheduleMaintenanceHandler(db, jobSystem))
 	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(db))
