@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,8 +87,8 @@ func (js *SQLiteJobSystem) Enqueue(req *EnqueueRequest) (string, error) {
 	}
 
 	query := `
-		INSERT INTO jobs (queue_name, job_type, payload, priority, max_retries, run_at, queued_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO jobs (queue_name, job_type, payload, priority, max_retries, run_at, queued_at, idempotency_key)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
 	`
 
@@ -100,9 +101,21 @@ func (js *SQLiteJobSystem) Enqueue(req *EnqueueRequest) (string, error) {
 		req.MaxRetries,
 		runAt.Format("2006-01-02 15:04:05"),
 		time.Now().Format("2006-01-02 15:04:05"),
+		req.IdempotencyKey,
 	).Scan(&jobID)
 
 	if err != nil {
+		// Check if this is a duplicate idempotency key
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") && strings.Contains(err.Error(), "idempotency_key") {
+			// Job with this idempotency key already exists - find and return existing job ID
+			if req.IdempotencyKey != nil {
+				existingQuery := `SELECT id FROM jobs WHERE idempotency_key = ?`
+				var existingJobID string
+				if existingErr := js.db.QueryRow(existingQuery, *req.IdempotencyKey).Scan(&existingJobID); existingErr == nil {
+					return existingJobID, nil // Return existing job ID instead of error
+				}
+			}
+		}
 		return "", fmt.Errorf("failed to enqueue job: %w", err)
 	}
 
@@ -361,21 +374,23 @@ func (js *SQLiteJobSystem) jobPoller(pool *workerPool) {
 }
 
 func (js *SQLiteJobSystem) pollJobs(pool *workerPool) {
-	query := `
-		SELECT id, queue_name, job_type, payload, status, priority, max_retries, retry_count, run_at
+	// First, get available jobs with their current versions
+	selectQuery := `
+		SELECT id, queue_name, job_type, payload, status, priority, max_retries, retry_count, run_at, idempotency_key, version
 		FROM jobs
 		WHERE queue_name = ? AND status = 'pending' AND run_at <= datetime('now')
 		ORDER BY priority DESC, run_at ASC
 		LIMIT ?
 	`
 
-	rows, err := js.db.Query(query, pool.queueName, pool.concurrency*2)
+	rows, err := js.db.Query(selectQuery, pool.queueName, pool.concurrency*2)
 	if err != nil {
 		log.Printf("Failed to poll jobs for queue %s: %v", pool.queueName, err)
 		return
 	}
 	defer rows.Close()
 
+	// Try to claim each job using optimistic locking
 	for rows.Next() {
 		job := &Job{}
 		var runAtStr string
@@ -383,15 +398,49 @@ func (js *SQLiteJobSystem) pollJobs(pool *workerPool) {
 
 		err := rows.Scan(
 			&job.ID, &job.QueueName, &job.JobType, &payloadStr,
-			&job.Status, &job.Priority, &job.MaxRetries, &job.RetryCount, &runAtStr,
+			&job.Status, &job.Priority, &job.MaxRetries, &job.RetryCount, &runAtStr, &job.IdempotencyKey, &job.Version,
 		)
 		if err != nil {
 			log.Printf("Failed to scan job: %v", err)
 			continue
 		}
 
+		// Try to claim this job using version-based optimistic concurrency control
+		startedAt := time.Now()
+		expectedVersion := job.Version
+		claimQuery := `
+			UPDATE jobs
+			SET status = 'running', started_at = ?, updated_at = ?, version = version + 1
+			WHERE id = ? AND version = ? AND status = 'pending'
+		`
+		result, err := js.db.Exec(claimQuery,
+			startedAt.Format("2006-01-02 15:04:05"),
+			time.Now().Format("2006-01-02 15:04:05"),
+			job.ID,
+			expectedVersion,
+		)
+		if err != nil {
+			log.Printf("Failed to claim job %s: %v", job.ID, err)
+			continue
+		}
+
+		// Check if we successfully claimed the job
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			log.Printf("Failed to check rows affected for job %s: %v", job.ID, err)
+			continue
+		}
+		if rowsAffected == 0 {
+			// Either another worker claimed this job OR version mismatch (job was updated)
+			// Either way, this job is no longer available to us - move to next
+			continue
+		}
+
+		// Successfully claimed with version-based locking! Update job version and parse
 		if unMarshalErr := json.Unmarshal([]byte(payloadStr), &job.Payload); unMarshalErr != nil {
 			log.Printf("Failed to unmarshal job payload: %v", unMarshalErr)
+			// Mark job as failed since we can't process it
+			js.markJobFailedByID(job.ID, fmt.Sprintf("Failed to unmarshal payload: %v", unMarshalErr))
 			continue
 		}
 
@@ -399,15 +448,28 @@ func (js *SQLiteJobSystem) pollJobs(pool *workerPool) {
 		if job.RunAt, err = time.Parse("2006-01-02 15:04:05", runAtStr); err != nil {
 			if job.RunAt, err = time.Parse(time.RFC3339, runAtStr); err != nil {
 				log.Printf("Failed to parse run_at time: %v", err)
+				js.markJobFailedByID(job.ID, fmt.Sprintf("Failed to parse run_at time: %v", err))
 				continue
 			}
 		}
 
+		// Update job status, version, and timestamps
+		job.Status = JobStatusRunning
+		job.StartedAt = &startedAt
+		job.Version = expectedVersion + 1 // Reflect the version increment from the UPDATE
+
 		select {
 		case pool.jobCh <- job:
+			// Job successfully sent to worker
 		case <-pool.stopCh:
 			return
 		default:
+			// Channel full, put job back to pending (increment version since we're changing state)
+			resetQuery := `UPDATE jobs SET status = 'pending', started_at = NULL, version = version + 1, updated_at = datetime('now') WHERE id = ?`
+			_, err := js.db.Exec(resetQuery, job.ID)
+			if err != nil {
+				log.Printf("Failed to reset job %s to pending: %v", job.ID, err)
+			}
 			return
 		}
 	}
@@ -464,15 +526,18 @@ func (w *worker) processJob(job *Job) {
 
 func (w *worker) markJobRunning(job *Job) error {
 	_, err := w.jobSys.db.Exec(
-		"UPDATE jobs SET status = 'running', started_at = datetime('now') WHERE id = ?",
+		"UPDATE jobs SET status = 'running', started_at = datetime('now'), version = version + 1, updated_at = datetime('now') WHERE id = ?",
 		job.ID,
 	)
+	if err == nil {
+		job.Version++ // Update local version to match database
+	}
 	return err
 }
 
 func (w *worker) markJobCompleted(job *Job) {
 	_, err := w.jobSys.db.Exec(
-		"UPDATE jobs SET status = 'completed', completed_at = datetime('now') WHERE id = ?",
+		"UPDATE jobs SET status = 'completed', completed_at = datetime('now'), version = version + 1, updated_at = datetime('now') WHERE id = ?",
 		job.ID,
 	)
 	if err != nil {
@@ -482,7 +547,7 @@ func (w *worker) markJobCompleted(job *Job) {
 
 func (w *worker) markJobFailed(job *Job, errorMsg string) {
 	_, err := w.jobSys.db.Exec(
-		"UPDATE jobs SET status = 'failed', error = ?, completed_at = datetime('now') WHERE id = ?",
+		"UPDATE jobs SET status = 'failed', error = ?, completed_at = datetime('now'), version = version + 1, updated_at = datetime('now') WHERE id = ?",
 		errorMsg, job.ID,
 	)
 	if err != nil {
@@ -495,7 +560,7 @@ func (w *worker) scheduleRetry(job *Job, err error) {
 	retryAt := time.Now().Add(backoff)
 
 	_, dbErr := w.jobSys.db.Exec(
-		"UPDATE jobs SET status = 'pending', retry_count = retry_count + 1, run_at = ?, error = ? WHERE id = ?",
+		"UPDATE jobs SET status = 'pending', retry_count = retry_count + 1, run_at = ?, error = ?, version = version + 1, updated_at = datetime('now') WHERE id = ?",
 		retryAt.Format("2006-01-02 15:04:05"), err.Error(), job.ID,
 	)
 	if dbErr != nil {
@@ -556,4 +621,15 @@ func calculatePercentiles(values []int64) (p50, p95, p99 float64) {
 	p99 = float64(values[p99Idx])
 
 	return p50, p95, p99
+}
+
+// markJobFailedByID marks a job as failed by ID - used during job polling when we can't process a job
+func (js *SQLiteJobSystem) markJobFailedByID(jobID, errorMsg string) {
+	_, err := js.db.Exec(
+		"UPDATE jobs SET status = 'failed', error = ?, completed_at = datetime('now'), version = version + 1, updated_at = datetime('now') WHERE id = ?",
+		errorMsg, jobID,
+	)
+	if err != nil {
+		log.Printf("Failed to mark job %s as failed: %v", jobID, err)
+	}
 }

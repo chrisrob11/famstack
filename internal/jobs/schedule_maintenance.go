@@ -93,12 +93,14 @@ func enqueueMonthlyGenerationJobs(jobSystem *jobsystem.SQLiteJobSystem, schedule
 			"end_date":    payload.EndDate,
 		}
 
+		idempotencyKey := fmt.Sprintf("schedule:%s:month:%s:%s", scheduleID, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 		req := &jobsystem.EnqueueRequest{
-			QueueName:  "task_generation",
-			JobType:    "monthly_task_generation",
-			Payload:    payloadMap,
-			Priority:   1,
-			MaxRetries: 3,
+			QueueName:      "task_generation",
+			JobType:        "monthly_task_generation",
+			Payload:        payloadMap,
+			Priority:       1,
+			MaxRetries:     3,
+			IdempotencyKey: &idempotencyKey,
 		}
 
 		_, err := jobSystem.Enqueue(req)

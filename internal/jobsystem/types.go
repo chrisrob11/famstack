@@ -18,21 +18,23 @@ const (
 
 // Job represents a job to be processed
 type Job struct {
-	ID          string                 `json:"id" db:"id"`
-	QueueName   string                 `json:"queue_name" db:"queue_name"`
-	JobType     string                 `json:"job_type" db:"job_type"`
-	Payload     map[string]interface{} `json:"payload" db:"payload"`
-	Status      JobStatus              `json:"status" db:"status"`
-	Priority    int                    `json:"priority" db:"priority"`
-	MaxRetries  int                    `json:"max_retries" db:"max_retries"`
-	RetryCount  int                    `json:"retry_count" db:"retry_count"`
-	RunAt       time.Time              `json:"run_at" db:"run_at"`
-	CreatedAt   time.Time              `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at" db:"updated_at"`
-	QueuedAt    *time.Time             `json:"queued_at" db:"queued_at"`
-	StartedAt   *time.Time             `json:"started_at" db:"started_at"`
-	CompletedAt *time.Time             `json:"completed_at" db:"completed_at"`
-	Error       *string                `json:"error" db:"error"`
+	ID             string                 `json:"id" db:"id"`
+	QueueName      string                 `json:"queue_name" db:"queue_name"`
+	JobType        string                 `json:"job_type" db:"job_type"`
+	Payload        map[string]interface{} `json:"payload" db:"payload"`
+	Status         JobStatus              `json:"status" db:"status"`
+	Priority       int                    `json:"priority" db:"priority"`
+	MaxRetries     int                    `json:"max_retries" db:"max_retries"`
+	RetryCount     int                    `json:"retry_count" db:"retry_count"`
+	RunAt          time.Time              `json:"run_at" db:"run_at"`
+	CreatedAt      time.Time              `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at" db:"updated_at"`
+	QueuedAt       *time.Time             `json:"queued_at" db:"queued_at"`
+	StartedAt      *time.Time             `json:"started_at" db:"started_at"`
+	CompletedAt    *time.Time             `json:"completed_at" db:"completed_at"`
+	Error          *string                `json:"error" db:"error"`
+	IdempotencyKey *string                `json:"idempotency_key" db:"idempotency_key"`
+	Version        int64                  `json:"version" db:"version"`
 }
 
 // ScheduledJob represents a recurring job
@@ -52,13 +54,14 @@ type ScheduledJob struct {
 
 // EnqueueRequest represents a request to enqueue a job
 type EnqueueRequest struct {
-	QueueName  string                 `json:"queue_name"`
-	JobType    string                 `json:"job_type"`
-	Payload    map[string]interface{} `json:"payload"`
-	Priority   int                    `json:"priority"`
-	MaxRetries int                    `json:"max_retries"`
-	RunAt      *time.Time             `json:"run_at"`
-	RunIn      time.Duration          `json:"run_in"`
+	QueueName      string                 `json:"queue_name"`
+	JobType        string                 `json:"job_type"`
+	Payload        map[string]interface{} `json:"payload"`
+	Priority       int                    `json:"priority"`
+	MaxRetries     int                    `json:"max_retries"`
+	RunAt          *time.Time             `json:"run_at"`
+	RunIn          time.Duration          `json:"run_in"`
+	IdempotencyKey *string                `json:"idempotency_key"` // Optional key for preventing duplicate jobs
 }
 
 // ScheduleRequest represents a request to schedule a recurring job

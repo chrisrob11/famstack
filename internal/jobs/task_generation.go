@@ -77,19 +77,6 @@ func NewMonthlyTaskGenerationHandler(db *database.DB) jobsystem.JobHandler {
 }
 
 func generateScheduledTask(db *database.DB, scheduleID, targetDateStr string) error {
-	// Try to claim ownership of this schedule+date combination
-	claimKey := fmt.Sprintf("schedule:%s:date:%s", scheduleID, targetDateStr)
-	claimed, err := claimJobOwnership(db, claimKey, "generate_scheduled_task")
-	if err != nil {
-		return fmt.Errorf("failed to claim job ownership: %w", err)
-	}
-	if !claimed {
-		log.Printf("Another job is already processing schedule %s for date %s, skipping", scheduleID, targetDateStr)
-		return nil
-	}
-
-	// Ensure we release the claim when done
-	defer releaseJobOwnership(db, claimKey)
 	targetDate, err := time.Parse("2006-01-02", targetDateStr)
 	if err != nil {
 		return fmt.Errorf("invalid target date format: %w", err)
@@ -274,57 +261,7 @@ func isUniqueConstraintViolation(err error) bool {
 		strings.Contains(errMsg, "idx_tasks_schedule_target_date")
 }
 
-// claimJobOwnership attempts to claim exclusive ownership of a job using optimistic concurrency
-// Returns true if claim was successful, false if another job already owns it
-func claimJobOwnership(db *database.DB, claimKey, jobType string) (bool, error) {
-	// Use a short expiration time to prevent stuck claims
-	expiresAt := time.Now().Add(10 * time.Minute)
-
-	// Try to insert a claim - will fail if claim_key already exists (unique constraint)
-	query := `
-		INSERT INTO job_claims (claim_key, job_id, job_type, expires_at)
-		VALUES (?, ?, ?, ?)
-	`
-
-	// Use a dummy job_id for now - in a more sophisticated implementation,
-	// we could pass the actual job ID from the job system
-	jobID := fmt.Sprintf("claim-%s", claimKey)
-
-	_, err := db.Exec(query, claimKey, jobID, jobType, expiresAt.Format("2006-01-02 15:04:05"))
-	if err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			// Another job already claimed this
-			return false, nil
-		}
-		return false, fmt.Errorf("failed to insert job claim: %w", err)
-	}
-
-	return true, nil
-}
-
-// releaseJobOwnership releases a job claim
-func releaseJobOwnership(db *database.DB, claimKey string) {
-	query := `DELETE FROM job_claims WHERE claim_key = ?`
-	_, err := db.Exec(query, claimKey)
-	if err != nil {
-		log.Printf("Warning: failed to release job ownership for %s: %v", claimKey, err)
-	}
-}
-
 func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr string) error {
-	// Try to claim ownership of this schedule+month combination
-	claimKey := fmt.Sprintf("schedule:%s:month:%s:%s", scheduleID, startDateStr, endDateStr)
-	claimed, err := claimJobOwnership(db, claimKey, "monthly_task_generation")
-	if err != nil {
-		return fmt.Errorf("failed to claim job ownership: %w", err)
-	}
-	if !claimed {
-		log.Printf("Another job is already processing monthly tasks for schedule %s (%s to %s), skipping", scheduleID, startDateStr, endDateStr)
-		return nil
-	}
-
-	// Ensure we release the claim when done
-	defer releaseJobOwnership(db, claimKey)
 	startDate, err := time.Parse("2006-01-02", startDateStr)
 	if err != nil {
 		return fmt.Errorf("invalid start date format: %w", err)

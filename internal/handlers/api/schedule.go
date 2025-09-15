@@ -294,12 +294,14 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 				"schedule_id": newID,
 				"target_date": today.Format("2006-01-02"),
 			}
+			idempotencyKey := fmt.Sprintf("schedule:%s:date:%s", newID, today.Format("2006-01-02"))
 			_, err = h.jobSystem.Enqueue(&jobsystem.EnqueueRequest{
-				QueueName:  "task_generation",
-				JobType:    "generate_scheduled_task",
-				Payload:    payload,
-				Priority:   3, // High priority for immediate execution
-				MaxRetries: 3,
+				QueueName:      "task_generation",
+				JobType:        "generate_scheduled_task",
+				Payload:        payload,
+				Priority:       3, // High priority for immediate execution
+				MaxRetries:     3,
+				IdempotencyKey: &idempotencyKey,
 			})
 			if err != nil {
 				log.Printf("Failed to enqueue today's task for schedule %s: %v", newID, err)
@@ -590,12 +592,14 @@ func (h *ScheduleHandler) queueTaskGeneration(scheduleID string) error {
 			"end_date":    endDate.Format("2006-01-02"),
 		}
 
+		idempotencyKey := fmt.Sprintf("schedule:%s:month:%s:%s", scheduleID, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
 		_, err := h.jobSystem.Enqueue(&jobsystem.EnqueueRequest{
-			QueueName:  "task_generation",
-			JobType:    "monthly_task_generation",
-			Payload:    payload,
-			Priority:   1,
-			MaxRetries: 3,
+			QueueName:      "task_generation",
+			JobType:        "monthly_task_generation",
+			Payload:        payload,
+			Priority:       1,
+			MaxRetries:     3,
+			IdempotencyKey: &idempotencyKey,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to enqueue monthly task generation job for %s: %w", startDate.Format("2006-01"), err)
