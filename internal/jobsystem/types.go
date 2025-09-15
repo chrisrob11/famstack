@@ -34,6 +34,7 @@ type Job struct {
 	CompletedAt    *time.Time             `json:"completed_at" db:"completed_at"`
 	Error          *string                `json:"error" db:"error"`
 	IdempotencyKey *string                `json:"idempotency_key" db:"idempotency_key"`
+	Version        int64                  `json:"version" db:"version"`
 }
 
 // ScheduledJob represents a recurring job
