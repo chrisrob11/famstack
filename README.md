@@ -187,17 +187,28 @@ Fam-Stack provides both a web interface and REST API endpoints:
 - `PATCH /api/family/members/:id` - Update family member ✅
 - `DELETE /api/family/members/:id` - Delete family member ✅
 
-**Schedules & Calendar (Fully Implemented)**
+**Calendar Infrastructure (Database & API Complete)**
+- `GET /api/calendar` - Get unified calendar events ✅
+- `POST /api/calendar` - Create new calendar event ✅
+- `PATCH /api/calendar/:id` - Update calendar event ✅
+- `DELETE /api/calendar/:id` - Delete calendar event ✅
+
+**Schedules (Fully Implemented)**
 - `GET /api/schedules` - List recurring schedules ✅
 - `POST /api/schedules` - Create new schedule ✅
-- `GET /api/calendar` - Get calendar events ✅
 
 ### ❌ Missing Authentication Endpoints
 - `POST /auth/login` - User login ❌
 - `POST /auth/logout` - User logout ❌
 - `POST /auth/register` - User registration ❌
 
-**Note**: All core API functionality works perfectly, but currently operates without authentication. All endpoints accept requests as if you're authenticated as the default family.
+### ❌ Missing Calendar Integration Endpoints
+- `POST /auth/oauth/google` - Google Calendar OAuth flow ❌
+- `POST /auth/oauth/microsoft` - Microsoft Outlook OAuth flow ❌
+- `POST /api/calendar/sync` - Trigger calendar data sync ❌
+- `GET /api/calendar/providers` - List connected calendar providers ❌
+
+**Note**: Core API functionality and calendar infrastructure work perfectly, but currently operate without authentication. External calendar integration (OAuth + sync) is not implemented - the system has sample calendar events and full CRUD operations, but can't import from Google/Outlook/Apple calendars.
 
 ## TypeScript Components
 
@@ -335,6 +346,7 @@ Visit `http://localhost:8080` to see the working task dashboard!
 - **✅ Data Models**: Full models for families, users, tasks, sessions, jobs, and schedules
 - **✅ Task Management API**: Complete CRUD operations for tasks with full REST endpoints
 - **✅ Family Management API**: Complete user and family management with role-based access
+- **✅ Calendar Infrastructure**: Complete calendar database schema and API layer
 - **✅ Frontend Components**: Rich TypeScript components with drag-and-drop, modals, and interactions
 - **✅ Background Job System**: Enterprise-grade job system with optimistic concurrency control
 - **✅ Task Scheduling**: Automated task generation and recurring schedule management
@@ -345,11 +357,20 @@ Visit `http://localhost:8080` to see the working task dashboard!
 - **✅ Sample Data**: Working Smith family with real task data for demonstration
 
 **❌ Missing Critical Components:**
+
+*Authentication & Security:*
 - **❌ Authentication System**: No login/logout/registration handlers (internal/auth/ is empty)
 - **❌ Session Management**: No session middleware or authentication checks
 - **❌ Security Middleware**: No CSRF protection, input validation, or authorization
 - **❌ Password Management**: No password hashing, validation, or reset functionality
 - **❌ Access Control**: No role-based authorization enforcement in API endpoints
+
+*Calendar Integration:*
+- **❌ OAuth Flow**: No Google/Microsoft/Apple Calendar OAuth authentication
+- **❌ External Calendar Sync**: No calendar data import from external providers
+- **❌ Calendar API Clients**: No Google Calendar API, Outlook API, or CalDAV integration
+- **❌ Data Pipeline**: No sync jobs to transform external calendar data into unified events
+- **❌ Sync Management**: No conflict resolution, deletion handling, or sync scheduling
 
 ### Next Development Priorities
 
@@ -372,14 +393,36 @@ Visit `http://localhost:8080` to see the working task dashboard!
    - Enforce family-based data isolation (users can only see their family's data)
    - Add role-based permissions for task creation/editing
 
+**Secondary Priority - Calendar Integration:**
+
+4. **OAuth Integration** (`internal/oauth/`)
+   - Google Calendar OAuth 2.0 flow implementation
+   - Microsoft Graph API OAuth for Outlook integration
+   - Apple Calendar (CalDAV) authentication
+   - Token storage, refresh, and management
+
+5. **Calendar Data Pipeline** (`internal/calendar/`)
+   - Google Calendar API client for event fetching
+   - Microsoft Graph API client for Outlook events
+   - CalDAV client for Apple/other calendar systems
+   - Background jobs for periodic calendar sync
+
+6. **Data Transformation** (`internal/jobs/`)
+   - Import raw calendar events into `calendar_events` table
+   - Transform and merge into `unified_calendar_events` for UI
+   - Handle recurring events, time zones, and event updates
+   - Conflict resolution for overlapping events
+
 **Future Enhancements:**
-4. **Advanced Features**
+7. **Advanced Features**
    - Password reset functionality
    - Email verification system
    - Multi-factor authentication
    - API rate limiting and throttling
+   - Real-time calendar sync webhooks
+   - Smart event categorization and tagging
 
-**Note**: The core application functionality (task management, family management, frontend components, background jobs) is fully implemented and working. The missing pieces are entirely around authentication and security - once these are added, the application will be production-ready.
+**Note**: The core application functionality (task management, family management, frontend components, background jobs, calendar infrastructure) is fully implemented and working. The missing pieces are authentication/security and external calendar integration - once these are added, the application will be production-ready.
 
 ### Technology Stack
 
