@@ -105,38 +105,3 @@ func (a *AuthorizationService) GetOriginalPermissions() []string {
 	}
 	return a.GetCurrentPermissions()
 }
-
-// CanUpdateTaskField checks if the current role can update a specific task field
-func (a *AuthorizationService) CanUpdateTaskField(field string) bool {
-	return CanUpdateTaskField(a.session.Role, field)
-}
-
-// GetAllowedTaskFields returns all task fields the current role can update
-func (a *AuthorizationService) GetAllowedTaskFields() []string {
-	return GetAllowedTaskFields(a.session.Role)
-}
-
-// FilterTaskUpdateData filters task update data to only include allowed fields
-func (a *AuthorizationService) FilterTaskUpdateData(updateData map[string]interface{}) (map[string]interface{}, []string) {
-	allowedFields := a.GetAllowedTaskFields()
-	filtered := make(map[string]interface{})
-	var denied []string
-
-	for field, value := range updateData {
-		allowed := false
-		for _, allowedField := range allowedFields {
-			if field == allowedField {
-				allowed = true
-				break
-			}
-		}
-
-		if allowed {
-			filtered[field] = value
-		} else {
-			denied = append(denied, field)
-		}
-	}
-
-	return filtered, denied
-}

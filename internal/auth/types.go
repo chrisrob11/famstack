@@ -23,7 +23,6 @@ const (
 	EntityCalendar Entity = "calendar"
 	EntitySchedule Entity = "schedule"
 	EntitySetting  Entity = "setting"
-	EntityAnalytic Entity = "analytic"
 )
 
 // Action represents operations that can be performed

@@ -48,7 +48,7 @@ var RolePermissions = map[Role]PermissionSet{
 		// Users - can view family members
 		MakePermission(EntityUser, ActionRead, ScopeAny): true,
 
-		// No access to settings or analytics
+		// No access to settings
 	},
 
 	RoleAdmin: {
@@ -80,10 +80,9 @@ var RolePermissions = map[Role]PermissionSet{
 		MakePermission(EntityUser, ActionUpdate, ScopeAny): true,
 		MakePermission(EntityUser, ActionDelete, ScopeAny): true,
 
-		// Settings and analytics - full access
+		// Settings - full access
 		MakePermission(EntitySetting, ActionRead, ScopeAny):   true,
 		MakePermission(EntitySetting, ActionUpdate, ScopeAny): true,
-		MakePermission(EntityAnalytic, ActionRead, ScopeAny):  true,
 	},
 }
 
@@ -106,31 +105,4 @@ func HasPermission(role Role, entity Entity, action Action, scope PermissionScop
 	permissions := RolePermissions[role]
 	permission := MakePermission(entity, action, scope)
 	return permissions[permission]
-}
-
-// TaskUpdateFields defines which fields different roles can update for tasks
-var TaskUpdateFields = map[Role][]string{
-	RoleShared: {"status", "completed_at"}, // Only status changes
-	RoleUser:   {"status", "completed_at", "title", "description", "due_date", "priority"},
-	RoleAdmin:  {"status", "completed_at", "title", "description", "due_date", "priority", "assigned_to", "task_type"},
-}
-
-// GetAllowedTaskFields returns the fields a role can update for tasks
-func GetAllowedTaskFields(role Role) []string {
-	fields, exists := TaskUpdateFields[role]
-	if !exists {
-		return []string{}
-	}
-	return fields
-}
-
-// CanUpdateTaskField checks if a role can update a specific task field
-func CanUpdateTaskField(role Role, field string) bool {
-	allowedFields := GetAllowedTaskFields(role)
-	for _, allowedField := range allowedFields {
-		if allowedField == field {
-			return true
-		}
-	}
-	return false
 }

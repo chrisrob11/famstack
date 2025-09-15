@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the comprehensive JWT-based authentication system implemented for FamStack, featuring secure role-based access control with permission downgrade/upgrade capabilities.
+This document describes the JWT-based authentication system for FamStack with role-based access control and permission switching.
 
 ## Architecture
 
@@ -14,19 +14,19 @@ This document describes the comprehensive JWT-based authentication system implem
    - Support for role downgrade/upgrade while maintaining original permissions
 
 2. **User Management** (`internal/auth/types.go`)
-   - Enhanced user model with `first_name`, `last_name`, `nickname`
+   - User model with `first_name`, `last_name`, `nickname`
    - Email verification and last login tracking
-   - Support for multiple display name preferences
+   - Display name preferences
 
 3. **Permission System** (`internal/auth/permissions.go`)
    - Entity-Action-Scope permission model
    - Three role levels: `shared`, `user`, `admin`
-   - Field-level governance for task updates
+   - Separated from field-level restrictions
 
 4. **Password Security** (`internal/auth/password.go`)
-   - Argon2id password hashing (industry standard)
-   - Configurable memory, iterations, and parallelism
-   - Secure password validation and requirements
+   - Argon2id password hashing
+   - Configurable security parameters
+   - Password validation
 
 5. **HTTP Middleware** (`internal/auth/middleware.go`)
    - Authentication middleware for protected routes
@@ -37,6 +37,11 @@ This document describes the comprehensive JWT-based authentication system implem
    - Login/logout endpoints
    - Role downgrade/upgrade endpoints
    - Token refresh and user info endpoints
+
+7. **Authorization Service** (`internal/auth/authorization.go`)
+   - Permission checking and resource ownership
+   - Role upgrade detection
+   - Permission enumeration
 
 ## Permission Model
 
@@ -57,21 +62,21 @@ This document describes the comprehensive JWT-based authentication system implem
   - All user permissions plus:
   - Delete any tasks/events
   - Manage family members
-  - Access settings and analytics
+  - Access settings
   - Full system administration
 
 ### Permission Format
 
 Permissions follow the pattern: `entity:action:scope`
 
-- **Entities**: `task`, `calendar`, `family`, `user`, `setting`, `analytic`
+- **Entities**: `task`, `calendar`, `family`, `user`, `setting`
 - **Actions**: `create`, `read`, `update`, `delete`
-- **Scopes**: `none`, `own`, `any`
+- **Scopes**: `own`, `any`
 
 Examples:
 - `task:read:any` - Can read all tasks
 - `task:update:own` - Can update only own tasks
-- `task:delete:none` - Cannot delete any tasks
+- `task:delete:any` - Can delete any tasks (admin only)
 
 ## Authentication Flow
 
@@ -79,7 +84,7 @@ Examples:
 ```
 1. User submits email/password
 2. Server validates credentials with Argon2id
-3. JWT token created with user's role (7-day expiration)
+3. JWT token created with user's role (4-hour expiration)
 4. Token stored in HTTP-only cookie
 5. User has full permissions for their role
 ```
@@ -147,25 +152,21 @@ router.Handle("/api/tasks",
 
 ## Security Features
 
-1. **Secure Password Hashing**
+1. **Password Hashing**
    - Argon2id with 64MB memory, 3 iterations, parallelism=2
    - Salt length: 16 bytes, Key length: 32 bytes
-   - Resistant to rainbow table and brute force attacks
+   - Protects against common attacks
 
-2. **JWT Security**
+2. **JWT Tokens**
    - HS256 signing with 256-bit secret keys
-   - HTTP-only cookies prevent XSS attacks
-   - 7-day expiration with refresh capability
-   - Stateless design for scalability
+   - HTTP-only cookies prevent XSS
+   - 4-hour expiration with refresh
+   - Stateless design
 
 3. **Rate Limiting**
    - Password upgrade attempts: 5 per 15 minutes per user
    - In-memory tracking with automatic cleanup
 
-4. **Field-Level Security**
-   - Shared mode can only update task status/completion
-   - Users can update own content details
-   - Admins can modify any field including assignments
 
 ## Development Usage
 
@@ -196,9 +197,21 @@ curl -X POST http://localhost:8080/auth/upgrade \
   -d '{"password":"password123"}'
 ```
 
+## Recent Changes
+
+### Security Changes
+- **Reduced JWT token expiration** from 7 days to 4 hours
+- Tokens expire if left idle on shared devices
+- Refresh capability for active users
+
+### Architecture Changes
+- **Removed field-level restrictions** from authorization layer
+- Authorization handles entity-level permissions only
+- Field-level restrictions moved to application layer
+
 ## Next Steps
 
-The authentication system backend is now complete. Future frontend implementation should:
+The authentication system backend is complete. Frontend implementation should:
 
 1. Create login/logout UI components
 2. Implement mode switching interface
@@ -207,4 +220,4 @@ The authentication system backend is now complete. Future frontend implementatio
 5. Handle authentication state management
 6. Implement automatic token refresh
 
-This provides a solid foundation for secure, family-friendly authentication with flexible permission management.
+This provides a foundation for family-friendly authentication with permission management.

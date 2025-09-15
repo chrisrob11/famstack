@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"famstack/internal/encryption"
 )
 
 // Service handles authentication operations
@@ -17,11 +19,18 @@ type Service struct {
 	upgradeMutex    sync.RWMutex
 }
 
-// NewService creates a new authentication service
-func NewService(db *sql.DB, jwtSecretKey []byte, issuer string) *Service {
+// NewService creates a new authentication service using encryption service for JWT signing
+func NewService(db *sql.DB, encryptionService *encryption.Service, issuer string) *Service {
+	// Get JWT signing key from encryption service
+	jwtKey, err := encryptionService.GetJWTSigningKey()
+	if err != nil {
+		// This is a critical error - we can't operate without JWT signing capability
+		panic(fmt.Sprintf("Failed to get JWT signing key: %v", err))
+	}
+
 	return &Service{
 		db:              db,
-		jwtManager:      NewJWTManager(jwtSecretKey, issuer),
+		jwtManager:      NewJWTManager(jwtKey, issuer),
 		upgradeAttempts: make(map[string][]time.Time),
 	}
 }
@@ -50,8 +59,8 @@ func (s *Service) Login(email, password string) (*AuthResponse, error) {
 		fmt.Printf("Failed to update last login for user %s: %v\n", user.ID, updateErr)
 	}
 
-	// Create JWT token (7 days expiration for full sessions)
-	token, err := s.jwtManager.CreateToken(user.ID, user.FamilyID, user.Role, 7*24*time.Hour)
+	// Create JWT token (4 hours expiration for full sessions)
+	token, err := s.jwtManager.CreateToken(user.ID, user.FamilyID, user.Role, 4*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
@@ -168,8 +177,8 @@ func (s *Service) RefreshToken(token string) (*TokenResponse, error) {
 		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	// Create new token with 7 days expiration
-	newToken, err := s.jwtManager.RefreshToken(claims, 7*24*time.Hour)
+	// Create new token with 4 hours expiration
+	newToken, err := s.jwtManager.RefreshToken(claims, 4*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
