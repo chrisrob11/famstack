@@ -1,0 +1,212 @@
+package cmds
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/urfave/cli/v2"
+
+	"famstack/internal/config"
+	"famstack/internal/database"
+	"famstack/internal/encryption"
+	"famstack/internal/jobs"
+	"famstack/internal/jobsystem"
+	"famstack/internal/server"
+)
+
+// StartCommand returns the start command configuration
+func StartCommand() *cli.Command {
+	return &cli.Command{
+		Name:    "start",
+		Aliases: []string{"s"},
+		Usage:   "Start the FamStack server",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "config",
+				Value: "config.json",
+				Usage: "Configuration file path",
+			},
+			&cli.StringFlag{
+				Name:  "port",
+				Value: "8080",
+				Usage: "Server port",
+			},
+			&cli.StringFlag{
+				Name:  "db",
+				Value: "famstack.db",
+				Usage: "Database file path",
+			},
+			&cli.BoolFlag{
+				Name:  "dev",
+				Usage: "Enable development mode",
+			},
+			&cli.BoolFlag{
+				Name:  "migrate-up",
+				Usage: "Run database migrations up",
+			},
+			&cli.BoolFlag{
+				Name:  "migrate-down",
+				Usage: "Run database migrations down",
+			},
+		},
+		Action: startServer,
+	}
+}
+
+// startServer handles the start command implementation
+func startServer(ctx *cli.Context) error {
+	port := ctx.String("port")
+	dbPath := ctx.String("db")
+	migrateUp := ctx.Bool("migrate-up")
+	migrateDown := ctx.Bool("migrate-down")
+	dev := ctx.Bool("dev")
+
+	// Initialize database
+	db, err := database.New(dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize database: %w", err)
+	}
+	defer db.Close()
+
+	// Handle migration commands
+	if migrateUp {
+		if migErr := database.MigrateUp(db); migErr != nil {
+			return fmt.Errorf("failed to run migrations up: %w", migErr)
+		}
+		log.Println("Migrations completed successfully")
+		return nil
+	}
+
+	if migrateDown {
+		if migErr := database.MigrateDown(db); migErr != nil {
+			return fmt.Errorf("failed to run migrations down: %w", migErr)
+		}
+		log.Println("Migrations rolled back successfully")
+		return nil
+	}
+
+	// Run migrations automatically if not explicitly handling them
+	if migErr := database.MigrateUp(db); migErr != nil {
+		return fmt.Errorf("failed to run automatic migrations: %w", migErr)
+	}
+
+	// Initialize encryption service with default configuration
+	// For now, use keyring with auto-creation
+	encryptionConfig := config.DefaultEncryptionSettings()
+	_, err = encryption.NewService(*encryptionConfig)
+	if err != nil {
+		// Try to provide helpful error message
+		log.Printf("Failed to initialize encryption service: %v", err)
+		log.Println("💡 Try running 'famstack encryption generate-key' to create a development key")
+		return fmt.Errorf("encryption service initialization failed: %w", err)
+	}
+
+	log.Println("🔐 Encryption service initialized successfully")
+
+	// Configure job system
+	jobConfig := jobsystem.DefaultConfig()
+	jobConfig.DatabasePath = dbPath
+	jobConfig.WorkerConcurrency = map[string]int{
+		"default":         3,
+		"task_generation": 2,
+	}
+
+	// Create job system
+	jobSystem := jobsystem.NewSQLiteJobSystem(jobConfig, db)
+
+	// Register job handlers
+	jobSystem.Register("monthly_task_generation", jobs.NewMonthlyTaskGenerationHandler(db))
+	jobSystem.Register("schedule_maintenance", jobs.NewScheduleMaintenanceHandler(db, jobSystem))
+	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(db))
+
+	// Create and start server
+	srv := server.New(db, jobSystem, &server.Config{
+		Port: port,
+		Dev:  dev,
+	})
+
+	// Set up daily maintenance job scheduling
+	err = jobSystem.Schedule(&jobsystem.ScheduleRequest{
+		Name:      "daily_schedule_maintenance",
+		QueueName: "task_generation",
+		JobType:   "schedule_maintenance",
+		Payload:   map[string]interface{}{},
+		CronExpr:  "0 0 * * *", // Daily at midnight
+		Enabled:   true,
+	})
+	if err != nil {
+		log.Printf("Failed to schedule daily maintenance job: %v", err)
+	} else {
+		log.Println("Scheduled daily maintenance job")
+	}
+
+	// Start job system
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		log.Println("Starting job system...")
+		if err := jobSystem.Start(jobCtx); err != nil {
+			log.Fatalf("Job system failed to start: %v", err)
+		}
+	}()
+
+	// Run immediate startup check for schedules needing generation
+	go func() {
+		// Wait a moment for job system to be fully started
+		time.Sleep(2 * time.Second)
+
+		log.Println("Running startup check for schedules needing task generation...")
+		startupKey := "startup_maintenance"
+		_, err := jobSystem.Enqueue(&jobsystem.EnqueueRequest{
+			QueueName:      "task_generation",
+			JobType:        "schedule_maintenance",
+			Payload:        map[string]interface{}{},
+			Priority:       2, // Higher priority than regular maintenance
+			MaxRetries:     3,
+			IdempotencyKey: &startupKey, // Prevent multiple startup jobs
+		})
+		if err != nil {
+			log.Printf("Failed to enqueue startup maintenance job: %v", err)
+		} else {
+			log.Println("Enqueued startup maintenance check")
+		}
+	}()
+
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Starting server on port %s", port)
+		if err := srv.Start(); err != nil {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	<-c
+
+	// Graceful shutdown
+	log.Println("Shutting down server and job system...")
+
+	// Stop job system
+	jobSystem.Stop()
+	log.Println("Job system stopped")
+
+	// Stop server
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server shutdown error: %v", err)
+	} else {
+		log.Println("Server stopped gracefully")
+	}
+
+	return nil
+}

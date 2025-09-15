@@ -3,7 +3,7 @@
 
 # Variables
 BINARY_NAME=famstack
-BINARY_PATH=cmd/famstack/$(BINARY_NAME)
+BINARY_PATH=./$(BINARY_NAME)
 
 # Build the application
 build: build-ts build-go ## Build TypeScript components and Go binary
@@ -21,7 +21,7 @@ run: build ## Run the application locally
 	@echo "Starting famstack server on http://localhost:8080..."
 	@echo "Press Ctrl+C to stop the server"
 	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true
-	./$(BINARY_PATH)
+	./$(BINARY_PATH) start
 
 # Development mode with file watching
 dev: install-tools ## Development mode with file watching
@@ -29,7 +29,7 @@ dev: install-tools ## Development mode with file watching
 	@echo "Note: File watching requires additional tools like air or reflex"
 	@echo "For now, use 'make build && make run' after changes"
 	$(MAKE) build
-	./$(BINARY_PATH)
+	./$(BINARY_PATH) start --dev
 
 # Testing
 test: test-go test-ts ## Run all tests
@@ -103,32 +103,49 @@ clean: ## Clean build artifacts
 # Database migrations
 migrate-up: ## Run database migrations up
 	@echo "Running database migrations..."
-	./$(BINARY_PATH) -migrate-up
+	./$(BINARY_PATH) start --migrate-up
 
 migrate-down: ## Run database migrations down
 	@echo "Rolling back database migrations..."
-	./$(BINARY_PATH) -migrate-down
+	./$(BINARY_PATH) start --migrate-down
 
 # Development database reset
 reset-db: ## Reset development database
 	@echo "Resetting development database..."
 	rm -f famstack.db || true
 
+# Encryption commands
+encryption-status: build-go ## Show encryption provider status
+	@echo "Checking encryption status..."
+	./$(BINARY_PATH) encryption status
+
+encryption-generate-key: build-go ## Generate a new fixed key for development
+	@echo "Generating new development key..."
+	./$(BINARY_PATH) encryption generate-key
+
+encryption-export-key: build-go ## Export the current master key for backup
+	@echo "Exporting master key..."
+	./$(BINARY_PATH) encryption export-key
+
 # Setup development environment with sample data  
 dev-setup: reset-db build ## Setup development environment with sample data
 	@echo "Setting up development environment..."
 	@echo "Creating database with sample data..."
-	@timeout 2s ./$(BINARY_PATH) > /dev/null 2>&1 || true
+	@timeout 2s ./$(BINARY_PATH) start > /dev/null 2>&1 || true
 	@echo "✅ Development environment ready!"
 	@echo ""
 	@echo "Your Famstack development environment is set up with:"
 	@echo "  • SQLite database (famstack.db)"
+	@echo "  • Cross-platform encryption (keyring or fixed key)"
+	@echo "  • Background job system"
 	@echo "  • Sample family: The Smith Family"
 	@echo "  • 4 sample tasks (todos and chores)"
 	@echo ""
 	@echo "To start developing:"
-	@echo "  make run    # Start the server on http://localhost:8080"
-	@echo "  make help   # See all available commands"
+	@echo "  make run                    # Start the server on http://localhost:8080"
+	@echo "  make encryption-status      # Check encryption configuration"
+	@echo "  make encryption-generate-key # Generate development key"
+	@echo "  make help                   # See all available commands"
 
 # Release preparation
 prepare-release: clean lint test build ## Prepare for release (clean, lint, test, build)
