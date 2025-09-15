@@ -15,6 +15,8 @@ An open-source family task management system that helps families organize todos,
 - **TypeScript Components**: Rich interactions like drag-and-drop task reordering
 - **Single Binary Deployment**: No external dependencies required
 - **SQLite Database**: Embedded database with automatic migrations
+- **Cross-platform Encryption**: AES-256-GCM with system keyring storage
+- **Background Job System**: Robust task scheduling and processing
 - **Session-based Authentication**: Simple, secure authentication system
 
 ## Quick Start
@@ -92,12 +94,26 @@ make dev
 
 ### Available Make Targets
 
+**Core Commands:**
 - `make build` - Build TypeScript components and Go binary
 - `make run` - Run the application locally
 - `make test` - Run all tests (Go + TypeScript)
 - `make lint` - Run all linters (golangci-lint + ESLint)
 - `make clean` - Clean build artifacts
 - `make dev` - Development mode with file watching
+
+**Database & Migration:**
+- `make migrate-up` - Run database migrations up
+- `make migrate-down` - Run database migrations down
+- `make reset-db` - Reset development database
+
+**Encryption Management:**
+- `make encryption-status` - Show encryption provider status
+- `make encryption-generate-key` - Generate a new fixed key for development
+- `make encryption-export-key` - Export the current master key for backup
+
+**Development:**
+- `make dev-setup` - Setup complete development environment
 - `make help` - Show all available targets
 
 ### Project Structure
@@ -107,8 +123,13 @@ fam-stack/
 ├── cmd/famstack/           # Main executable
 ├── internal/               # Private application code
 │   ├── auth/              # Authentication logic
+│   ├── cmds/              # CLI command implementations
+│   ├── config/            # Configuration management
 │   ├── database/          # Database setup, migrations
+│   ├── encryption/        # Cross-platform encryption services
 │   ├── handlers/          # HTTP handlers
+│   ├── jobs/              # Background job handlers
+│   ├── jobsystem/         # Background job scheduling system
 │   ├── models/            # Data models
 │   └── server/            # Server setup
 ├── web/                   # Web assets (embedded)
@@ -124,25 +145,68 @@ fam-stack/
 ### Command Line Options
 
 ```bash
-./famstack [options]
+./famstack <command> [options]
 
-Options:
-  -port string
-        Server port (default "8080")
-  -db string
-        Database file path (default "famstack.db")
-  -migrate-up
-        Run database migrations up
-  -migrate-down
-        Run database migrations down
-  -dev
-        Enable development mode
+Commands:
+  start                Start the FamStack server
+  encryption          Encryption key management
+
+Start Command Options:
+  --port string        Server port (default "8080")
+  --db string         Database file path (default "famstack.db")
+  --migrate-up        Run database migrations up
+  --migrate-down      Run database migrations down
+  --dev               Enable development mode
+  --config string     Configuration file path (default "config.json")
+
+Encryption Commands:
+  status              Show encryption provider status
+  export-key          Export the current master key for backup
+  generate-key        Generate a new fixed key for development
 ```
 
 ### Environment Variables
 
-- `PORT` - Server port (overrides -port flag)
-- `DATABASE_PATH` - Database file path (overrides -db flag)
+**Server Configuration:**
+- `PORT` - Server port (overrides --port flag)
+- `DATABASE_PATH` - Database file path (overrides --db flag)
+
+**Encryption Configuration:**
+- `FAMSTACK_FIXED_KEY_VALUE` - Fixed encryption key for development (64 hex characters)
+- `FAMSTACK_KEYRING_SERVICE` - Keyring service name (default: "famstack")
+
+### Encryption Configuration
+
+FamStack supports multiple encryption providers for cross-platform compatibility:
+
+**Keyring Provider (Recommended for Production):**
+- **macOS**: Uses Keychain for secure key storage
+- **Linux**: Uses Secret Service (GNOME Keyring, KWallet)
+- **Windows**: Uses Windows Credential Manager
+- Keys are automatically generated and stored securely
+
+**Fixed Key Provider (Development Only):**
+```bash
+# Generate a development key
+./famstack encryption generate-key
+
+# Set via environment variable
+export FAMSTACK_FIXED_KEY_VALUE=your-64-character-hex-key
+
+# Or use config file
+{
+  "encryptionSettings": {
+    "fixed_key": {
+      "value": "your-64-character-hex-key"
+    }
+  }
+}
+```
+
+**Check Encryption Status:**
+```bash
+./famstack encryption status
+```
 
 ## Database
 
@@ -159,10 +223,14 @@ Database migrations are handled automatically on startup, but you can also run t
 
 ```bash
 # Run migrations up
-./famstack -migrate-up
+./famstack start --migrate-up
 
 # Rollback one migration
-./famstack -migrate-down
+./famstack start --migrate-down
+
+# Or use make commands
+make migrate-up
+make migrate-down
 ```
 
 ## API
@@ -348,12 +416,14 @@ Visit `http://localhost:8080` to see the working task dashboard!
 - **✅ Family Management API**: Complete user and family management with role-based access
 - **✅ Calendar Infrastructure**: Complete calendar database schema and API layer
 - **✅ Frontend Components**: Rich TypeScript components with drag-and-drop, modals, and interactions
-- **✅ Background Job System**: Enterprise-grade job system with optimistic concurrency control
+- **✅ Background Job System**: Robust job system with optimistic concurrency control
 - **✅ Task Scheduling**: Automated task generation and recurring schedule management
 - **✅ HTML Templates**: Responsive multi-page application with navigation
 - **✅ HTMX Integration**: Dynamic page updates and API interactions
 - **✅ Build System**: Complete TypeScript compilation and asset embedding
 - **✅ Database Migrations**: Automatic migration system with rollback support
+- **✅ Cross-platform Encryption**: AES-256-GCM with keyring and fixed key providers
+- **✅ CLI Architecture**: Modular command structure with encryption management
 - **✅ Sample Data**: Working Smith family with real task data for demonstration
 
 **❌ Missing Critical Components:**
