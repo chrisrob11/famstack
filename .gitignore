@@ -8,6 +8,7 @@ cmd/famstack/famstack.exe
 *.dll
 *.so
 *.dylib
+famstack
 
 # Test binary, built with `go test -c`
 *.test
