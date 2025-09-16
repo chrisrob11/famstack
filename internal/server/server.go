@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"famstack/internal/auth"
 	"famstack/internal/database"
 	"famstack/internal/handlers"
 	"famstack/internal/handlers/api"
@@ -20,18 +21,20 @@ type Config struct {
 
 // Server represents the HTTP server
 type Server struct {
-	db        *database.DB
-	jobSystem *jobsystem.SQLiteJobSystem
-	config    *Config
-	server    *http.Server
+	db          *database.DB
+	jobSystem   *jobsystem.SQLiteJobSystem
+	authService *auth.Service
+	config      *Config
+	server      *http.Server
 }
 
 // New creates a new server instance
-func New(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem, config *Config) *Server {
+func New(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem, authService *auth.Service, config *Config) *Server {
 	s := &Server{
-		db:        db,
-		jobSystem: jobSystem,
-		config:    config,
+		db:          db,
+		jobSystem:   jobSystem,
+		authService: authService,
+		config:      config,
 	}
 
 	// Set up routes
@@ -67,6 +70,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
 	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.db, s.jobSystem)
 	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
+	authHandler := auth.NewHandlers(s.authService)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -222,6 +226,14 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
+
+	// Authentication API routes
+	mux.HandleFunc("/auth/login", authHandler.HandleLogin)
+	mux.HandleFunc("/auth/logout", authHandler.HandleLogout)
+	mux.HandleFunc("/auth/downgrade", authHandler.HandleDowngrade)
+	mux.HandleFunc("/auth/upgrade", authHandler.HandleUpgrade)
+	mux.HandleFunc("/auth/refresh", authHandler.HandleRefresh)
+	mux.HandleFunc("/auth/me", authHandler.HandleMe)
 
 	// Root route serves daily page
 	mux.HandleFunc("/", pageHandler.ServePage)

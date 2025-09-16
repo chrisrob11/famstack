@@ -4,6 +4,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"strings"
@@ -178,4 +179,23 @@ func (s *Service) ExportActiveKey() (string, error) {
 	}
 
 	return fmt.Sprintf("%x", key), nil
+}
+
+// GetJWTSigningKey derives a JWT signing key from the encryption master key
+// This provides a deterministic way to get a signing key from your existing key management
+func (s *Service) GetJWTSigningKey() ([]byte, error) {
+	// Get the active encryption key
+	key, _, err := s.provider.GetEncryptionKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get master key: %w", err)
+	}
+
+	// Derive JWT signing key using HKDF-like approach with SHA256
+	// This ensures the JWT key is different from encryption key but deterministic
+	h := sha256.New()
+	h.Write([]byte("famstack-jwt-signing-v1"))
+	h.Write(key)
+	jwtKey := h.Sum(nil)
+
+	return jwtKey, nil
 }

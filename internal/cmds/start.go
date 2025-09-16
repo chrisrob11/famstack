@@ -11,6 +11,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
+	"famstack/internal/auth"
 	"famstack/internal/config"
 	"famstack/internal/database"
 	"famstack/internal/encryption"
@@ -98,7 +99,7 @@ func startServer(ctx *cli.Context) error {
 	// Initialize encryption service with default configuration
 	// For now, use keyring with auto-creation
 	encryptionConfig := config.DefaultEncryptionSettings()
-	_, err = encryption.NewService(*encryptionConfig)
+	encryptionService, err := encryption.NewService(*encryptionConfig)
 	if err != nil {
 		// Try to provide helpful error message
 		log.Printf("Failed to initialize encryption service: %v", err)
@@ -107,6 +108,10 @@ func startServer(ctx *cli.Context) error {
 	}
 
 	log.Println("🔐 Encryption service initialized successfully")
+
+	// Initialize authentication service using encryption service for JWT signing
+	authService := auth.NewService(db.DB, encryptionService, "famstack")
+	log.Println("🔑 Authentication service initialized successfully")
 
 	// Configure job system
 	jobConfig := jobsystem.DefaultConfig()
@@ -125,7 +130,7 @@ func startServer(ctx *cli.Context) error {
 	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(db))
 
 	// Create and start server
-	srv := server.New(db, jobSystem, &server.Config{
+	srv := server.New(db, jobSystem, authService, &server.Config{
 		Port: port,
 		Dev:  dev,
 	})
