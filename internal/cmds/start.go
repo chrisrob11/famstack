@@ -12,11 +12,13 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"famstack/internal/auth"
+	"famstack/internal/calendar"
 	"famstack/internal/config"
 	"famstack/internal/database"
 	"famstack/internal/encryption"
 	"famstack/internal/jobs"
 	"famstack/internal/jobsystem"
+	"famstack/internal/oauth"
 	"famstack/internal/server"
 )
 
@@ -96,6 +98,13 @@ func startServer(ctx *cli.Context) error {
 		return fmt.Errorf("failed to run automatic migrations: %w", migErr)
 	}
 
+	// Initialize configuration manager
+	configManager, err := config.NewManager("famstack-config.json")
+	if err != nil {
+		return fmt.Errorf("failed to initialize config manager: %w", err)
+	}
+	log.Println("📋 Configuration manager initialized successfully")
+
 	// Initialize encryption service with default configuration
 	// For now, use keyring with auto-creation
 	encryptionConfig := config.DefaultEncryptionSettings()
@@ -124,13 +133,41 @@ func startServer(ctx *cli.Context) error {
 	// Create job system
 	jobSystem := jobsystem.NewSQLiteJobSystem(jobConfig, db)
 
+	// Initialize OAuth and calendar services for job handlers
+	// Get OAuth configuration from config manager
+	googleConfig, err := configManager.GetOAuthProvider("google")
+	if err != nil {
+		log.Printf("Warning: Google OAuth not configured: %v", err)
+		googleConfig = nil
+	}
+
+	var oauthConfig *oauth.OAuthConfig
+	if googleConfig != nil && googleConfig.Configured {
+		oauthConfig = &oauth.OAuthConfig{
+			Google: &oauth.GoogleConfig{
+				ClientID:     googleConfig.ClientID,
+				ClientSecret: googleConfig.ClientSecret,
+				RedirectURL:  googleConfig.RedirectURL,
+				Scopes:       googleConfig.Scopes,
+			},
+		}
+		log.Println("🔗 Google OAuth configured successfully")
+	} else {
+		log.Println("⚠️  Google OAuth not configured - calendar integration will be unavailable")
+		oauthConfig = &oauth.OAuthConfig{} // Empty config
+	}
+	oauthService := oauth.NewService(db, oauthConfig, encryptionService)
+	googleClient := calendar.NewGoogleClient(oauthService)
+
 	// Register job handlers
 	jobSystem.Register("monthly_task_generation", jobs.NewMonthlyTaskGenerationHandler(db))
 	jobSystem.Register("schedule_maintenance", jobs.NewScheduleMaintenanceHandler(db, jobSystem))
 	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(db))
+	calendarSyncHandler := jobs.NewCalendarSyncHandler(db, oauthService, googleClient)
+	jobSystem.Register("calendar_sync", calendarSyncHandler.Handle)
 
 	// Create and start server
-	srv := server.New(db, jobSystem, authService, &server.Config{
+	srv := server.New(db, jobSystem, authService, encryptionService, configManager, &server.Config{
 		Port: port,
 		Dev:  dev,
 	})

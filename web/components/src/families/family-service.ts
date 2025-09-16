@@ -146,7 +146,10 @@ export class FamilyService {
     return response.json();
   }
 
-  async createFamilyMember(familyId: string, memberData: CreateFamilyMemberRequest): Promise<FamilyMember> {
+  async createFamilyMember(
+    familyId: string,
+    memberData: CreateFamilyMemberRequest
+  ): Promise<FamilyMember> {
     const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members`, {
       method: 'POST',
       headers: {
@@ -165,13 +168,16 @@ export class FamilyService {
   }
 
   async getFamilyMember(familyId: string, memberId: string): Promise<FamilyMember> {
-    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': this.config.csrfToken,
-      },
-    });
+    const response = await fetch(
+      `${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': this.config.csrfToken,
+        },
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to fetch family member: ${response.statusText}`);
@@ -185,14 +191,17 @@ export class FamilyService {
     memberId: string,
     updates: Partial<CreateFamilyMemberRequest>
   ): Promise<FamilyMember> {
-    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-CSRF-Token': this.config.csrfToken,
-      },
-      body: JSON.stringify(updates),
-    });
+    const response = await fetch(
+      `${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': this.config.csrfToken,
+        },
+        body: JSON.stringify(updates),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to update family member: ${response.statusText}`);
@@ -202,12 +211,15 @@ export class FamilyService {
   }
 
   async deleteFamilyMember(familyId: string, memberId: string): Promise<void> {
-    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`, {
-      method: 'DELETE',
-      headers: {
-        'X-CSRF-Token': this.config.csrfToken,
-      },
-    });
+    const response = await fetch(
+      `${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`,
+      {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-Token': this.config.csrfToken,
+        },
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`Failed to delete family member: ${response.statusText}`);

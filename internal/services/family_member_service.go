@@ -2,10 +2,9 @@ package services
 
 import (
 	"database/sql"
+	"famstack/internal/models"
 	"fmt"
 	"time"
-
-	"famstack/internal/models"
 )
 
 // FamilyMemberService handles family member operations

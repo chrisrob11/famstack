@@ -9,6 +9,7 @@ cmd/famstack/famstack.exe
 *.so
 *.dylib
 famstack
+famstack-config.json
 
 # Test binary, built with `go test -c`
 *.test

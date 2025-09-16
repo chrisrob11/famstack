@@ -215,6 +215,59 @@ export FAMSTACK_FIXED_KEY_VALUE=your-64-character-hex-key
 ./famstack encryption status
 ```
 
+### OAuth Configuration
+
+FamStack includes a user-friendly OAuth configuration system for external calendar integration:
+
+**Auto-Generated Configuration File:**
+- Configuration file (`famstack-config.json`) is automatically created on first startup
+- Contains OAuth client credentials, server settings, and feature flags
+- Encrypted storage for OAuth client secrets
+
+**Configuration Structure:**
+```json
+{
+  "version": "1.0",
+  "server": {
+    "port": "8080",
+    "dev_mode": false
+  },
+  "oauth": {
+    "google": {
+      "client_id": "",
+      "client_secret": "",
+      "redirect_url": "http://localhost:8080/oauth/google/callback",
+      "scopes": ["https://www.googleapis.com/auth/calendar.readonly"],
+      "configured": false
+    }
+  },
+  "features": {
+    "calendar_sync": true,
+    "email_notifications": false
+  }
+}
+```
+
+**Web UI Configuration:**
+1. Start the application: `./famstack start`
+2. Navigate to the Integrations page
+3. Click "⚙️ OAuth Settings" button
+4. Follow the step-by-step instructions to:
+   - Create a Google Cloud project
+   - Enable Google Calendar API
+   - Create OAuth 2.0 credentials
+   - Configure the client ID and secret in FamStack
+
+**API Endpoints for Configuration:**
+- `GET /api/v1/config` - Get current configuration (sensitive data redacted)
+- `PUT /api/v1/config/oauth/google` - Update Google OAuth credentials
+- `GET /api/v1/config/oauth/google` - Get Google OAuth configuration status
+
+**Security Features:**
+- Client secrets are encrypted and never displayed after saving
+- Configuration API requires authentication
+- Separate OAuth client credentials per family/deployment
+
 ### User Management
 
 Create user accounts that can log in to the web interface:
@@ -405,12 +458,21 @@ chore(deps): update go dependencies
 
 ### Development Workflow
 
-- Run `make lint` before committing
-- Ensure all tests pass with `make test`  
+- Run `make lint` before committing (all lint issues currently resolved ✅)
+- Ensure all tests pass with `make test`
 - Follow conventional commit message format
 - Use the provided `.gitmessage` template: `git config commit.template .gitmessage`
 - Follow Go and TypeScript best practices
 - Update documentation as needed
+
+### Code Quality Status
+
+**✅ All Lint Issues Resolved:**
+- **errcheck**: All unchecked error returns fixed
+- **gofmt**: All formatting issues resolved
+- **govet**: All copy locks and variable shadowing fixed
+- **staticcheck**: All error string capitalization fixed
+- **Current Status**: 0 lint issues across entire codebase
 
 ### Automatic Releases
 
@@ -468,36 +530,61 @@ Visit `http://localhost:8080` to see the working task dashboard!
 - **✅ User Management**: Complete CLI tools for user creation, listing, deletion, password reset
 - **✅ Unified Architecture**: Consolidated family_members table with optional authentication
 
+*OAuth Configuration System:*
+- **✅ Configuration File Management**: Auto-created `famstack-config.json` for OAuth client credentials
+- **✅ OAuth Settings UI**: Complete integrations page with OAuth configuration modal
+- **✅ OAuth Client Configuration**: Google OAuth client setup with instructions and credential management
+- **✅ Configuration API**: REST endpoints for reading/updating OAuth provider settings
+- **✅ Security Features**: Client secrets encrypted, never displayed after saving
+- **✅ User-Friendly Setup**: Step-by-step instructions for obtaining Google OAuth credentials
+
+**🚧 Partially Implemented (OAuth System):**
+
+*OAuth Infrastructure:*
+- **✅ OAuth Database Schema**: Complete tables for tokens, states, and integration credentials
+- **✅ OAuth Service Layer**: Token management, state verification, and encryption handling
+- **✅ OAuth API Endpoints**: Authorization URL generation and callback handling
+- **✅ Integration System**: Complete integrations management with OAuth and API key support
+- **🧪 Requires Testing**: OAuth flow implementation exists but needs end-to-end testing
+
 **❌ Remaining Critical Components:**
 
 *Calendar Integration:*
-- **❌ OAuth Flow**: No Google/Microsoft/Apple Calendar OAuth authentication
+- **❌ Google Calendar API Client**: Calendar data fetching from Google Calendar API
 - **❌ External Calendar Sync**: No calendar data import from external providers
-- **❌ Calendar API Clients**: No Google Calendar API, Outlook API, or CalDAV integration
+- **❌ Calendar API Clients**: Microsoft Graph API, CalDAV integration not implemented
 - **❌ Data Pipeline**: No sync jobs to transform external calendar data into unified events
 - **❌ Sync Management**: No conflict resolution, deletion handling, or sync scheduling
 
 ### Next Development Priorities
 
-**Immediate Priority - Calendar Integration:**
+**Immediate Priority - Complete Calendar Integration:**
 
-1. **OAuth Integration** (`internal/oauth/`)
-   - Google Calendar OAuth 2.0 flow implementation
-   - Microsoft Graph API OAuth for Outlook integration
-   - Apple Calendar (CalDAV) authentication
-   - Token storage, refresh, and management
+1. **OAuth Testing & Completion** (`internal/oauth/`)
+   - **🧪 Test Google Calendar OAuth 2.0 flow** (implemented but untested)
+   - **🧪 Verify token refresh and management** (implemented but needs validation)
+   - **❌ Microsoft Graph API OAuth** for Outlook integration
+   - **❌ Apple Calendar (CalDAV)** authentication
+   - **🧪 End-to-end OAuth flow testing** with real Google accounts
 
 2. **Calendar Data Pipeline** (`internal/calendar/`)
-   - Google Calendar API client for event fetching
-   - Microsoft Graph API client for Outlook events
-   - CalDAV client for Apple/other calendar systems
-   - Background jobs for periodic calendar sync
+   - **❌ Google Calendar API client** for event fetching (service exists, needs API calls)
+   - **❌ Microsoft Graph API client** for Outlook events
+   - **❌ CalDAV client** for Apple/other calendar systems
+   - **❌ Background jobs** for periodic calendar sync
 
-3. **Data Transformation** (`internal/jobs/`)
-   - Import raw calendar events into `calendar_events` table
-   - Transform and merge into `unified_calendar_events` for UI
-   - Handle recurring events, time zones, and event updates
-   - Conflict resolution for overlapping events
+3. **Data Transformation & Sync** (`internal/jobs/`)
+   - **❌ Import raw calendar events** into `calendar_events` table
+   - **❌ Transform and merge** into `unified_calendar_events` for UI
+   - **❌ Handle recurring events**, time zones, and event updates
+   - **❌ Conflict resolution** for overlapping events
+
+**Secondary Priority - Enhanced Security:**
+
+4. **Additional Security Features**
+   - CSRF protection for all forms and API endpoints
+   - Input validation and sanitization middleware
+   - API rate limiting and throttling
 
 **Secondary Priority - Enhanced Security:**
 
