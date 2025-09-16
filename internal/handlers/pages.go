@@ -4,18 +4,21 @@ import (
 	"html/template"
 	"net/http"
 
+	"famstack/internal/auth"
 	"famstack/internal/database"
 )
 
 // PageHandler handles all page requests
 type PageHandler struct {
-	db *database.DB
+	db          *database.DB
+	authService *auth.Service
 }
 
 // NewPageHandler creates a new page handler
-func NewPageHandler(db *database.DB) *PageHandler {
+func NewPageHandler(db *database.DB, authService *auth.Service) *PageHandler {
 	return &PageHandler{
-		db: db,
+		db:          db,
+		authService: authService,
 	}
 }
 
@@ -36,6 +39,19 @@ func (h *PageHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	// Extract page type from URL path
 	pageType := h.getPageTypeFromPath(r.URL.Path)
 
+	// Check authentication for protected pages
+	if pageType != "login" && !h.isAuthenticated(r) {
+		// Redirect to login page
+		http.Redirect(w, r, "/login", http.StatusFound)
+		return
+	}
+
+	// If authenticated and trying to access login page, redirect to tasks
+	if pageType == "login" && h.isAuthenticated(r) {
+		http.Redirect(w, r, "/tasks", http.StatusFound)
+		return
+	}
+
 	// Determine template and page data
 	templateName, pageData := h.getPageTemplate(pageType)
 
@@ -54,9 +70,24 @@ func (h *PageHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// isAuthenticated checks if the user has a valid authentication token
+func (h *PageHandler) isAuthenticated(r *http.Request) bool {
+	// Try to extract token from cookie
+	cookie, err := r.Cookie("auth_token")
+	if err != nil {
+		return false
+	}
+
+	// Validate token
+	_, err = h.authService.ValidateToken(cookie.Value)
+	return err == nil
+}
+
 // getPageTypeFromPath extracts the page type from the URL path
 func (h *PageHandler) getPageTypeFromPath(urlPath string) string {
 	switch urlPath {
+	case "/login":
+		return "login"
 	case "/tasks", "/":
 		return "tasks"
 	case "/schedules":
@@ -76,6 +107,9 @@ func (h *PageHandler) getPageTemplate(pageType string) (string, PageData) {
 	}
 
 	switch pageType {
+	case "login":
+		baseData.PageTitle = "Login - FamStack"
+		return "web/templates/login.html.tmpl", baseData
 	case "tasks":
 		baseData.PageTitle = "Daily Tasks - FamStack"
 		return "web/templates/app.html.tmpl", baseData

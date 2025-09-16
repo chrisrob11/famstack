@@ -65,12 +65,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // setupRoutes configures the HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// Initialize handlers
-	pageHandler := handlers.NewPageHandler(s.db)
+	pageHandler := handlers.NewPageHandler(s.db, s.authService)
 	taskAPIHandler := api.NewTaskAPIHandler(s.db)
 	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
 	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.db, s.jobSystem)
 	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
 	authHandler := auth.NewHandlers(s.authService)
+	authMiddleware := auth.NewMiddleware(s.authService)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -112,120 +113,143 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	})
 
 	// Page routes - single handler for all pages
+	mux.HandleFunc("/login", pageHandler.ServePage)
 	mux.HandleFunc("/tasks", pageHandler.ServePage)
 	mux.HandleFunc("/daily", pageHandler.ServePage)
 	mux.HandleFunc("/family/setup", pageHandler.ServePage)
 	mux.HandleFunc("/family", pageHandler.ServePage)
 	mux.HandleFunc("/schedules", pageHandler.ServePage)
 
-	// JSON API routes
-	mux.HandleFunc("/api/v1/tasks", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			taskAPIHandler.ListTasks(w, r)
-		case "POST":
-			taskAPIHandler.CreateTask(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// JSON API routes - protected with authentication
+	mux.Handle("/api/v1/tasks", authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionRead)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				taskAPIHandler.ListTasks(w, r)
+			case "POST":
+				authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionCreate)(
+					http.HandlerFunc(taskAPIHandler.CreateTask)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	mux.HandleFunc("/api/v1/tasks/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "PATCH":
-			taskAPIHandler.UpdateTask(w, r)
-		case "DELETE":
-			taskAPIHandler.DeleteTask(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	mux.Handle("/api/v1/tasks/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "PATCH":
+				authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionUpdate)(
+					http.HandlerFunc(taskAPIHandler.UpdateTask)).ServeHTTP(w, r)
+			case "DELETE":
+				authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionDelete)(
+					http.HandlerFunc(taskAPIHandler.DeleteTask)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	// Family API routes
-	mux.HandleFunc("/api/v1/families", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			familyAPIHandler.ListFamilies(w, r)
-		case "POST":
-			familyAPIHandler.CreateFamily(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// Family API routes - protected with authentication
+	mux.Handle("/api/v1/families", authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionRead)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				familyAPIHandler.ListFamilies(w, r)
+			case "POST":
+				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionCreate)(
+					http.HandlerFunc(familyAPIHandler.CreateFamily)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	mux.HandleFunc("/api/v1/users", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			familyAPIHandler.ListUsers(w, r)
-		case "POST":
-			familyAPIHandler.CreateUser(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	mux.Handle("/api/v1/users", authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionRead)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				familyAPIHandler.ListUsers(w, r)
+			case "POST":
+				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionCreate)(
+					http.HandlerFunc(familyAPIHandler.CreateUser)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	mux.HandleFunc("/api/v1/users/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			familyAPIHandler.GetUser(w, r)
-		case "PATCH":
-			familyAPIHandler.UpdateUser(w, r)
-		case "DELETE":
-			familyAPIHandler.DeleteUser(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	mux.Handle("/api/v1/users/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				familyAPIHandler.GetUser(w, r)
+			case "PATCH":
+				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionUpdate)(
+					http.HandlerFunc(familyAPIHandler.UpdateUser)).ServeHTTP(w, r)
+			case "DELETE":
+				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionDelete)(
+					http.HandlerFunc(familyAPIHandler.DeleteUser)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	// Schedule API routes
-	mux.HandleFunc("/api/v1/schedules", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			scheduleAPIHandler.ListSchedules(w, r)
-		case "POST":
-			scheduleAPIHandler.CreateSchedule(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// Schedule API routes - protected with authentication
+	mux.Handle("/api/v1/schedules", authMiddleware.RequireEntityAction(auth.EntitySchedule, auth.ActionRead)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				scheduleAPIHandler.ListSchedules(w, r)
+			case "POST":
+				authMiddleware.RequireEntityAction(auth.EntitySchedule, auth.ActionCreate)(
+					http.HandlerFunc(scheduleAPIHandler.CreateSchedule)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	mux.HandleFunc("/api/v1/schedules/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			scheduleAPIHandler.GetSchedule(w, r)
-		case "PATCH":
-			scheduleAPIHandler.UpdateSchedule(w, r)
-		case "DELETE":
-			scheduleAPIHandler.DeleteSchedule(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	mux.Handle("/api/v1/schedules/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				scheduleAPIHandler.GetSchedule(w, r)
+			case "PATCH":
+				authMiddleware.RequireEntityAction(auth.EntitySchedule, auth.ActionUpdate)(
+					http.HandlerFunc(scheduleAPIHandler.UpdateSchedule)).ServeHTTP(w, r)
+			case "DELETE":
+				authMiddleware.RequireEntityAction(auth.EntitySchedule, auth.ActionDelete)(
+					http.HandlerFunc(scheduleAPIHandler.DeleteSchedule)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	// Calendar API routes
-	mux.HandleFunc("/api/v1/calendar/events", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			calendarAPIHandler.GetEvents(w, r)
-		case "POST":
-			calendarAPIHandler.CreateEvent(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	// Calendar API routes - protected with authentication
+	mux.Handle("/api/v1/calendar/events", authMiddleware.RequireEntityAction(auth.EntityCalendar, auth.ActionRead)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				calendarAPIHandler.GetEvents(w, r)
+			case "POST":
+				authMiddleware.RequireEntityAction(auth.EntityCalendar, auth.ActionCreate)(
+					http.HandlerFunc(calendarAPIHandler.CreateEvent)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
-	mux.HandleFunc("/api/v1/calendar/events/", func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			calendarAPIHandler.GetEvent(w, r)
-		case "PATCH":
-			calendarAPIHandler.UpdateEvent(w, r)
-		case "DELETE":
-			calendarAPIHandler.DeleteEvent(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
+	mux.Handle("/api/v1/calendar/events/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				calendarAPIHandler.GetEvent(w, r)
+			case "PATCH":
+				authMiddleware.RequireEntityAction(auth.EntityCalendar, auth.ActionUpdate)(
+					http.HandlerFunc(calendarAPIHandler.UpdateEvent)).ServeHTTP(w, r)
+			case "DELETE":
+				authMiddleware.RequireEntityAction(auth.EntityCalendar, auth.ActionDelete)(
+					http.HandlerFunc(calendarAPIHandler.DeleteEvent)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
 
 	// Authentication API routes
 	mux.HandleFunc("/auth/login", authHandler.HandleLogin)
