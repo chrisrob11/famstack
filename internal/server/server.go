@@ -11,6 +11,7 @@ import (
 	"famstack/internal/handlers"
 	"famstack/internal/handlers/api"
 	"famstack/internal/jobsystem"
+	"famstack/internal/services"
 )
 
 // Config holds server configuration
@@ -64,10 +65,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // setupRoutes configures the HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
+	// Initialize services
+	familyMemberService := services.NewFamilyMemberService(s.db.DB)
+
 	// Initialize handlers
 	pageHandler := handlers.NewPageHandler(s.db, s.authService)
 	taskAPIHandler := api.NewTaskAPIHandler(s.db)
 	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
+	familyMemberAPIHandler := api.NewFamilyMemberAPIHandler(familyMemberService)
 	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.db, s.jobSystem)
 	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
 	authHandler := auth.NewHandlers(s.authService)
@@ -186,6 +191,36 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			case "DELETE":
 				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionDelete)(
 					http.HandlerFunc(familyAPIHandler.DeleteUser)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
+	// Family Member API routes - protected with authentication
+	mux.Handle("/api/v1/families/members", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				familyMemberAPIHandler.GetFamilyMembersWithStats(w, r)
+			case "POST":
+				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+					http.HandlerFunc(familyMemberAPIHandler.CreateFamilyMember)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
+	mux.Handle("/api/v1/families/members/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				familyMemberAPIHandler.GetFamilyMember(w, r)
+			case "PATCH":
+				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+					http.HandlerFunc(familyMemberAPIHandler.UpdateFamilyMember)).ServeHTTP(w, r)
+			case "DELETE":
+				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+					http.HandlerFunc(familyMemberAPIHandler.DeleteFamilyMember)).ServeHTTP(w, r)
 			default:
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
