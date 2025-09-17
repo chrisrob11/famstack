@@ -106,13 +106,13 @@ type CreateFamilyMemberRequest struct {
 
 // UpdateFamilyMemberRequest represents a request to update a family member
 type UpdateFamilyMemberRequest struct {
-	Name         *string    `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
-	Nickname     *string    `json:"nickname,omitempty" validate:"omitempty,max=50"`
+	Name         *string     `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
+	Nickname     *string     `json:"nickname,omitempty" validate:"omitempty,max=50"`
 	MemberType   *MemberType `json:"member_type,omitempty" validate:"omitempty,oneof=adult child pet"`
-	Age          *int       `json:"age,omitempty" validate:"omitempty,min=0,max=150"`
-	AvatarURL    *string    `json:"avatar_url,omitempty" validate:"omitempty,url"`
-	DisplayOrder *int       `json:"display_order,omitempty"`
-	IsActive     *bool      `json:"is_active,omitempty"`
+	Age          *int        `json:"age,omitempty" validate:"omitempty,min=0,max=150"`
+	AvatarURL    *string     `json:"avatar_url,omitempty" validate:"omitempty,url"`
+	DisplayOrder *int        `json:"display_order,omitempty"`
+	IsActive     *bool       `json:"is_active,omitempty"`
 }
 
 // FamilyMemberWithStats represents a family member with additional statistics
@@ -123,8 +123,8 @@ type FamilyMemberWithStats struct {
 
 // TaskStats represents task completion statistics for a family member
 type TaskStats struct {
-	TotalTasks      int `json:"total_tasks"`
-	CompletedTasks  int `json:"completed_tasks"`
-	PendingTasks    int `json:"pending_tasks"`
-	CompletionRate  float64 `json:"completion_rate"` // Percentage
+	TotalTasks     int     `json:"total_tasks"`
+	CompletedTasks int     `json:"completed_tasks"`
+	PendingTasks   int     `json:"pending_tasks"`
+	CompletionRate float64 `json:"completion_rate"` // Percentage
 }

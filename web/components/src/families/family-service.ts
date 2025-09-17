@@ -4,16 +4,31 @@ export interface FamilyMember {
   id: string;
   family_id: string;
   name: string;
-  email: string;
-  role: string;
+  nickname?: string;
+  member_type: 'adult' | 'child' | 'pet';
+  age?: number;
+  avatar_url?: string;
+  user_id?: string;
+  display_order: number;
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
+  user?: {
+    id: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    role: string;
+  };
 }
 
 export interface CreateFamilyMemberRequest {
   name: string;
-  email: string;
-  role: string;
-  family_id?: string;
+  nickname?: string;
+  member_type: 'adult' | 'child' | 'pet';
+  age?: number;
+  avatar_url?: string;
+  display_order?: number;
 }
 
 export interface Family {
@@ -115,12 +130,8 @@ export class FamilyService {
   }
 
   // Family Member Management
-  async listFamilyMembers(familyId?: string): Promise<FamilyMember[]> {
-    const url = familyId
-      ? `${this.config.apiBaseUrl}/users?family_id=${familyId}`
-      : `${this.config.apiBaseUrl}/users`;
-
-    const response = await fetch(url, {
+  async listFamilyMembers(familyId: string): Promise<FamilyMember[]> {
+    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -135,8 +146,8 @@ export class FamilyService {
     return response.json();
   }
 
-  async createFamilyMember(memberData: CreateFamilyMemberRequest): Promise<FamilyMember> {
-    const response = await fetch(`${this.config.apiBaseUrl}/users`, {
+  async createFamilyMember(familyId: string, memberData: CreateFamilyMemberRequest): Promise<FamilyMember> {
+    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -153,8 +164,8 @@ export class FamilyService {
     return response.json();
   }
 
-  async getFamilyMember(memberId: string): Promise<FamilyMember> {
-    const response = await fetch(`${this.config.apiBaseUrl}/users/${memberId}`, {
+  async getFamilyMember(familyId: string, memberId: string): Promise<FamilyMember> {
+    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -170,10 +181,11 @@ export class FamilyService {
   }
 
   async updateFamilyMember(
+    familyId: string,
     memberId: string,
     updates: Partial<CreateFamilyMemberRequest>
   ): Promise<FamilyMember> {
-    const response = await fetch(`${this.config.apiBaseUrl}/users/${memberId}`, {
+    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -189,8 +201,8 @@ export class FamilyService {
     return response.json();
   }
 
-  async deleteFamilyMember(memberId: string): Promise<void> {
-    const response = await fetch(`${this.config.apiBaseUrl}/users/${memberId}`, {
+  async deleteFamilyMember(familyId: string, memberId: string): Promise<void> {
+    const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members/${memberId}`, {
       method: 'DELETE',
       headers: {
         'X-CSRF-Token': this.config.csrfToken,

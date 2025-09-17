@@ -1,7 +1,7 @@
 import { ComponentConfig } from '../common/types.js';
 import { FamilyMember, CreateFamilyMemberRequest } from './family-service.js';
 
-export type FamilyMemberFormData = Omit<CreateFamilyMemberRequest, 'family_id'>;
+export type FamilyMemberFormData = CreateFamilyMemberRequest;
 
 export interface FamilyMemberModalOptions {
   onSave: (data: FamilyMemberFormData, memberId?: string) => Promise<void>;
@@ -52,26 +52,39 @@ export class FamilyMemberModal {
         </div>
         <form id="family-member-form">
           <input type="hidden" id="member-id" name="id">
-          
+
           <div class="form-group">
             <label for="member-name">Name *</label>
-            <input type="text" id="member-name" name="name" required 
+            <input type="text" id="member-name" name="name" required
                    placeholder="Enter member name">
           </div>
 
           <div class="form-group">
-            <label for="member-email">Email</label>
-            <input type="email" id="member-email" name="email"
-                   placeholder="Enter email (optional)">
+            <label for="member-nickname">Nickname</label>
+            <input type="text" id="member-nickname" name="nickname"
+                   placeholder="Enter nickname (optional)">
           </div>
 
           <div class="form-group">
-            <label for="member-role">Role *</label>
-            <select id="member-role" name="role" required>
-              <option value="">Select role</option>
-              <option value="parent">Parent</option>
+            <label for="member-type">Member Type *</label>
+            <select id="member-type" name="member_type" required>
+              <option value="">Select member type</option>
+              <option value="adult">Adult</option>
               <option value="child">Child</option>
+              <option value="pet">Pet</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label for="member-age">Age</label>
+            <input type="number" id="member-age" name="age" min="0" max="150"
+                   placeholder="Enter age (optional)">
+          </div>
+
+          <div class="form-group">
+            <label for="member-avatar-url">Avatar URL</label>
+            <input type="url" id="member-avatar-url" name="avatar_url"
+                   placeholder="Enter avatar URL (optional)">
           </div>
 
           <div class="modal-actions">
@@ -145,8 +158,10 @@ export class FamilyMemberModal {
 
     (form.querySelector('#member-id') as HTMLInputElement).value = member.id;
     (form.querySelector('#member-name') as HTMLInputElement).value = member.name;
-    (form.querySelector('#member-email') as HTMLInputElement).value = member.email || '';
-    (form.querySelector('#member-role') as HTMLSelectElement).value = member.role;
+    (form.querySelector('#member-nickname') as HTMLInputElement).value = member.nickname || '';
+    (form.querySelector('#member-type') as HTMLSelectElement).value = member.member_type;
+    (form.querySelector('#member-age') as HTMLInputElement).value = member.age?.toString() || '';
+    (form.querySelector('#member-avatar-url') as HTMLInputElement).value = member.avatar_url || '';
   }
 
   private handleClick(e: Event): void {
@@ -193,22 +208,40 @@ export class FamilyMemberModal {
     const formData = new FormData(form);
 
     const name = formData.get('name') as string;
-    const email = formData.get('email') as string;
-    const role = formData.get('role') as string;
+    const nickname = formData.get('nickname') as string;
+    const memberType = formData.get('member_type') as string;
+    const age = formData.get('age') as string;
+    const avatarUrl = formData.get('avatar_url') as string;
 
     if (!name.trim()) {
       throw new Error('Name is required');
     }
 
-    if (!role) {
-      throw new Error('Role is required');
+    if (!memberType) {
+      throw new Error('Member type is required');
     }
 
-    return {
+    const result: FamilyMemberFormData = {
       name: name.trim(),
-      email: email.trim() || '',
-      role: role,
+      member_type: memberType as 'adult' | 'child' | 'pet',
     };
+
+    if (nickname.trim()) {
+      result.nickname = nickname.trim();
+    }
+
+    if (age.trim()) {
+      const ageNum = parseInt(age.trim(), 10);
+      if (!isNaN(ageNum) && ageNum >= 0) {
+        result.age = ageNum;
+      }
+    }
+
+    if (avatarUrl.trim()) {
+      result.avatar_url = avatarUrl.trim();
+    }
+
+    return result;
   }
 
   private showFormError(form: HTMLFormElement, message: string): void {

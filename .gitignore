@@ -80,6 +80,17 @@ pids
 .tmp/
 tmp/
 
+# Authentication and session files
+cookies.txt
+*.cookies
+session.json
+auth.json
+
+# Development and testing files
+test.db
+*.test.db
+server.log
+
 # OS generated files
 Thumbs.db
 .DS_Store

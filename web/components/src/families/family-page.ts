@@ -81,15 +81,24 @@ export class FamilyPage extends BasePage {
                 <input type="text" id="member-name" name="name" placeholder="Enter member name" required>
               </div>
               <div class="form-group">
-                <label for="member-email">Email</label>
-                <input type="email" id="member-email" name="email" placeholder="Enter email (optional)">
+                <label for="member-nickname">Nickname</label>
+                <input type="text" id="member-nickname" name="nickname" placeholder="Enter nickname (optional)">
               </div>
               <div class="form-group">
-                <label for="member-role">Role</label>
-                <select id="member-role" name="role" required>
-                  <option value="parent">Parent</option>
+                <label for="member-type">Member Type</label>
+                <select id="member-type" name="member_type" required>
+                  <option value="adult">Adult</option>
                   <option value="child">Child</option>
+                  <option value="pet">Pet</option>
                 </select>
+              </div>
+              <div class="form-group">
+                <label for="member-age">Age</label>
+                <input type="number" id="member-age" name="age" placeholder="Enter age (optional)" min="0" max="150">
+              </div>
+              <div class="form-group">
+                <label for="member-avatar-url">Avatar URL</label>
+                <input type="url" id="member-avatar-url" name="avatar_url" placeholder="Enter avatar URL (optional)">
               </div>
               <div class="form-actions">
                 <button type="button" class="btn btn-secondary" data-action="hide-add-member">Cancel</button>
@@ -174,20 +183,38 @@ export class FamilyPage extends BasePage {
 
   private async handleAddMember(form: HTMLFormElement): Promise<void> {
     const formData = new FormData(form);
-    const userData = {
+    const memberData: any = {
       name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      role: formData.get('role') as string,
+      member_type: formData.get('member_type') as string,
     };
 
+    // Add optional fields if provided
+    const nickname = formData.get('nickname') as string;
+    const age = formData.get('age') as string;
+    const avatarUrl = formData.get('avatar_url') as string;
+
+    if (nickname.trim()) {
+      memberData.nickname = nickname.trim();
+    }
+    if (age.trim()) {
+      const ageNum = parseInt(age.trim(), 10);
+      if (!isNaN(ageNum) && ageNum >= 0) {
+        memberData.age = ageNum;
+      }
+    }
+    if (avatarUrl.trim()) {
+      memberData.avatar_url = avatarUrl.trim();
+    }
+
     try {
-      const response = await fetch(`${this.config.apiBaseUrl}/users`, {
+      const familyId = 'fam1'; // TODO: Get actual family ID
+      const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': this.config.csrfToken,
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify(memberData),
       });
 
       if (response.ok) {

@@ -2,16 +2,16 @@ import { ComponentConfig } from '../common/types.js';
 import { Task } from './task-types.js';
 
 export interface TaskColumn {
-  user: {
+  member: {
     id: string;
     name: string;
-    role: string;
+    member_type: string;
   };
   tasks: Task[] | null;
 }
 
 export interface TasksResponse {
-  tasks_by_user: { [key: string]: TaskColumn };
+  tasks_by_member: { [key: string]: TaskColumn };
   date: string;
 }
 
@@ -21,6 +21,7 @@ export interface CreateTaskData {
   task_type: string;
   assigned_to?: string | undefined;
   family_id: string;
+  due_date?: Date;
 }
 
 /**
@@ -30,8 +31,16 @@ export interface CreateTaskData {
 export class TaskService {
   constructor(private config: ComponentConfig) {}
 
-  async getTasks(): Promise<TasksResponse> {
-    const response = await fetch(`${this.config.apiBaseUrl}/tasks`);
+  async getTasks(date?: Date): Promise<TasksResponse> {
+    let url = `${this.config.apiBaseUrl}/tasks`;
+
+    // Add date parameter if provided
+    if (date) {
+      const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+      url += `?date=${dateStr}`;
+    }
+
+    const response = await fetch(url);
 
     if (!response.ok) {
       throw new Error(`Failed to load tasks: ${response.statusText}`);
@@ -41,13 +50,19 @@ export class TaskService {
   }
 
   async createTask(taskData: CreateTaskData): Promise<Task> {
+    // Convert Date to ISO string for API
+    const apiData = {
+      ...taskData,
+      due_date: taskData.due_date ? taskData.due_date.toISOString() : undefined,
+    };
+
     const response = await fetch(`${this.config.apiBaseUrl}/tasks`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': this.config.csrfToken,
       },
-      body: JSON.stringify(taskData),
+      body: JSON.stringify(apiData),
     });
 
     if (!response.ok) {

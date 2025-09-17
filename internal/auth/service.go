@@ -43,8 +43,13 @@ func (s *Service) Login(email, password string) (*AuthResponse, error) {
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
+	// Check if user has auth info
+	if user.PasswordHash == nil || user.Role == nil {
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
 	// Verify password
-	valid, err := VerifyPassword(password, user.PasswordHash)
+	valid, err := VerifyPassword(password, *user.PasswordHash)
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
@@ -60,7 +65,7 @@ func (s *Service) Login(email, password string) (*AuthResponse, error) {
 	}
 
 	// Create JWT token (4 hours expiration for full sessions)
-	token, err := s.jwtManager.CreateToken(user.ID, user.FamilyID, user.Role, 4*time.Hour)
+	token, err := s.jwtManager.CreateToken(user.ID, user.FamilyID, *user.Role, 4*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
@@ -76,7 +81,7 @@ func (s *Service) Login(email, password string) (*AuthResponse, error) {
 		User:        user,
 		Session:     session,
 		Token:       token,
-		Permissions: GetPermissionList(user.Role),
+		Permissions: GetPermissionList(*user.Role),
 	}, nil
 }
 
@@ -131,7 +136,12 @@ func (s *Service) UpgradeWithPassword(token, password string) (*TokenResponse, e
 		return nil, fmt.Errorf("user not found")
 	}
 
-	valid, err := VerifyPassword(password, user.PasswordHash)
+	// Check if user has auth info
+	if user.PasswordHash == nil {
+		return nil, fmt.Errorf("user cannot authenticate")
+	}
+
+	valid, err := VerifyPassword(password, *user.PasswordHash)
 	if err != nil {
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
@@ -235,23 +245,25 @@ func (s *Service) checkUpgradeRateLimit(userID string) bool {
 	return true
 }
 
-// getUserByEmail fetches a user by email address
+// getUserByEmail fetches a family member by email address
 func (s *Service) getUserByEmail(email string) (*User, error) {
 	query := `
-		SELECT id, family_id, first_name, last_name, nickname, email, password_hash,
-			   role, email_verified, last_login_at, created_at
-		FROM users
-		WHERE email = ? AND email_verified = true
+		SELECT id, family_id, name, nickname, member_type, age, avatar_url, email, password_hash,
+			   role, email_verified, last_login_at, display_order, is_active, created_at, updated_at
+		FROM family_members
+		WHERE email = ? AND email_verified = true AND password_hash IS NOT NULL
 	`
 
 	var user User
-	var nickname sql.NullString
+	var nickname, userEmail, passwordHash, avatarURL sql.NullString
+	var age sql.NullInt64
+	var role sql.NullString
 	var lastLoginAt sql.NullTime
 
 	err := s.db.QueryRow(query, email).Scan(
-		&user.ID, &user.FamilyID, &user.FirstName, &user.LastName, &nickname,
-		&user.Email, &user.PasswordHash, &user.Role, &user.EmailVerified,
-		&lastLoginAt, &user.CreatedAt,
+		&user.ID, &user.FamilyID, &user.Name, &nickname, &user.MemberType, &age, &avatarURL,
+		&userEmail, &passwordHash, &role, &user.EmailVerified,
+		&lastLoginAt, &user.DisplayOrder, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -261,8 +273,26 @@ func (s *Service) getUserByEmail(email string) (*User, error) {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
 
+	// Handle nullable fields
 	if nickname.Valid {
 		user.Nickname = &nickname.String
+	}
+	if age.Valid {
+		ageInt := int(age.Int64)
+		user.Age = &ageInt
+	}
+	if avatarURL.Valid {
+		user.AvatarURL = &avatarURL.String
+	}
+	if userEmail.Valid {
+		user.Email = &userEmail.String
+	}
+	if passwordHash.Valid {
+		user.PasswordHash = &passwordHash.String
+	}
+	if role.Valid {
+		roleEnum := Role(role.String)
+		user.Role = &roleEnum
 	}
 	if lastLoginAt.Valid {
 		user.LastLoginAt = &lastLoginAt.Time
@@ -271,23 +301,25 @@ func (s *Service) getUserByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-// getUserByID fetches a user by ID
+// getUserByID fetches a family member by ID
 func (s *Service) getUserByID(userID string) (*User, error) {
 	query := `
-		SELECT id, family_id, first_name, last_name, nickname, email, password_hash,
-			   role, email_verified, last_login_at, created_at
-		FROM users
+		SELECT id, family_id, name, nickname, member_type, age, avatar_url, email, password_hash,
+			   role, email_verified, last_login_at, display_order, is_active, created_at, updated_at
+		FROM family_members
 		WHERE id = ?
 	`
 
 	var user User
-	var nickname sql.NullString
+	var nickname, userEmail, passwordHash, avatarURL sql.NullString
+	var age sql.NullInt64
+	var role sql.NullString
 	var lastLoginAt sql.NullTime
 
 	err := s.db.QueryRow(query, userID).Scan(
-		&user.ID, &user.FamilyID, &user.FirstName, &user.LastName, &nickname,
-		&user.Email, &user.PasswordHash, &user.Role, &user.EmailVerified,
-		&lastLoginAt, &user.CreatedAt,
+		&user.ID, &user.FamilyID, &user.Name, &nickname, &user.MemberType, &age, &avatarURL,
+		&userEmail, &passwordHash, &role, &user.EmailVerified,
+		&lastLoginAt, &user.DisplayOrder, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -297,8 +329,26 @@ func (s *Service) getUserByID(userID string) (*User, error) {
 		return nil, fmt.Errorf("database error: %w", err)
 	}
 
+	// Handle nullable fields
 	if nickname.Valid {
 		user.Nickname = &nickname.String
+	}
+	if age.Valid {
+		ageInt := int(age.Int64)
+		user.Age = &ageInt
+	}
+	if avatarURL.Valid {
+		user.AvatarURL = &avatarURL.String
+	}
+	if userEmail.Valid {
+		user.Email = &userEmail.String
+	}
+	if passwordHash.Valid {
+		user.PasswordHash = &passwordHash.String
+	}
+	if role.Valid {
+		roleEnum := Role(role.String)
+		user.Role = &roleEnum
 	}
 	if lastLoginAt.Valid {
 		user.LastLoginAt = &lastLoginAt.Time
@@ -307,9 +357,41 @@ func (s *Service) getUserByID(userID string) (*User, error) {
 	return &user, nil
 }
 
-// updateLastLogin updates the user's last login timestamp
+// updateLastLogin updates the family member's last login timestamp
 func (s *Service) updateLastLogin(userID string) error {
-	query := `UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`
+	query := `UPDATE family_members SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`
 	_, err := s.db.Exec(query, userID)
 	return err
+}
+
+// CreateUser creates a new family member with auth details
+func (s *Service) CreateUser(req *CreateUserRequest) (*User, error) {
+	// Hash the password
+	hashedPassword, err := HashPassword(req.Password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// Build the name from first and last name
+	name := req.FirstName
+	if req.LastName != "" {
+		name = req.FirstName + " " + req.LastName
+	}
+
+	// Insert family member into database with auth fields
+	query := `
+		INSERT INTO family_members (family_id, name, member_type, email, password_hash, role, email_verified, is_active, created_at, updated_at)
+		VALUES (?, ?, 'adult', ?, ?, ?, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`
+
+	_, err = s.db.Exec(query, req.FamilyID, name, req.Email, hashedPassword, req.Role)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create family member: %w", err)
+	}
+
+	// Add a small delay to ensure the transaction is committed
+	time.Sleep(10 * time.Millisecond)
+
+	// Fetch and return the created user by email (since UUID is auto-generated)
+	return s.getUserByEmail(req.Email)
 }

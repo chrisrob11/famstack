@@ -117,13 +117,15 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		`)
 	})
 
-	// Page routes - single handler for all pages
-	mux.HandleFunc("/login", pageHandler.ServePage)
-	mux.HandleFunc("/tasks", pageHandler.ServePage)
-	mux.HandleFunc("/daily", pageHandler.ServePage)
-	mux.HandleFunc("/family/setup", pageHandler.ServePage)
-	mux.HandleFunc("/family", pageHandler.ServePage)
-	mux.HandleFunc("/schedules", pageHandler.ServePage)
+	// Page routes
+	mux.HandleFunc("/login", pageHandler.ServePage) // Login page - no auth required
+
+	// Protected app pages - require authentication
+	mux.Handle("/tasks", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	mux.Handle("/daily", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	mux.Handle("/family/setup", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	mux.Handle("/family", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	mux.Handle("/schedules", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
 
 	// JSON API routes - protected with authentication
 	mux.Handle("/api/v1/tasks", authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionRead)(
@@ -294,6 +296,6 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/auth/refresh", authHandler.HandleRefresh)
 	mux.HandleFunc("/auth/me", authHandler.HandleMe)
 
-	// Root route serves daily page
-	mux.HandleFunc("/", pageHandler.ServePage)
+	// Root route serves daily page - requires authentication
+	mux.Handle("/", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
 }

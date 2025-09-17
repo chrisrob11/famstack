@@ -82,9 +82,15 @@ func (s *scheduler) processScheduledJobs() {
 		}
 
 		var timeParseErr error
+		// Try to parse with SQLite datetime format first
 		if scheduledJob.NextRunAt, timeParseErr = time.Parse("2006-01-02 15:04:05", nextRunAtStr); timeParseErr != nil {
-			log.Printf("Failed to parse next_run_at: %v", timeParseErr)
-			continue
+			// If that fails, try ISO 8601 format (RFC3339)
+			if scheduledJob.NextRunAt, timeParseErr = time.Parse(time.RFC3339, nextRunAtStr); timeParseErr != nil {
+				log.Printf("Failed to parse next_run_at '%s' with both SQLite and ISO8601 formats: %v", nextRunAtStr, timeParseErr)
+				continue
+			}
+			// Log that we had to fall back to ISO 8601 format
+			log.Printf("Parsed next_run_at '%s' using ISO 8601 format instead of SQLite format", nextRunAtStr)
 		}
 
 		s.executeScheduledJob(&scheduledJob)

@@ -197,12 +197,24 @@ func (h *Handlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current session and user from context (set by middleware)
-	session := GetSessionFromContext(r.Context())
-	user := GetUserFromContext(r.Context())
-
-	if session == nil || user == nil {
+	// Extract token directly since this endpoint doesn't use middleware
+	token, err := h.extractToken(r)
+	if err != nil {
 		h.writeError(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Validate token and get session
+	session, err := h.authService.ValidateToken(token)
+	if err != nil {
+		h.writeError(w, "Invalid or expired token", http.StatusUnauthorized)
+		return
+	}
+
+	// Get user info
+	user, err := h.authService.GetUserByToken(token)
+	if err != nil {
+		h.writeError(w, "User not found", http.StatusUnauthorized)
 		return
 	}
 

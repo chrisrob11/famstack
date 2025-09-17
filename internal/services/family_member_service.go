@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"famstack/internal/auth"
 	"famstack/internal/models"
 )
 
@@ -42,9 +41,9 @@ func (s *FamilyMemberService) ListFamilyMembers(familyID string) ([]*models.Fami
 
 	var members []*models.FamilyMember
 	for rows.Next() {
-		member, err := s.scanFamilyMemberWithUser(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan family member: %w", err)
+		member, scanErr := s.scanFamilyMemberWithUser(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("failed to scan family member: %w", scanErr)
 		}
 		members = append(members, member)
 	}
@@ -243,9 +242,9 @@ func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*mod
 
 	var members []*models.FamilyMemberWithStats
 	for rows.Next() {
-		member, err := s.scanFamilyMemberWithStatsAndUser(rows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan family member with stats: %w", err)
+		member, scanErr := s.scanFamilyMemberWithStatsAndUser(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("failed to scan family member with stats: %w", scanErr)
 		}
 		members = append(members, member)
 	}
@@ -275,16 +274,7 @@ func (s *FamilyMemberService) scanFamilyMemberWithUser(scanner interface {
 		return nil, err
 	}
 
-	// Populate user info if linked
-	if member.UserID != nil && userEmail.Valid {
-		member.User = &auth.User{
-			ID:        *member.UserID,
-			Email:     userEmail.String,
-			FirstName: userFirstName.String,
-			LastName:  userLastName.String,
-			Role:      auth.Role(userRole.String),
-		}
-	}
+	// Family members now include auth info directly, no separate User object needed
 
 	return &member, nil
 }
@@ -307,16 +297,7 @@ func (s *FamilyMemberService) scanFamilyMemberWithStatsAndUser(scanner interface
 		return nil, err
 	}
 
-	// Populate user info if linked
-	if member.UserID != nil && userEmail.Valid {
-		member.User = &auth.User{
-			ID:        *member.UserID,
-			Email:     userEmail.String,
-			FirstName: userFirstName.String,
-			LastName:  userLastName.String,
-			Role:      auth.Role(userRole.String),
-		}
-	}
+	// Family members now include auth info directly, no separate User object needed
 
 	// Calculate completion rate
 	var completionRate float64

@@ -279,14 +279,12 @@
                     if (response.ok) {
                         this.currentUser = data.user;
                         this.currentSession = data.session;
-                        this.showSuccess('Login successful!');
-                        this.showModeControls();
-                        this.updateModeStatus();
+                        this.showSuccess('Login successful! Redirecting...');
 
-                        // Redirect to app after 1 second
+                        // Redirect to app immediately (no privilege screen)
                         setTimeout(() => {
                             window.location.href = '/tasks';
-                        }, 1000);
+                        }, 500);
                     } else {
                         this.showError(data.message || 'Login failed');
                     }

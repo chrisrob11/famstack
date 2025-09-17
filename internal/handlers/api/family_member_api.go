@@ -133,7 +133,7 @@ func (h *FamilyMemberAPIHandler) UpdateFamilyMember(w http.ResponseWriter, r *ht
 
 	// Parse request body
 	var req models.UpdateFamilyMemberRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}

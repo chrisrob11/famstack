@@ -69,19 +69,8 @@ export class CalendarEvents {
   }
 
   private renderCalendarEvents(): void {
-    const dateFormatter = new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-
     this.container.innerHTML = `
       <div class="calendar-events">
-        <div class="calendar-events-header">
-          <h2>Today's Schedule</h2>
-          <p class="calendar-events-date">${dateFormatter.format(this.currentDate)}</p>
-        </div>
         <div class="calendar-events-container">
           ${this.renderTimelineGrid()}
         </div>

@@ -36,21 +36,21 @@ func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 		// Extract token from request
 		token, err := m.extractToken(r)
 		if err != nil {
-			m.writeError(w, "Authentication required", http.StatusUnauthorized)
+			m.writeError(w, r, "Authentication required", http.StatusUnauthorized)
 			return
 		}
 
 		// Validate token and get session
 		session, err := m.authService.ValidateToken(token)
 		if err != nil {
-			m.writeError(w, "Invalid or expired token", http.StatusUnauthorized)
+			m.writeError(w, r, "Invalid or expired token", http.StatusUnauthorized)
 			return
 		}
 
 		// Get user info
 		user, err := m.authService.GetUserByToken(token)
 		if err != nil {
-			m.writeError(w, "User not found", http.StatusUnauthorized)
+			m.writeError(w, r, "User not found", http.StatusUnauthorized)
 			return
 		}
 
@@ -70,7 +70,7 @@ func (m *Middleware) RequireEntityAction(entity Entity, action Action) func(http
 			m.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				session := GetSessionFromContext(r.Context())
 				if session == nil {
-					m.writeError(w, "Authentication required", http.StatusUnauthorized)
+					m.writeError(w, r, "Authentication required", http.StatusUnauthorized)
 					return
 				}
 
@@ -89,7 +89,7 @@ func (m *Middleware) RequireEntityAction(entity Entity, action Action) func(http
 						m.writeUpgradeRequired(w, entity, action)
 						return
 					}
-					m.writeError(w, "Insufficient permissions", http.StatusForbidden)
+					m.writeError(w, r, "Insufficient permissions", http.StatusForbidden)
 					return
 				}
 
@@ -172,8 +172,14 @@ func (m *Middleware) extractResourceOwnerID(r *http.Request, entity Entity) *str
 	}
 }
 
-// writeError writes a JSON error response
-func (m *Middleware) writeError(w http.ResponseWriter, message string, status int) {
+// writeError writes a JSON error response or redirects to login for page requests
+func (m *Middleware) writeError(w http.ResponseWriter, r *http.Request, message string, status int) {
+	// For page requests, redirect to login instead of returning JSON
+	if status == http.StatusUnauthorized && m.isPageRequest(r) {
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
@@ -186,6 +192,12 @@ func (m *Middleware) writeError(w http.ResponseWriter, message string, status in
 	if encodeErr != nil {
 		fmt.Printf("error ending response: %v\n", encodeErr)
 	}
+}
+
+// isPageRequest determines if this is a page request vs API request
+func (m *Middleware) isPageRequest(r *http.Request) bool {
+	// Check if the path starts with /api/ - if so, it's an API request
+	return !strings.HasPrefix(r.URL.Path, "/api/")
 }
 
 // writeUpgradeRequired writes a response indicating upgrade is needed

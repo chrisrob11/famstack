@@ -6,6 +6,57 @@
     <title>{{.PageTitle}}</title>
     <link rel="stylesheet" href="/static/js/index.css">
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .menu-divider {
+            height: 1px;
+            background-color: #e5e7eb;
+            margin: 0.5rem 0;
+        }
+
+        .auth-status {
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+            color: #6b7280;
+            border-bottom: 1px solid #f3f4f6;
+            margin-bottom: 0.5rem;
+        }
+
+        .auth-status.personal {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .auth-status.family {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+
+        .auth-menu-btn {
+            width: 100%;
+            padding: 0.5rem 1rem;
+            border: none;
+            background: none;
+            color: #374151;
+            text-align: left;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: background-color 0.2s;
+        }
+
+        .auth-menu-btn:hover {
+            background-color: #f9fafb;
+        }
+
+        .auth-menu-btn.logout {
+            color: #dc2626;
+            border-top: 1px solid #f3f4f6;
+            margin-top: 0.5rem;
+        }
+
+        .auth-menu-btn.logout:hover {
+            background-color: #fef2f2;
+        }
+    </style>
     {{if eq .PageType "tasks"}}
     <script src="https://unpkg.com/sortablejs@1.15.0/Sortable.min.js"></script>
     {{end}}
@@ -22,8 +73,15 @@
                     </button>
                     <div class="dropdown-content">
                         <a href="/tasks" {{if eq .PageType "tasks"}}class="active"{{end}}>Daily Tasks</a>
-                        <a href="/schedules" {{if eq .PageType "schedules"}}class="active"{{end}}>Schedules</a>
-                        <a href="/family/setup" {{if eq .PageType "family"}}class="active"{{end}}>Family Setup</a>
+                        <a id="schedules-link" href="/schedules" {{if eq .PageType "schedules"}}class="active"{{end}}>Schedules</a>
+                        <a id="family-setup-link" href="/family/setup" {{if eq .PageType "family"}}class="active"{{end}}>Family Setup</a>
+                        <div class="menu-divider"></div>
+                        <div id="auth-controls">
+                            <div id="auth-status" class="auth-status"></div>
+                            <button id="downgrade-btn" class="auth-menu-btn" style="display: none;">Switch to Family Mode</button>
+                            <button id="upgrade-btn" class="auth-menu-btn" style="display: none;">Switch to Personal Mode</button>
+                            <button id="logout-btn" class="auth-menu-btn logout">Sign Out</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -61,6 +119,182 @@
                 dropdown.classList.remove('open');
                 dropdown.querySelector('.dropdown-btn').setAttribute('aria-expanded', 'false');
             }
+        });
+
+        // Auth management
+        class AppAuthManager {
+            constructor() {
+                this.currentUser = null;
+                this.currentSession = null;
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.checkAuthStatus();
+            }
+
+            bindEvents() {
+                const downgradeBtn = document.getElementById('downgrade-btn');
+                const upgradeBtn = document.getElementById('upgrade-btn');
+                const logoutBtn = document.getElementById('logout-btn');
+
+                if (downgradeBtn) {
+                    downgradeBtn.addEventListener('click', this.handleDowngrade.bind(this));
+                }
+                if (upgradeBtn) {
+                    upgradeBtn.addEventListener('click', this.handleUpgrade.bind(this));
+                }
+                if (logoutBtn) {
+                    logoutBtn.addEventListener('click', this.handleLogout.bind(this));
+                }
+            }
+
+            async checkAuthStatus() {
+                try {
+                    const response = await fetch('/auth/me');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.currentUser = data.user;
+                        this.currentSession = data.session;
+                        this.updateAuthStatus();
+                        this.showAuthControls();
+                    } else {
+                        // User not authenticated, hide auth controls
+                        this.hideAuthControls();
+                    }
+                } catch (error) {
+                    console.log('Auth check failed:', error);
+                    this.hideAuthControls();
+                }
+            }
+
+            async handleDowngrade() {
+                try {
+                    const response = await fetch('/auth/downgrade', {
+                        method: 'POST'
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.currentSession = data.session;
+                        this.updateAuthStatus();
+                        this.showMessage(data.message, 'success');
+                    } else {
+                        this.showMessage(data.message || 'Failed to switch mode', 'error');
+                    }
+                } catch (error) {
+                    this.showMessage('Network error. Please try again.', 'error');
+                }
+            }
+
+            async handleUpgrade() {
+                const password = prompt('Enter your password to switch to Personal Mode:');
+                if (!password) return;
+
+                try {
+                    const response = await fetch('/auth/upgrade', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ password })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.currentSession = data.session;
+                        this.updateAuthStatus();
+                        this.showMessage(data.message, 'success');
+                    } else {
+                        this.showMessage(data.message || 'Failed to switch mode', 'error');
+                    }
+                } catch (error) {
+                    this.showMessage('Network error. Please try again.', 'error');
+                }
+            }
+
+            async handleLogout() {
+                if (!confirm('Are you sure you want to sign out?')) return;
+
+                try {
+                    const response = await fetch('/auth/logout', {
+                        method: 'POST'
+                    });
+
+                    if (response.ok) {
+                        window.location.href = '/login';
+                    }
+                } catch (error) {
+                    this.showMessage('Logout failed', 'error');
+                }
+            }
+
+            updateAuthStatus() {
+                const statusEl = document.getElementById('auth-status');
+                const downgradeBtn = document.getElementById('downgrade-btn');
+                const upgradeBtn = document.getElementById('upgrade-btn');
+                const schedulesLink = document.getElementById('schedules-link');
+                const familySetupLink = document.getElementById('family-setup-link');
+
+                if (!this.currentSession || !statusEl) return;
+
+                if (this.currentSession.role === 'shared') {
+                    statusEl.textContent = 'Family Mode';
+                    statusEl.className = 'auth-status family';
+                    if (downgradeBtn) downgradeBtn.style.display = 'none';
+                    if (upgradeBtn) upgradeBtn.style.display = 'block';
+
+                    // Hide admin-only links in Family Mode
+                    if (schedulesLink) schedulesLink.style.display = 'none';
+                    if (familySetupLink) familySetupLink.style.display = 'none';
+
+                    // If currently on restricted pages, redirect to tasks
+                    if (window.location.pathname === '/schedules' || window.location.pathname === '/family/setup') {
+                        window.location.href = '/tasks';
+                    }
+                } else {
+                    statusEl.textContent = `Personal Mode (${this.currentSession.role})`;
+                    statusEl.className = 'auth-status personal';
+                    if (downgradeBtn) downgradeBtn.style.display = 'block';
+                    if (upgradeBtn) upgradeBtn.style.display = 'none';
+
+                    // Show all links in Personal Mode
+                    if (schedulesLink) schedulesLink.style.display = 'block';
+                    if (familySetupLink) familySetupLink.style.display = 'block';
+                }
+            }
+
+            showAuthControls() {
+                const authControls = document.getElementById('auth-controls');
+                if (authControls) {
+                    authControls.style.display = 'block';
+                }
+            }
+
+            hideAuthControls() {
+                const authControls = document.getElementById('auth-controls');
+                if (authControls) {
+                    authControls.style.display = 'none';
+                }
+            }
+
+            showMessage(message, type) {
+                // Simple message display - could be enhanced with toast notifications
+                if (type === 'error') {
+                    alert('Error: ' + message);
+                } else {
+                    // Don't show success messages as alerts, just log them
+                    console.log('Success:', message);
+                }
+            }
+        }
+
+        // Initialize auth manager when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AppAuthManager();
         });
     </script>
 

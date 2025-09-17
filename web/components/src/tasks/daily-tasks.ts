@@ -83,22 +83,22 @@ export class DailyTasks {
   private renderTasksGrid(): string {
     if (!this.tasks) return '';
 
-    const userColumns = Object.values(this.tasks.tasks_by_user);
+    const memberColumns = Object.values(this.tasks.tasks_by_member);
     const gridItems: string[] = [];
 
-    userColumns.forEach(column => {
-      const user = column.user;
+    memberColumns.forEach(column => {
+      const member = column.member;
       const tasks = column.tasks || [];
 
       // Filter to today's tasks (all pending tasks)
-      const todayTasks = tasks.filter(task => task.status === 'pending');
+      const todayTasks = tasks.filter((task: Task) => task.status === 'pending');
 
-      if (user.name !== 'Unassigned') {
+      if (member.name !== 'Unassigned') {
         gridItems.push(`
           <div class="task-grid-item">
-            <h3 class="user-name">${user.name}</h3>
+            <h3 class="member-name">${member.name}</h3>
             <div class="task-list">
-              ${todayTasks.map(task => this.renderGridTaskItem(task)).join('')}
+              ${todayTasks.map((task: Task) => this.renderGridTaskItem(task)).join('')}
               ${todayTasks.length === 0 ? '<div class="no-tasks">No tasks</div>' : ''}
             </div>
           </div>
@@ -205,8 +205,8 @@ export class DailyTasks {
   private updateTaskStatus(taskId: string, status: string): void {
     if (!this.tasks) return;
 
-    Object.values(this.tasks.tasks_by_user).forEach(column => {
-      const task = column.tasks?.find(t => t.id === taskId);
+    Object.values(this.tasks.tasks_by_member).forEach(column => {
+      const task = column.tasks?.find((t: Task) => t.id === taskId);
       if (task) {
         task.status = status as 'pending' | 'completed';
         if (status === 'completed') {
