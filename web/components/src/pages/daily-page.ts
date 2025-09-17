@@ -132,7 +132,8 @@ export class DailyPage extends BasePage {
 
     const titleElement = this.container.querySelector('.family-title h1');
     if (titleElement) {
-      titleElement.textContent = `Our Family Hub - ${dateFormatter.format(this.currentDate)}`;
+      // Preserve the navigation buttons by updating innerHTML instead of textContent
+      titleElement.innerHTML = `Our Family Hub  <button class="date-nav-btn" data-action="prev-day">←</button> ${dateFormatter.format(this.currentDate)} <button class="date-nav-btn" data-action="next-day">→</button>`;
     }
 
     // Update calendar events component
@@ -140,8 +141,10 @@ export class DailyPage extends BasePage {
       this.calendarEvents.setDate(date);
     }
 
-    // Tasks don't need date filtering since they show "today's tasks"
-    // but we could add that functionality later if needed
+    // Update family tasks for the selected date
+    if (this.familyTasks) {
+      this.familyTasks.setDate(date);
+    }
   }
 
   private handleAddTaskRequest(_: CustomEvent): void {

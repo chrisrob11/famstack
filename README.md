@@ -149,6 +149,7 @@ fam-stack/
 
 Commands:
   start                Start the FamStack server
+  user                 User management commands
   encryption          Encryption key management
 
 Start Command Options:
@@ -158,6 +159,12 @@ Start Command Options:
   --migrate-down      Run database migrations down
   --dev               Enable development mode
   --config string     Configuration file path (default "config.json")
+
+User Management Commands:
+  create              Create a new user account
+  list                List all users
+  delete              Delete a user account
+  reset-password      Reset user password
 
 Encryption Commands:
   status              Show encryption provider status
@@ -208,12 +215,38 @@ export FAMSTACK_FIXED_KEY_VALUE=your-64-character-hex-key
 ./famstack encryption status
 ```
 
+### User Management
+
+Create user accounts that can log in to the web interface:
+
+```bash
+# Create a new user interactively
+./famstack user create
+
+# Create a user with command line options
+./famstack user create --email admin@family.com --first-name Admin --last-name User --role admin --password mypassword
+
+# List all users
+./famstack user list
+
+# Reset a user's password
+./famstack user reset-password --email admin@family.com
+
+# Delete a user
+./famstack user delete --email admin@family.com
+```
+
+**User Roles:**
+- `shared` - Basic access to family tasks
+- `user` - Standard family member access
+- `admin` - Full access including family management
+
 ## Database
 
 Fam-Stack uses SQLite with the following schema:
 
 - **families** - Family units
-- **users** - Family members with roles (parent/child/admin)
+- **family_members** - Family members with optional authentication (shared/user/admin roles)
 - **tasks** - Unified task system (todos/chores/appointments)
 - **sessions** - User authentication sessions
 
@@ -265,10 +298,10 @@ Fam-Stack provides both a web interface and REST API endpoints:
 - `GET /api/schedules` - List recurring schedules ✅
 - `POST /api/schedules` - Create new schedule ✅
 
-### ❌ Missing Authentication Endpoints
-- `POST /auth/login` - User login ❌
-- `POST /auth/logout` - User logout ❌
-- `POST /auth/register` - User registration ❌
+### ✅ Authentication Endpoints
+- `POST /api/login` - User login ✅
+- `POST /api/logout` - User logout ✅
+- `GET /api/me` - Get current user session ✅
 
 ### ❌ Missing Calendar Integration Endpoints
 - `POST /auth/oauth/google` - Google Calendar OAuth flow ❌
@@ -276,7 +309,7 @@ Fam-Stack provides both a web interface and REST API endpoints:
 - `POST /api/calendar/sync` - Trigger calendar data sync ❌
 - `GET /api/calendar/providers` - List connected calendar providers ❌
 
-**Note**: Core API functionality and calendar infrastructure work perfectly, but currently operate without authentication. External calendar integration (OAuth + sync) is not implemented - the system has sample calendar events and full CRUD operations, but can't import from Google/Outlook/Apple calendars.
+**Note**: Core API functionality, calendar infrastructure, and authentication system are working. External calendar integration (OAuth + sync) is not implemented - the system has sample calendar events and full CRUD operations, but can't import from Google/Outlook/Apple calendars.
 
 ## TypeScript Components
 
@@ -426,14 +459,16 @@ Visit `http://localhost:8080` to see the working task dashboard!
 - **✅ CLI Architecture**: Modular command structure with encryption management
 - **✅ Sample Data**: Working Smith family with real task data for demonstration
 
-**❌ Missing Critical Components:**
+**✅ Recently Implemented:**
 
 *Authentication & Security:*
-- **❌ Authentication System**: No login/logout/registration handlers (internal/auth/ is empty)
-- **❌ Session Management**: No session middleware or authentication checks
-- **❌ Security Middleware**: No CSRF protection, input validation, or authorization
-- **❌ Password Management**: No password hashing, validation, or reset functionality
-- **❌ Access Control**: No role-based authorization enforcement in API endpoints
+- **✅ Authentication System**: Login/logout handlers with JWT-based sessions
+- **✅ Session Management**: Authentication middleware with page-level protection
+- **✅ Password Management**: Argon2id password hashing with CLI user management
+- **✅ User Management**: Complete CLI tools for user creation, listing, deletion, password reset
+- **✅ Unified Architecture**: Consolidated family_members table with optional authentication
+
+**❌ Remaining Critical Components:**
 
 *Calendar Integration:*
 - **❌ OAuth Flow**: No Google/Microsoft/Apple Calendar OAuth authentication
@@ -444,55 +479,41 @@ Visit `http://localhost:8080` to see the working task dashboard!
 
 ### Next Development Priorities
 
-**Immediate Priority - Authentication & Security:**
+**Immediate Priority - Calendar Integration:**
 
-1. **Authentication System** (`internal/auth/`)
-   - Implement session-based authentication middleware
-   - Create login/logout/registration HTTP handlers
-   - Add password hashing (bcrypt) and validation
-   - Build user registration and login forms
-
-2. **Security Middleware** (`internal/middleware/`)
-   - CSRF protection for all forms and API endpoints
-   - Role-based authorization middleware (parent/child/admin access)
-   - Input validation and sanitization middleware
-   - Secure session cookie configuration
-
-3. **Access Control Integration**
-   - Protect all API endpoints with authentication checks
-   - Enforce family-based data isolation (users can only see their family's data)
-   - Add role-based permissions for task creation/editing
-
-**Secondary Priority - Calendar Integration:**
-
-4. **OAuth Integration** (`internal/oauth/`)
+1. **OAuth Integration** (`internal/oauth/`)
    - Google Calendar OAuth 2.0 flow implementation
    - Microsoft Graph API OAuth for Outlook integration
    - Apple Calendar (CalDAV) authentication
    - Token storage, refresh, and management
 
-5. **Calendar Data Pipeline** (`internal/calendar/`)
+2. **Calendar Data Pipeline** (`internal/calendar/`)
    - Google Calendar API client for event fetching
    - Microsoft Graph API client for Outlook events
    - CalDAV client for Apple/other calendar systems
    - Background jobs for periodic calendar sync
 
-6. **Data Transformation** (`internal/jobs/`)
+3. **Data Transformation** (`internal/jobs/`)
    - Import raw calendar events into `calendar_events` table
    - Transform and merge into `unified_calendar_events` for UI
    - Handle recurring events, time zones, and event updates
    - Conflict resolution for overlapping events
 
+**Secondary Priority - Enhanced Security:**
+
+4. **Additional Security Features**
+   - CSRF protection for all forms and API endpoints
+   - Input validation and sanitization middleware
+   - API rate limiting and throttling
+
 **Future Enhancements:**
-7. **Advanced Features**
-   - Password reset functionality
+5. **Advanced Features**
    - Email verification system
    - Multi-factor authentication
-   - API rate limiting and throttling
    - Real-time calendar sync webhooks
    - Smart event categorization and tagging
 
-**Note**: The core application functionality (task management, family management, frontend components, background jobs, calendar infrastructure) is fully implemented and working. The missing pieces are authentication/security and external calendar integration - once these are added, the application will be production-ready.
+**Note**: The core application functionality (task management, family management, frontend components, background jobs, calendar infrastructure, and authentication system) is fully implemented and working. The main missing piece is external calendar integration - once this is added, the application will be production-ready.
 
 ### Technology Stack
 

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - FamStack</title>
+    <link rel="stylesheet" href="/static/js/index.css">
+    <style>
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 1rem;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 3rem;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #374151;
+            margin: 0 0 0.5rem 0;
+        }
+
+        .login-subtitle {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .login-button {
+            width: 100%;
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 1rem;
+        }
+
+        .login-button:hover {
+            background: #5856eb;
+        }
+
+        .login-button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .mode-controls {
+            border-top: 1px solid #e5e7eb;
+            padding-top: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .mode-status {
+            text-align: center;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .mode-status.personal {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .mode-status.family {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .mode-button {
+            width: 100%;
+            background: transparent;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 0.5rem;
+        }
+
+        .mode-button:hover {
+            background: #f9fafb;
+            border-color: #9ca3af;
+        }
+
+        .upgrade-form {
+            margin-top: 1rem;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .success-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1 class="login-title">FamStack</h1>
+                <p class="login-subtitle">Family task management made simple</p>
+            </div>
+
+            <!-- Error/Success Messages -->
+            <div id="message-container"></div>
+
+            <!-- Login Form -->
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" id="email" name="email" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" name="password" class="form-input" required>
+                </div>
+                <button type="submit" class="login-button">Sign In</button>
+            </form>
+
+            <!-- Mode Controls (shown after login) -->
+            <div id="mode-controls" class="mode-controls hidden">
+                <div id="mode-status" class="mode-status"></div>
+
+                <button id="downgrade-btn" class="mode-button hidden">
+                    Switch to Family Mode
+                </button>
+
+                <button id="upgrade-btn" class="mode-button hidden">
+                    Switch to Personal Mode
+                </button>
+
+                <!-- Password form for upgrade -->
+                <form id="upgrade-form" class="upgrade-form hidden">
+                    <div class="form-group">
+                        <label for="upgrade-password" class="form-label">Enter your password to switch</label>
+                        <input type="password" id="upgrade-password" name="password" class="form-input" required>
+                    </div>
+                    <button type="submit" class="login-button">Confirm Switch</button>
+                    <button type="button" id="cancel-upgrade" class="mode-button">Cancel</button>
+                </form>
+
+                <button id="logout-btn" class="mode-button" style="margin-top: 1rem; border-color: #dc2626; color: #dc2626;">
+                    Sign Out
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class AuthManager {
+            constructor() {
+                this.currentUser = null;
+                this.currentSession = null;
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.checkAuthStatus();
+            }
+
+            bindEvents() {
+                document.getElementById('login-form').addEventListener('submit', this.handleLogin.bind(this));
+                document.getElementById('downgrade-btn').addEventListener('click', this.handleDowngrade.bind(this));
+                document.getElementById('upgrade-btn').addEventListener('click', this.showUpgradeForm.bind(this));
+                document.getElementById('upgrade-form').addEventListener('submit', this.handleUpgrade.bind(this));
+                document.getElementById('cancel-upgrade').addEventListener('click', this.hideUpgradeForm.bind(this));
+                document.getElementById('logout-btn').addEventListener('click', this.handleLogout.bind(this));
+            }
+
+            async checkAuthStatus() {
+                try {
+                    const response = await fetch('/auth/me');
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.currentUser = data.user;
+                        this.currentSession = data.session;
+                        this.showModeControls();
+                        this.updateModeStatus();
+                    }
+                } catch (error) {
+                    console.log('Not authenticated');
+                }
+            }
+
+            async handleLogin(event) {
+                event.preventDefault();
+                const formData = new FormData(event.target);
+                const email = formData.get('email');
+                const password = formData.get('password');
+
+                this.setLoading(true);
+                this.clearMessages();
+
+                try {
+                    const response = await fetch('/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.currentUser = data.user;
+                        this.currentSession = data.session;
+                        this.showSuccess('Login successful! Redirecting...');
+
+                        // Redirect to app immediately (no privilege screen)
+                        setTimeout(() => {
+                            window.location.href = '/tasks';
+                        }, 500);
+                    } else {
+                        this.showError(data.message || 'Login failed');
+                    }
+                } catch (error) {
+                    this.showError('Network error. Please try again.');
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            async handleDowngrade() {
+                this.setLoading(true);
+                this.clearMessages();
+
+                try {
+                    const response = await fetch('/auth/downgrade', {
+                        method: 'POST'
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.currentSession = data.session;
+                        this.showSuccess(data.message);
+                        this.updateModeStatus();
+                    } else {
+                        this.showError(data.message || 'Failed to switch mode');
+                    }
+                } catch (error) {
+                    this.showError('Network error. Please try again.');
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            showUpgradeForm() {
+                document.getElementById('upgrade-btn').classList.add('hidden');
+                document.getElementById('upgrade-form').classList.remove('hidden');
+            }
+
+            hideUpgradeForm() {
+                document.getElementById('upgrade-btn').classList.remove('hidden');
+                document.getElementById('upgrade-form').classList.add('hidden');
+                document.getElementById('upgrade-password').value = '';
+            }
+
+            async handleUpgrade(event) {
+                event.preventDefault();
+                const formData = new FormData(event.target);
+                const password = formData.get('password');
+
+                this.setLoading(true);
+                this.clearMessages();
+
+                try {
+                    const response = await fetch('/auth/upgrade', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ password })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        this.currentSession = data.session;
+                        this.showSuccess(data.message);
+                        this.updateModeStatus();
+                        this.hideUpgradeForm();
+                    } else {
+                        this.showError(data.message || 'Failed to switch mode');
+                    }
+                } catch (error) {
+                    this.showError('Network error. Please try again.');
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            async handleLogout() {
+                this.setLoading(true);
+
+                try {
+                    const response = await fetch('/auth/logout', {
+                        method: 'POST'
+                    });
+
+                    if (response.ok) {
+                        this.currentUser = null;
+                        this.currentSession = null;
+                        this.showSuccess('Logged out successfully');
+                        this.hideModeControls();
+
+                        // Clear form
+                        document.getElementById('login-form').reset();
+
+                        // Hide success message after 2 seconds
+                        setTimeout(() => {
+                            this.clearMessages();
+                        }, 2000);
+                    }
+                } catch (error) {
+                    this.showError('Logout failed');
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            showModeControls() {
+                document.getElementById('login-form').classList.add('hidden');
+                document.getElementById('mode-controls').classList.remove('hidden');
+            }
+
+            hideModeControls() {
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('mode-controls').classList.add('hidden');
+            }
+
+            updateModeStatus() {
+                const statusEl = document.getElementById('mode-status');
+                const downgradeBtn = document.getElementById('downgrade-btn');
+                const upgradeBtn = document.getElementById('upgrade-btn');
+
+                if (this.currentSession.role === 'shared') {
+                    statusEl.textContent = 'Currently in Family Mode';
+                    statusEl.className = 'mode-status family';
+                    downgradeBtn.classList.add('hidden');
+                    upgradeBtn.classList.remove('hidden');
+                } else {
+                    statusEl.textContent = `Currently in Personal Mode (${this.currentSession.role})`;
+                    statusEl.className = 'mode-status personal';
+                    downgradeBtn.classList.remove('hidden');
+                    upgradeBtn.classList.add('hidden');
+                }
+            }
+
+            showError(message) {
+                this.showMessage(message, 'error');
+            }
+
+            showSuccess(message) {
+                this.showMessage(message, 'success');
+            }
+
+            showMessage(message, type) {
+                const container = document.getElementById('message-container');
+                const messageEl = document.createElement('div');
+                messageEl.className = type === 'error' ? 'error-message' : 'success-message';
+                messageEl.textContent = message;
+                container.innerHTML = '';
+                container.appendChild(messageEl);
+            }
+
+            clearMessages() {
+                document.getElementById('message-container').innerHTML = '';
+            }
+
+            setLoading(loading) {
+                const buttons = document.querySelectorAll('button');
+                const card = document.querySelector('.login-card');
+
+                if (loading) {
+                    buttons.forEach(btn => btn.disabled = true);
+                    card.classList.add('loading');
+                } else {
+                    buttons.forEach(btn => btn.disabled = false);
+                    card.classList.remove('loading');
+                }
+            }
+        }
+
+        // Initialize auth manager when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new AuthManager();
+        });
+    </script>
+</body>
+</html>

@@ -8,14 +8,14 @@ import { Task } from './task-types.js';
 export class PersonTasks {
   private container: HTMLElement;
   private config: ComponentConfig;
-  private user: { id: string; name: string };
+  private member: { id: string; name: string; member_type: string };
   private tasks: Task[] = [];
   private boundHandleClick?: (e: Event) => void;
 
-  constructor(container: HTMLElement, config: ComponentConfig, user: { id: string; name: string }) {
+  constructor(container: HTMLElement, config: ComponentConfig, member: { id: string; name: string; member_type: string }) {
     this.container = container;
     this.config = config;
-    this.user = user;
+    this.member = member;
     this.init();
   }
 
@@ -41,8 +41,8 @@ export class PersonTasks {
     this.container.innerHTML = `
       <div class="person-tasks">
         <div class="person-header">
-          <h3 class="person-name">${this.user.name}</h3>
-          <button class="person-add-btn" data-action="add-task" data-user-id="${this.user.id}">
+          <h3 class="person-name">${this.member.name}</h3>
+          <button class="person-add-btn" data-action="add-task" data-member-id="${this.member.id}">
             <span class="person-add-icon">+</span>
           </button>
         </div>
@@ -92,16 +92,16 @@ export class PersonTasks {
   }
 
   private handleAddTask(element: HTMLElement): void {
-    const userId = element.getAttribute('data-user-id');
-    if (!userId) return;
+    const memberId = element.getAttribute('data-member-id');
+    if (!memberId) return;
 
     // Emit event to parent component for handling
     this.container.dispatchEvent(
       new CustomEvent('person-add-task', {
         bubbles: true,
         detail: {
-          userId,
-          userName: this.user.name,
+          memberId,
+          memberName: this.member.name,
         },
       })
     );

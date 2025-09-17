@@ -22,23 +22,23 @@ func NewTaskAPIHandler(db *database.DB) *TaskAPIHandler {
 	return &TaskAPIHandler{db: db}
 }
 
-// TaskColumn represents a column of tasks for a user
+// TaskColumn represents a column of tasks for a family member
 type TaskColumn struct {
-	User  User          `json:"user"`
-	Tasks []models.Task `json:"tasks"`
+	Member Member        `json:"member"`
+	Tasks  []models.Task `json:"tasks"`
 }
 
-// User represents a user in the API
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Role string `json:"role"`
+// Member represents a family member in the API
+type Member struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	MemberType string `json:"member_type"`
 }
 
 // TasksResponse represents the response for listing tasks
 type TasksResponse struct {
-	TasksByUser map[string]TaskColumn `json:"tasks_by_user"`
-	Date        string                `json:"date"`
+	TasksByMember map[string]TaskColumn `json:"tasks_by_member"`
+	Date          string                `json:"date"`
 }
 
 // ListTasks returns all tasks as JSON
@@ -50,35 +50,46 @@ func (h *TaskAPIHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	// Single JOIN query to get all users and their tasks in one go
+	// Get date parameter from query string, default to today
+	dateParam := r.URL.Query().Get("date")
+	var dateFilter string
+	if dateParam != "" {
+		// Use provided date (expected in YYYY-MM-DD format)
+		dateFilter = dateParam
+	} else {
+		// Default to today
+		dateFilter = time.Now().Format("2006-01-02")
+	}
+
+	// Single JOIN query to get all family members and their tasks in one go
 	query := `
-		SELECT 
-			u.id as user_id, u.name as user_name, u.role as user_role,
-			t.id as task_id, t.title, t.description, t.status, t.task_type, 
+		SELECT
+			fm.id as member_id, fm.name as member_name, fm.member_type as member_type,
+			t.id as task_id, t.title, t.description, t.status, t.task_type,
 			t.assigned_to, t.family_id, t.due_date, t.created_at, t.completed_at
-		FROM users u
-		LEFT JOIN tasks t ON (u.id = t.assigned_to AND t.family_id = ? AND DATE(t.created_at) = DATE('now'))
-		WHERE u.family_id = ?
-		ORDER BY u.name, t.created_at DESC
+		FROM family_members fm
+		LEFT JOIN tasks t ON (fm.id = t.assigned_to AND t.family_id = ? AND DATE(t.created_at) = ?)
+		WHERE fm.family_id = ? AND fm.is_active = TRUE
+		ORDER BY fm.name, t.created_at DESC
 	`
 
-	rows, queryErr := h.db.Query(query, "fam1", "fam1")
+	rows, queryErr := h.db.Query(query, "fam1", dateFilter, "fam1")
 	if queryErr != nil {
 		http.Error(w, fmt.Sprintf("Database error: %v", queryErr), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
 
-	tasksByUser := make(map[string]TaskColumn)
+	tasksByMember := make(map[string]TaskColumn)
 
 	for rows.Next() {
-		var userID, userName, userRole string
+		var memberID, memberName, memberType string
 		var taskID, title, description, status, taskType, familyID *string
 		var assignedTo *string
 		var dueDate, createdAt, completedAt *time.Time
 
 		err := rows.Scan(
-			&userID, &userName, &userRole,
+			&memberID, &memberName, &memberType,
 			&taskID, &title, &description, &status, &taskType,
 			&assignedTo, &familyID, &dueDate, &createdAt, &completedAt,
 		)
@@ -87,15 +98,15 @@ func (h *TaskAPIHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		userKey := fmt.Sprintf("user_%s", userID)
+		memberKey := fmt.Sprintf("member_%s", memberID)
 
-		// Initialize user column if not exists
-		if _, exists := tasksByUser[userKey]; !exists {
-			tasksByUser[userKey] = TaskColumn{
-				User: User{
-					ID:   userID,
-					Name: userName,
-					Role: userRole,
+		// Initialize member column if not exists
+		if _, exists := tasksByMember[memberKey]; !exists {
+			tasksByMember[memberKey] = TaskColumn{
+				Member: Member{
+					ID:         memberID,
+					Name:       memberName,
+					MemberType: memberType,
 				},
 				Tasks: []models.Task{},
 			}
@@ -116,23 +127,23 @@ func (h *TaskAPIHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 				CompletedAt: completedAt,
 			}
 
-			column := tasksByUser[userKey]
+			column := tasksByMember[memberKey]
 			column.Tasks = append(column.Tasks, task)
-			tasksByUser[userKey] = column
+			tasksByMember[memberKey] = column
 		}
 	}
 
 	// Get unassigned tasks separately (tasks with NULL or empty assigned_to)
 	unassignedQuery := `
-		SELECT 
+		SELECT
 			id, title, description, status, task_type, assigned_to, family_id,
 			due_date, created_at, completed_at
-		FROM tasks 
-		WHERE family_id = ? AND (assigned_to IS NULL OR assigned_to = '') AND DATE(created_at) = DATE('now')
+		FROM tasks
+		WHERE family_id = ? AND (assigned_to IS NULL OR assigned_to = '') AND DATE(created_at) = ?
 		ORDER BY created_at DESC
 	`
 
-	unassignedRows, err := h.db.Query(unassignedQuery, "fam1")
+	unassignedRows, err := h.db.Query(unassignedQuery, "fam1", dateFilter)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Unassigned tasks query error: %v", err), http.StatusInternalServerError)
 		return
@@ -161,18 +172,18 @@ func (h *TaskAPIHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add unassigned column
-	tasksByUser["unassigned"] = TaskColumn{
-		User: User{
-			ID:   "unassigned",
-			Name: "Unassigned",
-			Role: "system",
+	tasksByMember["unassigned"] = TaskColumn{
+		Member: Member{
+			ID:         "unassigned",
+			Name:       "Unassigned",
+			MemberType: "system",
 		},
 		Tasks: unassignedTasks,
 	}
 
 	response := TasksResponse{
-		TasksByUser: tasksByUser,
-		Date:        time.Now().Format("Monday, January 2"),
+		TasksByMember: tasksByMember,
+		Date:          time.Now().Format("Monday, January 2"),
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -196,12 +207,44 @@ func (h *TaskAPIHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set created by (would come from auth in real app)
-	task.CreatedBy = "user1" // Default to user1 for now
+	// Get the authenticated family member from the request context
+	// For now, we'll use a valid family member ID from our database
+	// In a real implementation, this would come from the auth middleware
+	var validMemberID string
+	err := h.db.QueryRow("SELECT id FROM family_members WHERE password_hash IS NOT NULL LIMIT 1").Scan(&validMemberID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		if encErr := json.NewEncoder(w).Encode(map[string]any{
+			"error":   "Authentication error",
+			"details": "Could not determine current user",
+		}); encErr != nil {
+			http.Error(w, "Failed to encode error response", http.StatusInternalServerError)
+		}
+		return
+	}
+	task.CreatedBy = validMemberID
+
+	// assigned_to field can now directly use family member IDs - no conversion needed!
+
+	// Validate that due_date is not in the past
+	if task.DueDate != nil {
+		today := time.Now().Truncate(24 * time.Hour)
+		dueDate := task.DueDate.Truncate(24 * time.Hour)
+		if dueDate.Before(today) {
+			w.WriteHeader(http.StatusBadRequest)
+			if encErr := json.NewEncoder(w).Encode(map[string]any{
+				"error":   "Validation failed",
+				"details": "Cannot create tasks for past dates",
+			}); encErr != nil {
+				http.Error(w, "Failed to encode error response", http.StatusInternalServerError)
+			}
+			return
+		}
+	}
 
 	// Prepare for creation (sanitize, set defaults, validate)
-	if err := task.PrepareForCreate(); err != nil {
-		if validationErrs, ok := err.(validation.ValidationErrors); ok {
+	if prepareErr := task.PrepareForCreate(); prepareErr != nil {
+		if validationErrs, ok := prepareErr.(validation.ValidationErrors); ok {
 			w.WriteHeader(http.StatusBadRequest)
 			if encErr := json.NewEncoder(w).Encode(map[string]any{
 				"error":   "Validation failed",
@@ -212,20 +255,26 @@ func (h *TaskAPIHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
-		http.Error(w, fmt.Sprintf("Validation failed: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Validation failed: %v", prepareErr), http.StatusBadRequest)
 		return
 	}
 
 	query := `
-		INSERT INTO tasks (title, description, status, task_type, assigned_to, family_id, created_by, priority, created_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO tasks (title, description, status, task_type, assigned_to, family_id, created_by, priority, created_at, due_date)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id
 	`
 
 	var newID string
-	err := h.db.QueryRow(query, task.Title, task.Description, task.Status, task.TaskType, task.AssignedTo, task.FamilyID, task.CreatedBy, task.Priority, task.CreatedAt).Scan(&newID)
+	err = h.db.QueryRow(query, task.Title, task.Description, task.Status, task.TaskType, task.AssignedTo, task.FamilyID, task.CreatedBy, task.Priority, task.CreatedAt, task.DueDate).Scan(&newID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to create task: %v", err), http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		if encErr := json.NewEncoder(w).Encode(map[string]any{
+			"error":   "Database error",
+			"details": fmt.Sprintf("Failed to create task: %v", err),
+		}); encErr != nil {
+			http.Error(w, "Failed to encode error response", http.StatusInternalServerError)
+		}
 		return
 	}
 	task.ID = newID

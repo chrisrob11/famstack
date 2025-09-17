@@ -17,6 +17,7 @@ export class FamilyTasks {
   private taskModal?: TaskModal;
   private boundHandleClick?: (e: Event) => void;
   private boundHandleTaskToggle?: (e: CustomEvent) => void;
+  private currentDate: Date = new Date();
 
   constructor(container: HTMLElement, config: ComponentConfig) {
     this.container = container;
@@ -43,7 +44,7 @@ export class FamilyTasks {
   private async loadTasks(): Promise<void> {
     try {
       this.renderLoading();
-      const tasksData = await this.taskService.getTasks();
+      const tasksData = await this.taskService.getTasks(this.currentDate);
       this.tasks = tasksData;
       this.renderFamilyTasks();
     } catch (error) {
@@ -100,14 +101,14 @@ export class FamilyTasks {
   private renderPersonTaskContainers(): string {
     if (!this.tasks) return '';
 
-    const userColumns = Object.values(this.tasks.tasks_by_user);
+    const memberColumns = Object.values(this.tasks.tasks_by_member);
     const containers: string[] = [];
 
-    userColumns.forEach(column => {
-      const user = column.user;
-      if (user.name !== 'Unassigned') {
+    memberColumns.forEach(column => {
+      const member = column.member;
+      if (member.name !== 'Unassigned') {
         containers.push(`
-          <div class="person-tasks-container" data-user-id="${user.id}">
+          <div class="person-tasks-container" data-member-id="${member.id}">
             <!-- PersonTasks component will be initialized here -->
           </div>
         `);
@@ -120,18 +121,18 @@ export class FamilyTasks {
   private initializePersonTasks(): void {
     if (!this.tasks) return;
 
-    const userColumns = Object.values(this.tasks.tasks_by_user);
+    const memberColumns = Object.values(this.tasks.tasks_by_member);
 
-    userColumns.forEach(column => {
-      const user = column.user;
-      if (user.name !== 'Unassigned') {
+    memberColumns.forEach(column => {
+      const member = column.member;
+      if (member.name !== 'Unassigned') {
         const container = this.container.querySelector(
-          `[data-user-id="${user.id}"]`
+          `[data-member-id="${member.id}"]`
         ) as HTMLElement;
         if (container) {
-          const personTasks = new PersonTasks(container, this.config, user);
+          const personTasks = new PersonTasks(container, this.config, member);
           personTasks.setTasks(column.tasks || []);
-          this.personTaskComponents.set(user.id, personTasks);
+          this.personTaskComponents.set(member.id, personTasks);
         }
       }
     });
@@ -144,9 +145,9 @@ export class FamilyTasks {
 
     // Get family members for assignment dropdown
     const familyMembers = this.tasks
-      ? Object.values(this.tasks.tasks_by_user)
-          .map(column => column.user)
-          .filter(user => user.name !== 'Unassigned')
+      ? Object.values(this.tasks.tasks_by_member)
+          .map(column => column.member)
+          .filter(member => member.name !== 'Unassigned')
       : [];
 
     this.taskModal = new TaskModal(document.body, this.config, {
@@ -180,11 +181,23 @@ export class FamilyTasks {
       // Update existing task
       await this.taskService.updateTask(taskId, data);
     } else {
-      // Create new task - add family_id
+      // Check if trying to create task for past date
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const selectedDate = new Date(this.currentDate);
+      selectedDate.setHours(0, 0, 0, 0);
+
+      if (selectedDate < today) {
+        alert('Cannot create tasks for past dates');
+        return;
+      }
+
+      // Create new task - add family_id and set due_date to selected date
       const createData: CreateTaskData = {
         ...data,
         assigned_to: data.assigned_to || undefined,
         family_id: 'fam1', // TODO: Get actual family ID
+        due_date: this.currentDate, // Set due date to selected date
       };
       await this.taskService.createTask(createData);
     }
@@ -210,15 +223,27 @@ export class FamilyTasks {
   }
 
   private async handlePersonAddTask(e: CustomEvent): Promise<void> {
-    const { userId } = e.detail;
+    const { memberId } = e.detail;
+
+    // Check if trying to create task for past date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDate = new Date(this.currentDate);
+    selectedDate.setHours(0, 0, 0, 0);
+
+    if (selectedDate < today) {
+      alert('Cannot create tasks for past dates');
+      return;
+    }
 
     // Create a simple new task for this person
     const createData: CreateTaskData = {
       title: 'New Task',
       description: '',
       task_type: 'todo',
-      assigned_to: userId,
+      assigned_to: memberId,
       family_id: 'fam1', // TODO: Get actual family ID
+      due_date: this.currentDate, // Set due date to selected date
     };
 
     await this.taskService.createTask(createData);
@@ -248,6 +273,11 @@ export class FamilyTasks {
 
   public async refresh(): Promise<void> {
     await this.loadTasks();
+  }
+
+  public setDate(date: Date): void {
+    this.currentDate = date;
+    this.loadTasks();
   }
 
   public destroy(): void {

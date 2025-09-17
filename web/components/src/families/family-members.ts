@@ -50,7 +50,7 @@ export class FamilyMembers {
   private async loadMembers(): Promise<void> {
     try {
       this.showLoading();
-      this.members = await this.familyService.listFamilyMembers();
+      this.members = await this.familyService.listFamilyMembers('fam1'); // TODO: Get actual family ID
       this.renderMembers();
     } catch (error) {
       this.showErrorInContainer('Failed to load family members');
@@ -98,14 +98,14 @@ export class FamilyMembers {
   }
 
   private renderMemberCard(member: FamilyMember): string {
-    const roleColor = member.role === 'parent' ? 'role-parent' : 'role-child';
-    const roleIcon = member.role === 'parent' ? '👨‍👩‍👧‍👦' : '👶';
+    const memberTypeClass = `member-type-${member.member_type}`;
+    const memberIcon = this.getMemberIcon(member.member_type);
 
     return `
       <div class="member-card" data-member-id="${member.id}">
         <div class="member-header">
           <div class="member-avatar">
-            <span class="member-icon">${roleIcon}</span>
+            ${member.avatar_url ? `<img src="${member.avatar_url}" alt="${member.name}" class="member-avatar-img">` : `<span class="member-icon">${memberIcon}</span>`}
           </div>
           <div class="member-actions">
             <button class="member-action-btn" data-action="edit" data-member-id="${member.id}" title="Edit">
@@ -118,11 +118,26 @@ export class FamilyMembers {
         </div>
         <div class="member-info">
           <h4 class="member-name">${member.name}</h4>
-          ${member.email ? `<p class="member-email">${member.email}</p>` : ''}
-          <span class="member-role ${roleColor}">${member.role}</span>
+          ${member.nickname ? `<p class="member-nickname">"${member.nickname}"</p>` : ''}
+          ${member.age ? `<p class="member-age">Age: ${member.age}</p>` : ''}
+          ${member.user?.email ? `<p class="member-email">${member.user.email}</p>` : ''}
+          <span class="member-type ${memberTypeClass}">${member.member_type}</span>
         </div>
       </div>
     `;
+  }
+
+  private getMemberIcon(memberType: string): string {
+    switch (memberType) {
+      case 'adult':
+        return '👨‍👩‍👧‍👦';
+      case 'child':
+        return '👶';
+      case 'pet':
+        return '🐕';
+      default:
+        return '👤';
+    }
   }
 
   private handleClick(e: Event): void {
@@ -150,14 +165,15 @@ export class FamilyMembers {
   }
 
   private async handleModalSave(data: FamilyMemberFormData, memberId?: string): Promise<void> {
+    const familyId = 'fam1'; // TODO: Get actual family ID
+
     if (memberId) {
       // Edit existing member
-      await this.familyService.updateFamilyMember(memberId, data);
+      await this.familyService.updateFamilyMember(familyId, memberId, data);
       this.showSuccess('Member updated successfully!');
     } else {
       // Create new member
-      const memberData = { ...data, family_id: 'fam1' }; // TODO: Get actual family ID
-      await this.familyService.createFamilyMember(memberData);
+      await this.familyService.createFamilyMember(familyId, data);
       this.showSuccess('Member added successfully!');
     }
 
@@ -172,7 +188,8 @@ export class FamilyMembers {
     if (!confirmed) return;
 
     try {
-      await this.familyService.deleteFamilyMember(memberId);
+      const familyId = 'fam1'; // TODO: Get actual family ID
+      await this.familyService.deleteFamilyMember(familyId, memberId);
       await this.loadMembers(); // Refresh the list
       this.showSuccess('Member deleted successfully!');
     } catch (error) {
