@@ -13,7 +13,7 @@ An open-source family task management system that helps families organize todos,
 - **Family Member Management**: Role-based access for parents and children
 - **Interactive Web UI**: Server-rendered HTML with HTMX for dynamic interactions
 - **TypeScript Components**: Rich interactions like drag-and-drop task reordering
-- **Single Binary Deployment**: No external dependencies required
+- **Single Binary Deployment**: CGO-free pure Go binary with no external dependencies
 - **SQLite Database**: Embedded database with automatic migrations
 - **Cross-platform Encryption**: AES-256-GCM with system keyring storage
 - **Background Job System**: Robust task scheduling and processing
@@ -38,12 +38,14 @@ cd famstack
 # Install build tools
 make install-tools
 
-# Build the application
+# Build the application (CGO-free pure Go binary)
 make build
 
 # Run the application
 make run
 ```
+
+> **Note**: Fam-Stack uses pure Go SQLite (modernc.org/sqlite) which eliminates CGO dependencies, making builds faster and enabling easy cross-compilation without requiring platform-specific C libraries.
 
 ## Development
 
@@ -606,7 +608,7 @@ Visit `http://localhost:8080` to see the working task dashboard!
 
 **Backend:**
 - Go 1.23 with standard library
-- SQLite with CGO for database
+- Pure Go SQLite (modernc.org/sqlite) - no CGO required
 - Goose for database migrations
 - Embedded assets for single binary deployment
 
