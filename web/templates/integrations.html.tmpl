@@ -1,0 +1,1123 @@
+{{define "integrations"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrations - FamStack</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+</head>
+<body>
+    <div class="app-container">
+        {{template "navigation" .}}
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Integrations</h1>
+                <p>Connect external services to enhance your family management experience</p>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" onclick="showOAuthConfigModal()">
+                        ⚙️ OAuth Settings
+                    </button>
+                    <button class="btn btn-primary" onclick="showAddIntegrationModal()">
+                        + Add Integration
+                    </button>
+                </div>
+            </div>
+
+            <!-- OAuth Configuration Status -->
+            <div id="oauth-status" class="oauth-status-section">
+                <div class="status-card">
+                    <div class="status-header">
+                        <h3>🔐 OAuth Configuration</h3>
+                        <span id="oauth-status-badge" class="status-badge loading">Checking...</span>
+                    </div>
+                    <p class="status-description">Configure OAuth credentials for external service integrations</p>
+                    <div id="oauth-providers" class="oauth-providers">
+                        <!-- OAuth providers status will be loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integration Categories -->
+            <div class="integration-categories">
+                <div class="category-tabs">
+                    <button class="tab-btn active" data-category="all">All</button>
+                    <button class="tab-btn" data-category="calendar">📅 Calendar</button>
+                    <button class="tab-btn" data-category="storage">💾 Storage</button>
+                    <button class="tab-btn" data-category="communication">💬 Communication</button>
+                    <button class="tab-btn" data-category="smart_home">🏠 Smart Home</button>
+                    <button class="tab-btn" data-category="automation">🤖 Automation</button>
+                    <button class="tab-btn" data-category="finance">💰 Finance</button>
+                </div>
+            </div>
+
+            <!-- Integrations Grid -->
+            <div id="integrations-grid" class="integrations-grid"
+                 hx-get="/api/v1/integrations"
+                 hx-trigger="load"
+                 hx-target="#integrations-grid"
+                 hx-swap="innerHTML">
+                <!-- Integrations will be loaded here -->
+                <div class="loading">Loading integrations...</div>
+            </div>
+
+            <!-- Add Integration Modal -->
+            <div id="add-integration-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Add New Integration</h2>
+                        <button class="close-btn" onclick="hideAddIntegrationModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-integration-form">
+                            <div class="form-group">
+                                <label for="integration-type">Category</label>
+                                <select id="integration-type" name="integration_type" required onchange="updateProviders()">
+                                    <option value="">Select a category</option>
+                                    <option value="calendar">📅 Calendar</option>
+                                    <option value="storage">💾 Storage</option>
+                                    <option value="communication">💬 Communication</option>
+                                    <option value="smart_home">🏠 Smart Home</option>
+                                    <option value="automation">🤖 Automation</option>
+                                    <option value="finance">💰 Finance</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="provider">Provider</label>
+                                <select id="provider" name="provider" required onchange="updateAuthMethod()">
+                                    <option value="">Select a provider</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="display-name">Display Name</label>
+                                <input type="text" id="display-name" name="display_name" required
+                                       placeholder="e.g., John's Google Calendar">
+                            </div>
+
+                            <div class="form-group">
+                                <label for="description">Description (optional)</label>
+                                <textarea id="description" name="description" rows="3"
+                                          placeholder="Brief description of this integration"></textarea>
+                            </div>
+
+                            <div id="auth-method-info" class="auth-info" style="display: none;">
+                                <div class="info-box">
+                                    <h4>Authentication Method: <span id="auth-method-name"></span></h4>
+                                    <p id="auth-method-description"></p>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="hideAddIntegrationModal()">Cancel</button>
+                        <button class="btn btn-primary" onclick="createIntegration()">Add Integration</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integration Details Modal -->
+            <div id="integration-details-modal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 id="details-title">Integration Details</h2>
+                        <button class="close-btn" onclick="hideDetailsModal()">&times;</button>
+                    </div>
+                    <div class="modal-body" id="details-content">
+                        <!-- Details will be loaded here -->
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="hideDetailsModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OAuth Configuration Modal -->
+            <div id="oauth-config-modal" class="modal" style="display: none;">
+                <div class="modal-content large-modal">
+                    <div class="modal-header">
+                        <h2>OAuth Configuration</h2>
+                        <button class="close-btn" onclick="hideOAuthConfigModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="config-section">
+                            <div class="config-intro">
+                                <h3>Configure OAuth Providers</h3>
+                                <p>OAuth credentials allow FamStack to connect to external services on your behalf.
+                                Each provider requires you to create an application in their developer console.</p>
+                            </div>
+
+                            <!-- Google OAuth Configuration -->
+                            <div class="provider-config">
+                                <div class="provider-header">
+                                    <h4>🔗 Google OAuth</h4>
+                                    <span id="google-config-status" class="config-status not-configured">Not Configured</span>
+                                </div>
+
+                                <div class="config-instructions">
+                                    <details class="instructions-details">
+                                        <summary>How to get Google OAuth credentials</summary>
+                                        <ol>
+                                            <li>Go to the <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                            <li>Create a new project or select an existing one</li>
+                                            <li>Enable the Google Calendar API</li>
+                                            <li>Go to "Credentials" and create "OAuth 2.0 Client IDs"</li>
+                                            <li>Set application type to "Web application"</li>
+                                            <li>Add redirect URI: <code id="google-redirect-uri">http://localhost:8080/oauth/google/callback</code></li>
+                                            <li>Copy the Client ID and Client Secret below</li>
+                                        </ol>
+                                    </details>
+                                </div>
+
+                                <form id="google-oauth-form" class="oauth-form">
+                                    <div class="form-row">
+                                        <div class="form-group">
+                                            <label for="google-client-id">Client ID</label>
+                                            <input type="text" id="google-client-id" name="client_id"
+                                                   placeholder="123456789-abc.apps.googleusercontent.com">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="google-client-secret">Client Secret</label>
+                                            <input type="password" id="google-client-secret" name="client_secret"
+                                                   placeholder="GOCSPX-your-secret-here">
+                                        </div>
+                                    </div>
+                                    <div class="form-actions">
+                                        <button type="button" class="btn btn-primary" onclick="saveGoogleOAuth()">
+                                            Save Google OAuth
+                                        </button>
+                                        <button type="button" class="btn btn-secondary" onclick="testGoogleOAuth()"
+                                                id="test-google-btn" disabled>
+                                            Test Connection
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- Future providers can be added here -->
+                            <div class="provider-config disabled">
+                                <div class="provider-header">
+                                    <h4>🔗 Microsoft OAuth</h4>
+                                    <span class="config-status coming-soon">Coming Soon</span>
+                                </div>
+                                <p class="coming-soon-text">Microsoft OAuth integration will be available in a future update.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="hideOAuthConfigModal()">Close</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <style>
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        margin: 0;
+        background: #f9fafb;
+    }
+
+    .app-container {
+        min-height: 100vh;
+    }
+
+    .main-content {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .page-header h1 {
+        margin: 0;
+        font-size: 2rem;
+        font-weight: bold;
+        color: #111827;
+    }
+
+    .page-header p {
+        margin: 0.25rem 0 0 0;
+        color: #6b7280;
+        font-size: 1rem;
+        flex-basis: 100%;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-secondary {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #d1d5db;
+    }
+
+    .btn-secondary:hover {
+        background: #e5e7eb;
+    }
+
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+
+    .btn-small {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+    }
+
+    /* Category Tabs */
+    .integration-categories {
+        margin-bottom: 2rem;
+    }
+
+    .category-tabs {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .tab-btn {
+        padding: 0.5rem 1rem;
+        border: 1px solid #d1d5db;
+        background: white;
+        border-radius: 0.375rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+        background: #f9fafb;
+    }
+
+    .tab-btn.active {
+        background: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+
+    /* Integrations Grid */
+    .integrations-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .integration-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+
+    .integration-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: #d1d5db;
+    }
+
+    .integration-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .integration-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+        font-weight: bold;
+    }
+
+    .integration-icon.calendar { background: #3b82f6; }
+    .integration-icon.storage { background: #8b5cf6; }
+    .integration-icon.communication { background: #10b981; }
+    .integration-icon.smart_home { background: #f59e0b; }
+    .integration-icon.automation { background: #ef4444; }
+    .integration-icon.finance { background: #06b6d4; }
+
+    .integration-info h3 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.125rem;
+        color: #111827;
+    }
+
+    .integration-info .provider {
+        color: #6b7280;
+        font-size: 0.875rem;
+        margin: 0;
+    }
+
+    .integration-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .status-indicator.connected { background: #10b981; }
+    .status-indicator.disconnected { background: #f59e0b; }
+    .status-indicator.error { background: #ef4444; }
+    .status-indicator.pending { background: #6b7280; }
+
+    .integration-actions {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+        grid-column: 1 / -1;
+    }
+
+    /* Modal Styles */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 0.75rem;
+        max-width: 500px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .large-modal {
+        max-width: 800px;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem 1.5rem 0 1.5rem;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 1.5rem;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #111827;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .close-btn:hover {
+        color: #374151;
+    }
+
+    .modal-body {
+        padding: 0 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1.5rem;
+        border-top: 1px solid #e5e7eb;
+        margin-top: 1.5rem;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .auth-info {
+        margin-top: 1rem;
+    }
+
+    .info-box {
+        background: #f0f9ff;
+        border: 1px solid #e0f2fe;
+        border-radius: 0.375rem;
+        padding: 1rem;
+    }
+
+    .info-box h4 {
+        margin: 0 0 0.5rem 0;
+        color: #0369a1;
+        font-size: 0.875rem;
+    }
+
+    .info-box p {
+        margin: 0;
+        color: #0369a1;
+        font-size: 0.75rem;
+    }
+
+    /* OAuth Configuration Styles */
+    .oauth-status-section {
+        margin-bottom: 2rem;
+    }
+
+    .status-card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+    }
+
+    .status-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .status-header h3 {
+        margin: 0;
+        font-size: 1.125rem;
+        color: #111827;
+    }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-badge.loading {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    .status-badge.configured {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .status-badge.not-configured {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .status-description {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.875rem;
+    }
+
+    .oauth-providers {
+        margin-top: 1rem;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .provider-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #f9fafb;
+        border-radius: 0.375rem;
+        border: 1px solid #e5e7eb;
+    }
+
+    .provider-status.configured {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+    }
+
+    .provider-status.not-configured {
+        background: #fffbeb;
+        border-color: #fde68a;
+    }
+
+    .config-section {
+        max-width: none;
+    }
+
+    .config-intro {
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .config-intro h3 {
+        margin: 0 0 0.5rem 0;
+        color: #111827;
+    }
+
+    .config-intro p {
+        margin: 0;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    .provider-config {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        background: #fafafa;
+    }
+
+    .provider-config.disabled {
+        opacity: 0.6;
+        background: #f9fafb;
+    }
+
+    .provider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .provider-header h4 {
+        margin: 0;
+        color: #111827;
+        font-size: 1rem;
+    }
+
+    .config-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .config-status.configured {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .config-status.not-configured {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .config-status.coming-soon {
+        background: #e0e7ff;
+        color: #3730a3;
+    }
+
+    .config-instructions {
+        margin-bottom: 1.5rem;
+    }
+
+    .instructions-details {
+        background: #f0f9ff;
+        border: 1px solid #e0f2fe;
+        border-radius: 0.375rem;
+        padding: 1rem;
+    }
+
+    .instructions-details summary {
+        cursor: pointer;
+        font-weight: 500;
+        color: #0369a1;
+        margin-bottom: 0.5rem;
+    }
+
+    .instructions-details ol {
+        margin: 0.75rem 0 0 0;
+        padding-left: 1.25rem;
+        color: #0369a1;
+    }
+
+    .instructions-details li {
+        margin-bottom: 0.5rem;
+        line-height: 1.4;
+    }
+
+    .instructions-details code {
+        background: #1e293b;
+        color: #f1f5f9;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .instructions-details a {
+        color: #0369a1;
+        text-decoration: underline;
+    }
+
+    .oauth-form {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        border: 1px solid #d1d5db;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .form-actions {
+        margin-top: 1.5rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .coming-soon-text {
+        margin: 0;
+        color: #6b7280;
+        font-style: italic;
+    }
+
+    @media (max-width: 768px) {
+        .integrations-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .category-tabs {
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+
+        .tab-btn {
+            flex-shrink: 0;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+
+        .header-actions {
+            width: 100%;
+            justify-content: flex-start;
+        }
+
+        .large-modal {
+            max-width: 95%;
+        }
+    }
+    </style>
+
+    <script>
+    // Provider data
+    const providers = {
+        calendar: [
+            { value: 'google', label: 'Google Calendar', auth: 'oauth2' },
+            { value: 'microsoft', label: 'Microsoft Outlook', auth: 'oauth2' },
+            { value: 'apple', label: 'Apple Calendar', auth: 'oauth2' },
+            { value: 'caldav', label: 'CalDAV', auth: 'basic_auth' }
+        ],
+        storage: [
+            { value: 'google_drive', label: 'Google Drive', auth: 'oauth2' },
+            { value: 'dropbox', label: 'Dropbox', auth: 'oauth2' },
+            { value: 'onedrive', label: 'Microsoft OneDrive', auth: 'oauth2' },
+            { value: 'icloud', label: 'iCloud', auth: 'oauth2' }
+        ],
+        communication: [
+            { value: 'slack', label: 'Slack', auth: 'oauth2' },
+            { value: 'discord', label: 'Discord', auth: 'oauth2' },
+            { value: 'teams', label: 'Microsoft Teams', auth: 'oauth2' },
+            { value: 'email', label: 'Email (SMTP)', auth: 'basic_auth' }
+        ],
+        smart_home: [
+            { value: 'homekit', label: 'Apple HomeKit', auth: 'api_key' },
+            { value: 'alexa', label: 'Amazon Alexa', auth: 'oauth2' },
+            { value: 'google_home', label: 'Google Home', auth: 'oauth2' }
+        ],
+        automation: [
+            { value: 'ifttt', label: 'IFTTT', auth: 'api_key' },
+            { value: 'zapier', label: 'Zapier', auth: 'api_key' },
+            { value: 'home_assistant', label: 'Home Assistant', auth: 'api_key' }
+        ],
+        finance: [
+            { value: 'mint', label: 'Mint', auth: 'oauth2' },
+            { value: 'ynab', label: 'YNAB', auth: 'api_key' },
+            { value: 'plaid', label: 'Plaid', auth: 'api_key' }
+        ]
+    };
+
+    const authDescriptions = {
+        oauth2: 'Secure OAuth 2.0 authentication. You\'ll be redirected to the provider to authorize access.',
+        api_key: 'API key authentication. You\'ll need to provide an API key from the provider.',
+        basic_auth: 'Username and password authentication. You\'ll need to provide your login credentials.',
+        webhook: 'Webhook-based integration. The provider will send data to FamStack.'
+    };
+
+    // Modal functions
+    function showAddIntegrationModal() {
+        document.getElementById('add-integration-modal').style.display = 'flex';
+    }
+
+    function hideAddIntegrationModal() {
+        document.getElementById('add-integration-modal').style.display = 'none';
+        document.getElementById('add-integration-form').reset();
+        document.getElementById('auth-method-info').style.display = 'none';
+    }
+
+    function hideDetailsModal() {
+        document.getElementById('integration-details-modal').style.display = 'none';
+    }
+
+    function updateProviders() {
+        const typeSelect = document.getElementById('integration-type');
+        const providerSelect = document.getElementById('provider');
+        const selectedType = typeSelect.value;
+
+        // Clear existing options
+        providerSelect.innerHTML = '<option value="">Select a provider</option>';
+
+        if (selectedType && providers[selectedType]) {
+            providers[selectedType].forEach(provider => {
+                const option = document.createElement('option');
+                option.value = provider.value;
+                option.textContent = provider.label;
+                option.dataset.auth = provider.auth;
+                providerSelect.appendChild(option);
+            });
+        }
+
+        // Clear auth method info
+        document.getElementById('auth-method-info').style.display = 'none';
+    }
+
+    function updateAuthMethod() {
+        const providerSelect = document.getElementById('provider');
+        const selectedOption = providerSelect.options[providerSelect.selectedIndex];
+
+        if (selectedOption && selectedOption.dataset.auth) {
+            const authMethod = selectedOption.dataset.auth;
+            document.getElementById('auth-method-name').textContent = authMethod.toUpperCase();
+            document.getElementById('auth-method-description').textContent = authDescriptions[authMethod];
+            document.getElementById('auth-method-info').style.display = 'block';
+        } else {
+            document.getElementById('auth-method-info').style.display = 'none';
+        }
+    }
+
+    function createIntegration() {
+        const form = document.getElementById('add-integration-form');
+        const formData = new FormData(form);
+        const providerSelect = document.getElementById('provider');
+        const selectedOption = providerSelect.options[providerSelect.selectedIndex];
+
+        const data = {
+            integration_type: formData.get('integration_type'),
+            provider: formData.get('provider'),
+            auth_method: selectedOption.dataset.auth,
+            display_name: formData.get('display_name'),
+            description: formData.get('description') || '',
+            settings: {}
+        };
+
+        fetch('/api/v1/integrations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            hideAddIntegrationModal();
+            // Refresh the integrations grid
+            htmx.trigger('#integrations-grid', 'load');
+        })
+        .catch(error => {
+            console.error('Error creating integration:', error);
+            alert('Failed to create integration. Please try again.');
+        });
+    }
+
+    // OAuth Configuration Functions
+    function showOAuthConfigModal() {
+        document.getElementById('oauth-config-modal').style.display = 'flex';
+        loadOAuthConfiguration();
+    }
+
+    function hideOAuthConfigModal() {
+        document.getElementById('oauth-config-modal').style.display = 'none';
+    }
+
+    async function loadOAuthConfiguration() {
+        try {
+            // Load Google OAuth config
+            const response = await fetch('/api/v1/config/oauth/google');
+            if (response.ok) {
+                const config = await response.json();
+                document.getElementById('google-client-id').value = config.client_id || '';
+                // Don't populate client_secret for security
+                updateGoogleOAuthStatus(config.configured);
+                document.getElementById('test-google-btn').disabled = !config.configured;
+            } else {
+                updateGoogleOAuthStatus(false);
+            }
+
+            // Update redirect URI display
+            const currentHost = window.location.origin;
+            document.getElementById('google-redirect-uri').textContent =
+                `${currentHost}/oauth/google/callback`;
+
+        } catch (error) {
+            console.error('Error loading OAuth configuration:', error);
+            updateGoogleOAuthStatus(false);
+        }
+    }
+
+    function updateGoogleOAuthStatus(isConfigured) {
+        const statusElement = document.getElementById('google-config-status');
+        if (isConfigured) {
+            statusElement.textContent = 'Configured';
+            statusElement.className = 'config-status configured';
+        } else {
+            statusElement.textContent = 'Not Configured';
+            statusElement.className = 'config-status not-configured';
+        }
+    }
+
+    async function saveGoogleOAuth() {
+        const clientId = document.getElementById('google-client-id').value.trim();
+        const clientSecret = document.getElementById('google-client-secret').value.trim();
+
+        if (!clientId) {
+            alert('Please enter a Client ID');
+            return;
+        }
+
+        if (!clientSecret) {
+            alert('Please enter a Client Secret');
+            return;
+        }
+
+        try {
+            const currentHost = window.location.origin;
+            console.log('Saving OAuth config:', { clientId, clientSecret: '***' });
+            console.log('Checking current authentication...');
+
+            const response = await fetch('/api/v1/config/oauth/google', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include', // Include cookies for authentication
+                body: JSON.stringify({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    redirect_url: `${currentHost}/oauth/google/callback`,
+                    scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+                    configured: true
+                })
+            });
+
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers);
+
+            const result = await response.json();
+
+            if (response.ok) {
+                updateGoogleOAuthStatus(true);
+                document.getElementById('test-google-btn').disabled = false;
+                document.getElementById('google-client-secret').value = ''; // Clear for security
+                alert('Google OAuth configuration saved successfully!');
+                updateOAuthStatusSummary();
+            } else {
+                console.error('Failed to save configuration:', result);
+                if (response.status === 401) {
+                    alert('Authentication required. Please refresh the page and try again.');
+                    window.location.reload();
+                } else {
+                    alert(`Failed to save configuration: ${result.message || result.error || 'Unknown error'}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error saving OAuth configuration:', error);
+            alert('Failed to save configuration. Please try again.');
+        }
+    }
+
+    async function testGoogleOAuth() {
+        try {
+            // Simple test to see if OAuth is configured
+            const response = await fetch('/api/v1/config/oauth/google');
+            if (response.ok) {
+                const config = await response.json();
+                if (config.configured) {
+                    alert('Google OAuth appears to be configured correctly. Try connecting Google Calendar from the integrations section to test the full flow.');
+                } else {
+                    alert('Google OAuth is not properly configured.');
+                }
+            } else {
+                alert('Unable to test OAuth configuration.');
+            }
+        } catch (error) {
+            console.error('Error testing OAuth:', error);
+            alert('Failed to test OAuth configuration.');
+        }
+    }
+
+    async function updateOAuthStatusSummary() {
+        try {
+            const googleResponse = await fetch('/api/v1/config/oauth/google');
+            const googleConfigured = googleResponse.ok && (await googleResponse.json()).configured;
+
+            const statusBadge = document.getElementById('oauth-status-badge');
+            const providersContainer = document.getElementById('oauth-providers');
+
+            if (googleConfigured) {
+                statusBadge.textContent = 'Configured';
+                statusBadge.className = 'status-badge configured';
+            } else {
+                statusBadge.textContent = 'Not Configured';
+                statusBadge.className = 'status-badge not-configured';
+            }
+
+            // Update providers status
+            providersContainer.innerHTML = `
+                <div class="provider-status ${googleConfigured ? 'configured' : 'not-configured'}">
+                    <span>🔗</span>
+                    <span>Google: ${googleConfigured ? 'Configured' : 'Not Configured'}</span>
+                </div>
+            `;
+        } catch (error) {
+            console.error('Error updating OAuth status:', error);
+            const statusBadge = document.getElementById('oauth-status-badge');
+            statusBadge.textContent = 'Error';
+            statusBadge.className = 'status-badge not-configured';
+        }
+    }
+
+    // Category filtering
+    document.addEventListener('DOMContentLoaded', function() {
+        const tabBtns = document.querySelectorAll('.tab-btn');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // Update active tab
+                tabBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+
+                // Filter integrations
+                const category = this.dataset.category;
+                const url = category === 'all' ? '/api/v1/integrations' : `/api/v1/integrations?type=${category}`;
+
+                htmx.ajax('GET', url, {
+                    target: '#integrations-grid',
+                    swap: 'innerHTML'
+                });
+            });
+        });
+
+        // Initialize OAuth status on page load
+        updateOAuthStatusSummary();
+    });
+
+    // Close modals when clicking outside
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
+    </script>
+</body>
+</html>
+{{end}}

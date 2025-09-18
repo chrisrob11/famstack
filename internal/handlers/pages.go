@@ -56,17 +56,35 @@ func (h *PageHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	templateName, pageData := h.getPageTemplate(pageType)
 
 	// Parse template
-	tmpl, err := template.ParseFiles(templateName)
-	if err != nil {
-		http.Error(w, "Template error", http.StatusInternalServerError)
-		return
-	}
+	var tmpl *template.Template
+	var err error
 
-	// Execute template
-	w.Header().Set("Content-Type", "text/html")
-	if err := tmpl.Execute(w, pageData); err != nil {
-		http.Error(w, "Template execution error", http.StatusInternalServerError)
-		return
+	if pageType == "integrations" {
+		// Parse the integrations template with navigation
+		tmpl, err = template.ParseFiles("web/templates/integrations.html.tmpl", "web/templates/navigation.html.tmpl")
+		if err != nil {
+			http.Error(w, "Template parse error", http.StatusInternalServerError)
+			return
+		}
+		// Execute the named template
+		w.Header().Set("Content-Type", "text/html")
+		if execErr := tmpl.ExecuteTemplate(w, "integrations", pageData); execErr != nil {
+			http.Error(w, "Template execution error", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Parse regular templates
+		tmpl, err = template.ParseFiles(templateName)
+		if err != nil {
+			http.Error(w, "Template error", http.StatusInternalServerError)
+			return
+		}
+		// Execute template
+		w.Header().Set("Content-Type", "text/html")
+		if err := tmpl.Execute(w, pageData); err != nil {
+			http.Error(w, "Template execution error", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -94,6 +112,8 @@ func (h *PageHandler) getPageTypeFromPath(urlPath string) string {
 		return "schedules"
 	case "/family/setup", "/family":
 		return "family"
+	case "/integrations":
+		return "integrations"
 	default:
 		return "tasks" // Default fallback
 	}
@@ -119,6 +139,9 @@ func (h *PageHandler) getPageTemplate(pageType string) (string, PageData) {
 	case "family":
 		baseData.PageTitle = "Family Setup - FamStack"
 		return "web/templates/app.html.tmpl", baseData
+	case "integrations":
+		baseData.PageTitle = "Integrations - FamStack"
+		return "web/templates/integrations.html.tmpl", baseData
 	default:
 		baseData.PageTitle = "FamStack"
 		return "web/templates/app.html.tmpl", baseData

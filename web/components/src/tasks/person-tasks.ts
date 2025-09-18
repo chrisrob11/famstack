@@ -12,7 +12,11 @@ export class PersonTasks {
   private tasks: Task[] = [];
   private boundHandleClick?: (e: Event) => void;
 
-  constructor(container: HTMLElement, config: ComponentConfig, member: { id: string; name: string; member_type: string }) {
+  constructor(
+    container: HTMLElement,
+    config: ComponentConfig,
+    member: { id: string; name: string; member_type: string }
+  ) {
     this.container = container;
     this.config = config;
     this.member = member;

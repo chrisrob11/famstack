@@ -7,10 +7,14 @@ import (
 	"time"
 
 	"famstack/internal/auth"
+	"famstack/internal/config"
 	"famstack/internal/database"
+	"famstack/internal/encryption"
 	"famstack/internal/handlers"
 	"famstack/internal/handlers/api"
+	"famstack/internal/integrations"
 	"famstack/internal/jobsystem"
+	"famstack/internal/oauth"
 	"famstack/internal/services"
 )
 
@@ -22,20 +26,24 @@ type Config struct {
 
 // Server represents the HTTP server
 type Server struct {
-	db          *database.DB
-	jobSystem   *jobsystem.SQLiteJobSystem
-	authService *auth.Service
-	config      *Config
-	server      *http.Server
+	db            *database.DB
+	jobSystem     *jobsystem.SQLiteJobSystem
+	authService   *auth.Service
+	encryptionSvc *encryption.Service
+	configManager *config.Manager
+	config        *Config
+	server        *http.Server
 }
 
 // New creates a new server instance
-func New(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem, authService *auth.Service, config *Config) *Server {
+func New(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem, authService *auth.Service, encryptionSvc *encryption.Service, configManager *config.Manager, config *Config) *Server {
 	s := &Server{
-		db:          db,
-		jobSystem:   jobSystem,
-		authService: authService,
-		config:      config,
+		db:            db,
+		jobSystem:     jobSystem,
+		authService:   authService,
+		encryptionSvc: encryptionSvc,
+		configManager: configManager,
+		config:        config,
 	}
 
 	// Set up routes
@@ -67,6 +75,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 func (s *Server) setupRoutes(mux *http.ServeMux) {
 	// Initialize services
 	familyMemberService := services.NewFamilyMemberService(s.db.DB)
+	integrationsService := integrations.NewService(s.db, s.encryptionSvc)
 
 	// Initialize handlers
 	pageHandler := handlers.NewPageHandler(s.db, s.authService)
@@ -75,8 +84,33 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	familyMemberAPIHandler := api.NewFamilyMemberAPIHandler(familyMemberService)
 	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.db, s.jobSystem)
 	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
+	integrationsAPIHandler := api.NewIntegrationsAPIHandler(integrationsService)
+	configAPIHandler := api.NewConfigAPIHandler(s.configManager)
 	authHandler := auth.NewHandlers(s.authService)
 	authMiddleware := auth.NewMiddleware(s.authService)
+
+	// OAuth and Calendar integration
+	// Get OAuth configuration from config manager
+	googleConfig, err := s.configManager.GetOAuthProvider("google")
+	if err != nil {
+		googleConfig = nil
+	}
+
+	var oauthConfig *oauth.OAuthConfig
+	if googleConfig != nil && googleConfig.Configured {
+		oauthConfig = &oauth.OAuthConfig{
+			Google: &oauth.GoogleConfig{
+				ClientID:     googleConfig.ClientID,
+				ClientSecret: googleConfig.ClientSecret,
+				RedirectURL:  googleConfig.RedirectURL,
+				Scopes:       googleConfig.Scopes,
+			},
+		}
+	} else {
+		oauthConfig = &oauth.OAuthConfig{} // Empty config
+	}
+	oauthService := oauth.NewService(s.db, oauthConfig, s.encryptionSvc)
+	oauthHandler := handlers.NewOAuthHandlers(oauthService, s.authService, s.jobSystem, integrationsService)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -126,6 +160,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.Handle("/family/setup", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
 	mux.Handle("/family", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
 	mux.Handle("/schedules", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	mux.Handle("/integrations", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
 
 	// JSON API routes - protected with authentication
 	mux.Handle("/api/v1/tasks", authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionRead)(
@@ -295,6 +330,63 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/auth/upgrade", authHandler.HandleUpgrade)
 	mux.HandleFunc("/auth/refresh", authHandler.HandleRefresh)
 	mux.HandleFunc("/auth/me", authHandler.HandleMe)
+
+	// OAuth integration routes - require authentication
+	mux.Handle("/oauth/google/connect", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleGoogleConnect)))
+	mux.HandleFunc("/oauth/google/callback", oauthHandler.HandleGoogleCallback) // No auth required for callback
+	mux.Handle("/oauth/disconnect/", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleDisconnectProvider)))
+	mux.Handle("/calendar-settings", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleCalendarSettings)))
+	mux.Handle("/api/calendar/sync-now", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleSyncNow)))
+
+	// Integrations API routes - protected with authentication
+	mux.Handle("/api/v1/integrations", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				integrationsAPIHandler.ListIntegrations(w, r)
+			case "POST":
+				integrationsAPIHandler.CreateIntegration(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
+	mux.Handle("/api/v1/integrations/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				integrationsAPIHandler.GetIntegration(w, r)
+			case "PATCH":
+				integrationsAPIHandler.UpdateIntegration(w, r)
+			case "DELETE":
+				integrationsAPIHandler.DeleteIntegration(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
+	// Configuration API routes - protected with authentication (admin only)
+	mux.Handle("/api/v1/config", authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionRead)(
+		http.HandlerFunc(configAPIHandler.GetConfig)))
+
+	// OAuth provider routes - handle both GET and PUT/PATCH for specific providers
+	mux.Handle("/api/v1/config/oauth/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				configAPIHandler.GetOAuthProvider(w, r)
+			case "PUT", "PATCH":
+				configAPIHandler.UpdateOAuthProvider(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
+	mux.Handle("/api/v1/config/server", authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionUpdate)(
+		http.HandlerFunc(configAPIHandler.UpdateServerConfig)))
+
+	mux.Handle("/api/v1/config/features", authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionUpdate)(
+		http.HandlerFunc(configAPIHandler.UpdateFeatureConfig)))
 
 	// Root route serves daily page - requires authentication
 	mux.Handle("/", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))

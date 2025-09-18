@@ -357,6 +357,11 @@ func (s *Service) getUserByID(userID string) (*User, error) {
 	return &user, nil
 }
 
+// GetUserByID is a public wrapper for getUserByID
+func (s *Service) GetUserByID(userID string) (*User, error) {
+	return s.getUserByID(userID)
+}
+
 // updateLastLogin updates the family member's last login timestamp
 func (s *Service) updateLastLogin(userID string) error {
 	query := `UPDATE family_members SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`
@@ -389,9 +394,7 @@ func (s *Service) CreateUser(req *CreateUserRequest) (*User, error) {
 		return nil, fmt.Errorf("failed to create family member: %w", err)
 	}
 
-	// Add a small delay to ensure the transaction is committed
-	time.Sleep(10 * time.Millisecond)
-
-	// Fetch and return the created user by email (since UUID is auto-generated)
+	// For SQLite, we can't get the UUID directly, so we need to query by email
+	// This is safe because email should be unique per family
 	return s.getUserByEmail(req.Email)
 }
