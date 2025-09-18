@@ -3,8 +3,6 @@ package models
 import (
 	"fmt"
 	"time"
-
-	"famstack/internal/auth"
 )
 
 // MemberType represents the type of family member
@@ -16,23 +14,24 @@ const (
 	MemberTypePet   MemberType = "pet"   // Family pets
 )
 
-// FamilyMember represents a member of a family (may or may not have a user account)
+// FamilyMember represents a member of a family with optional authentication info
 type FamilyMember struct {
-	ID           string     `json:"id" db:"id"`
-	FamilyID     string     `json:"family_id" db:"family_id"`
-	Name         string     `json:"name" db:"name"`
-	Nickname     *string    `json:"nickname,omitempty" db:"nickname"`
-	MemberType   MemberType `json:"member_type" db:"member_type"`
-	Age          *int       `json:"age,omitempty" db:"age"`
-	AvatarURL    *string    `json:"avatar_url,omitempty" db:"avatar_url"`
-	UserID       *string    `json:"user_id,omitempty" db:"user_id"` // Links to users table if they have an account
-	DisplayOrder int        `json:"display_order" db:"display_order"`
-	IsActive     bool       `json:"is_active" db:"is_active"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
-
-	// Populated when joining with users table
-	User *auth.User `json:"user,omitempty"`
+	ID             string     `json:"id" db:"id"`
+	FamilyID       string     `json:"family_id" db:"family_id"`
+	Name           string     `json:"name" db:"name"`
+	Nickname       *string    `json:"nickname,omitempty" db:"nickname"`
+	MemberType     MemberType `json:"member_type" db:"member_type"`
+	Age            *int       `json:"age,omitempty" db:"age"`
+	AvatarURL      *string    `json:"avatar_url,omitempty" db:"avatar_url"`
+	Email          *string    `json:"email,omitempty" db:"email"`
+	PasswordHash   *string    `json:"-" db:"password_hash"` // Never expose password hash in JSON
+	Role           *string    `json:"role,omitempty" db:"role"`
+	EmailVerified  bool       `json:"email_verified" db:"email_verified"`
+	LastLoginAt    *time.Time `json:"last_login_at,omitempty" db:"last_login_at"`
+	DisplayOrder   int        `json:"display_order" db:"display_order"`
+	IsActive       bool       `json:"is_active" db:"is_active"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // DisplayName returns the preferred display name for the family member
@@ -43,9 +42,9 @@ func (fm *FamilyMember) DisplayName() string {
 	return fm.Name
 }
 
-// HasAccount returns true if this family member has a user account
+// HasAccount returns true if this family member has authentication credentials
 func (fm *FamilyMember) HasAccount() bool {
-	return fm.UserID != nil && *fm.UserID != ""
+	return fm.Email != nil && *fm.Email != "" && fm.PasswordHash != nil && *fm.PasswordHash != ""
 }
 
 // CanLogin returns true if this family member can login (has account and is active)
