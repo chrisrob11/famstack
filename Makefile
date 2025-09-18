@@ -10,7 +10,7 @@ build: build-ts build-go ## Build TypeScript components and Go binary
 
 build-go: ## Build Go binary
 	@echo "Building Go binary..."
-	CGO_ENABLED=1 go build -ldflags="-s -w" -o $(BINARY_PATH) ./cmd/famstack
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_PATH) ./cmd/famstack
 
 build-ts: install-node-deps ## Build TypeScript components
 	@echo "Building TypeScript components..."

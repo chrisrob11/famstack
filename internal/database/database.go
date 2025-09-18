@@ -5,8 +5,8 @@ import (
 	"embed"
 	"fmt"
 
-	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	goose "github.com/pressly/goose/v3"
+	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
 //go:embed migrations/*.sql
@@ -19,7 +19,7 @@ type DB struct {
 
 // New creates a new database connection
 func New(dbPath string) (*DB, error) {
-	db, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on&_journal_mode=WAL&_cache_size=-64000")
+	db, err := sql.Open("sqlite", dbPath+"?_foreign_keys=on&_journal_mode=WAL&_cache_size=-64000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
