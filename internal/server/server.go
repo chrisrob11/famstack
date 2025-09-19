@@ -12,7 +12,6 @@ import (
 	"famstack/internal/encryption"
 	"famstack/internal/handlers"
 	"famstack/internal/handlers/api"
-	"famstack/internal/integrations"
 	"famstack/internal/jobsystem"
 	"famstack/internal/oauth"
 	"famstack/internal/services"
@@ -73,18 +72,17 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // setupRoutes configures the HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
-	// Initialize services
-	familyMemberService := services.NewFamilyMemberService(s.db.DB)
-	integrationsService := integrations.NewService(s.db, s.encryptionSvc)
+	// Initialize service registry with all services
+	serviceRegistry := services.NewRegistry(s.db, s.encryptionSvc)
 
-	// Initialize handlers
+	// Initialize handlers with services
 	pageHandler := handlers.NewPageHandler(s.db, s.authService)
-	taskAPIHandler := api.NewTaskAPIHandler(s.db)
-	familyAPIHandler := api.NewFamilyAPIHandler(s.db)
-	familyMemberAPIHandler := api.NewFamilyMemberAPIHandler(familyMemberService)
-	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.db, s.jobSystem)
-	calendarAPIHandler := api.NewCalendarAPIHandler(s.db)
-	integrationsAPIHandler := api.NewIntegrationsAPIHandler(integrationsService)
+	taskAPIHandler := api.NewTaskAPIHandler(serviceRegistry.Tasks)
+	familyAPIHandler := api.NewFamilyAPIHandler(serviceRegistry.Families)
+	familyMemberAPIHandler := api.NewFamilyMemberAPIHandler(serviceRegistry.FamilyMembers)
+	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(serviceRegistry.Schedules, s.jobSystem)
+	calendarAPIHandler := api.NewCalendarAPIHandler(serviceRegistry.Calendar)
+	integrationsAPIHandler := api.NewIntegrationsAPIHandler(serviceRegistry.Integrations)
 	configAPIHandler := api.NewConfigAPIHandler(s.configManager)
 	authHandler := auth.NewHandlers(s.authService)
 	authMiddleware := auth.NewMiddleware(s.authService)
@@ -110,7 +108,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		oauthConfig = &oauth.OAuthConfig{} // Empty config
 	}
 	oauthService := oauth.NewService(s.db, oauthConfig, s.encryptionSvc)
-	oauthHandler := handlers.NewOAuthHandlers(oauthService, s.authService, s.jobSystem, integrationsService)
+	oauthHandler := handlers.NewOAuthHandlers(oauthService, s.authService, s.jobSystem, serviceRegistry.Integrations)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -204,34 +202,8 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			}
 		})))
 
-	mux.Handle("/api/v1/users", authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionRead)(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case "GET":
-				familyAPIHandler.ListUsers(w, r)
-			case "POST":
-				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionCreate)(
-					http.HandlerFunc(familyAPIHandler.CreateUser)).ServeHTTP(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-		})))
-
-	mux.Handle("/api/v1/users/", authMiddleware.RequireAuth(
-		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case "GET":
-				familyAPIHandler.GetUser(w, r)
-			case "PATCH":
-				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionUpdate)(
-					http.HandlerFunc(familyAPIHandler.UpdateUser)).ServeHTTP(w, r)
-			case "DELETE":
-				authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionDelete)(
-					http.HandlerFunc(familyAPIHandler.DeleteUser)).ServeHTTP(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-		})))
+	// NOTE: User routes have been removed as the users table is gone.
+	// User functionality is now handled through family members at /api/v1/families/members
 
 	// Family Member API routes - protected with authentication
 	mux.Handle("/api/v1/families/members", authMiddleware.RequireAuth(

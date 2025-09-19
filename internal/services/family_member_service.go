@@ -2,9 +2,10 @@ package services
 
 import (
 	"database/sql"
-	"famstack/internal/models"
 	"fmt"
 	"time"
+
+	"famstack/internal/models"
 )
 
 // FamilyMemberService handles family member operations
@@ -22,14 +23,12 @@ func NewFamilyMemberService(db *sql.DB) *FamilyMemberService {
 // ListFamilyMembers returns all family members for a family
 func (s *FamilyMemberService) ListFamilyMembers(familyID string) ([]*models.FamilyMember, error) {
 	query := `
-		SELECT fm.id, fm.family_id, fm.name, fm.nickname, fm.member_type, fm.age,
-			   fm.avatar_url, fm.user_id, fm.display_order, fm.is_active,
-			   fm.created_at, fm.updated_at,
-			   u.email, u.first_name, u.last_name, u.role
-		FROM family_members fm
-		LEFT JOIN users u ON fm.user_id = u.id
-		WHERE fm.family_id = ? AND fm.is_active = true
-		ORDER BY fm.display_order ASC, fm.created_at ASC
+		SELECT id, family_id, name, nickname, member_type, age,
+			   avatar_url, email, role, email_verified, last_login_at,
+			   display_order, is_active, created_at, updated_at
+		FROM family_members
+		WHERE family_id = ? AND is_active = true
+		ORDER BY display_order ASC, created_at ASC
 	`
 
 	rows, err := s.db.Query(query, familyID)
@@ -40,7 +39,7 @@ func (s *FamilyMemberService) ListFamilyMembers(familyID string) ([]*models.Fami
 
 	var members []*models.FamilyMember
 	for rows.Next() {
-		member, scanErr := s.scanFamilyMemberWithUser(rows)
+		member, scanErr := s.scanFamilyMember(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan family member: %w", scanErr)
 		}
@@ -57,17 +56,15 @@ func (s *FamilyMemberService) ListFamilyMembers(familyID string) ([]*models.Fami
 // GetFamilyMember returns a specific family member by ID
 func (s *FamilyMemberService) GetFamilyMember(memberID string) (*models.FamilyMember, error) {
 	query := `
-		SELECT fm.id, fm.family_id, fm.name, fm.nickname, fm.member_type, fm.age,
-			   fm.avatar_url, fm.user_id, fm.display_order, fm.is_active,
-			   fm.created_at, fm.updated_at,
-			   u.email, u.first_name, u.last_name, u.role
-		FROM family_members fm
-		LEFT JOIN users u ON fm.user_id = u.id
-		WHERE fm.id = ?
+		SELECT id, family_id, name, nickname, member_type, age,
+			   avatar_url, email, role, email_verified, last_login_at,
+			   display_order, is_active, created_at, updated_at
+		FROM family_members
+		WHERE id = ?
 	`
 
 	row := s.db.QueryRow(query, memberID)
-	return s.scanFamilyMemberWithUser(row)
+	return s.scanFamilyMember(row)
 }
 
 // CreateFamilyMember creates a new family member
@@ -217,19 +214,17 @@ func (s *FamilyMemberService) UnlinkUserFromFamilyMember(memberID string) error 
 func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*models.FamilyMemberWithStats, error) {
 	query := `
 		SELECT fm.id, fm.family_id, fm.name, fm.nickname, fm.member_type, fm.age,
-			   fm.avatar_url, fm.user_id, fm.display_order, fm.is_active,
-			   fm.created_at, fm.updated_at,
-			   u.email, u.first_name, u.last_name, u.role,
+			   fm.avatar_url, fm.email, fm.role, fm.email_verified, fm.last_login_at,
+			   fm.display_order, fm.is_active, fm.created_at, fm.updated_at,
 			   COUNT(t.id) as total_tasks,
 			   COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completed_tasks,
 			   COUNT(CASE WHEN t.status != 'completed' THEN 1 END) as pending_tasks
 		FROM family_members fm
-		LEFT JOIN users u ON fm.user_id = u.id
 		LEFT JOIN tasks t ON t.assigned_to = fm.id
 		WHERE fm.family_id = ? AND fm.is_active = true
 		GROUP BY fm.id, fm.family_id, fm.name, fm.nickname, fm.member_type, fm.age,
-				 fm.avatar_url, fm.user_id, fm.display_order, fm.is_active,
-				 fm.created_at, fm.updated_at, u.email, u.first_name, u.last_name, u.role
+				 fm.avatar_url, fm.email, fm.role, fm.email_verified, fm.last_login_at,
+				 fm.display_order, fm.is_active, fm.created_at, fm.updated_at
 		ORDER BY fm.display_order ASC, fm.created_at ASC
 	`
 
@@ -241,7 +236,7 @@ func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*mod
 
 	var members []*models.FamilyMemberWithStats
 	for rows.Next() {
-		member, scanErr := s.scanFamilyMemberWithStatsAndUser(rows)
+		member, scanErr := s.scanFamilyMemberWithStats(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("failed to scan family member with stats: %w", scanErr)
 		}
@@ -257,46 +252,64 @@ func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*mod
 
 // Helper functions
 
-func (s *FamilyMemberService) scanFamilyMemberWithUser(scanner interface {
+func (s *FamilyMemberService) scanFamilyMember(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.FamilyMember, error) {
 	var member models.FamilyMember
-	var userEmail, userFirstName, userLastName, userRole sql.NullString
+	var email, role sql.NullString
+	var lastLoginAt sql.NullTime
 
 	err := scanner.Scan(
 		&member.ID, &member.FamilyID, &member.Name, &member.Nickname, &member.MemberType,
-		&member.Age, &member.AvatarURL, &member.UserID, &member.DisplayOrder, &member.IsActive,
-		&member.CreatedAt, &member.UpdatedAt,
-		&userEmail, &userFirstName, &userLastName, &userRole,
+		&member.Age, &member.AvatarURL, &email, &role, &member.EmailVerified, &lastLoginAt,
+		&member.DisplayOrder, &member.IsActive, &member.CreatedAt, &member.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Family members now include auth info directly, no separate User object needed
+	// Handle nullable fields
+	if email.Valid {
+		member.Email = &email.String
+	}
+	if role.Valid {
+		member.Role = &role.String
+	}
+	if lastLoginAt.Valid {
+		member.LastLoginAt = &lastLoginAt.Time
+	}
 
 	return &member, nil
 }
 
-func (s *FamilyMemberService) scanFamilyMemberWithStatsAndUser(scanner interface {
+func (s *FamilyMemberService) scanFamilyMemberWithStats(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.FamilyMemberWithStats, error) {
 	var member models.FamilyMember
-	var userEmail, userFirstName, userLastName, userRole sql.NullString
+	var email, role sql.NullString
+	var lastLoginAt sql.NullTime
 	var totalTasks, completedTasks, pendingTasks int
 
 	err := scanner.Scan(
 		&member.ID, &member.FamilyID, &member.Name, &member.Nickname, &member.MemberType,
-		&member.Age, &member.AvatarURL, &member.UserID, &member.DisplayOrder, &member.IsActive,
-		&member.CreatedAt, &member.UpdatedAt,
-		&userEmail, &userFirstName, &userLastName, &userRole,
+		&member.Age, &member.AvatarURL, &email, &role, &member.EmailVerified, &lastLoginAt,
+		&member.DisplayOrder, &member.IsActive, &member.CreatedAt, &member.UpdatedAt,
 		&totalTasks, &completedTasks, &pendingTasks,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	// Family members now include auth info directly, no separate User object needed
+	// Handle nullable fields
+	if email.Valid {
+		member.Email = &email.String
+	}
+	if role.Valid {
+		member.Role = &role.String
+	}
+	if lastLoginAt.Valid {
+		member.LastLoginAt = &lastLoginAt.Time
+	}
 
 	// Calculate completion rate
 	var completionRate float64
@@ -315,20 +328,4 @@ func (s *FamilyMemberService) scanFamilyMemberWithStatsAndUser(scanner interface
 		FamilyMember: member,
 		TaskStats:    stats,
 	}, nil
-}
-
-// joinStrings joins a slice of strings with a separator
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	if len(strs) == 1 {
-		return strs[0]
-	}
-
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
 }
