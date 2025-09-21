@@ -9,16 +9,16 @@ import (
 	"strings"
 
 	"famstack/internal/auth"
-	"famstack/internal/integrations"
+	"famstack/internal/services"
 )
 
 // IntegrationsAPIHandler handles integration API requests
 type IntegrationsAPIHandler struct {
-	integrationsService *integrations.Service
+	integrationsService *services.IntegrationsService
 }
 
 // NewIntegrationsAPIHandler creates a new integrations API handler
-func NewIntegrationsAPIHandler(integrationsService *integrations.Service) *IntegrationsAPIHandler {
+func NewIntegrationsAPIHandler(integrationsService *services.IntegrationsService) *IntegrationsAPIHandler {
 	return &IntegrationsAPIHandler{
 		integrationsService: integrationsService,
 	}
@@ -39,30 +39,30 @@ func (h *IntegrationsAPIHandler) ListIntegrations(w http.ResponseWriter, r *http
 	}
 
 	// Parse query parameters
-	query := &integrations.ListIntegrationsQuery{}
+	query := &services.ListIntegrationsQuery{}
 
 	if integrationType := r.URL.Query().Get("type"); integrationType != "" {
-		iType := integrations.IntegrationType(integrationType)
+		iType := services.IntegrationType(integrationType)
 		query.IntegrationType = &iType
 	}
 
 	if provider := r.URL.Query().Get("provider"); provider != "" {
-		p := integrations.Provider(provider)
+		p := services.Provider(provider)
 		query.Provider = &p
 	}
 
 	if status := r.URL.Query().Get("status"); status != "" {
-		s := integrations.Status(status)
+		s := services.Status(status)
 		query.Status = &s
 	}
 
 	if authMethod := r.URL.Query().Get("auth_method"); authMethod != "" {
-		am := integrations.AuthMethod(authMethod)
+		am := services.AuthMethod(authMethod)
 		query.AuthMethod = &am
 	}
 
-	if userID := r.URL.Query().Get("user_id"); userID != "" {
-		query.UserID = &userID
+	if createdBy := r.URL.Query().Get("created_by"); createdBy != "" {
+		query.CreatedBy = &createdBy
 	}
 
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
@@ -116,7 +116,7 @@ func (h *IntegrationsAPIHandler) CreateIntegration(w http.ResponseWriter, r *htt
 	}
 
 	// Parse request body
-	var req integrations.CreateIntegrationRequest
+	var req services.CreateIntegrationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -237,7 +237,7 @@ func (h *IntegrationsAPIHandler) UpdateIntegration(w http.ResponseWriter, r *htt
 	}
 
 	// Parse request body
-	var req integrations.UpdateIntegrationRequest
+	var req services.UpdateIntegrationRequest
 	if decodeErr := json.NewDecoder(r.Body).Decode(&req); decodeErr != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -398,8 +398,59 @@ func (h *IntegrationsAPIHandler) TestIntegration(w http.ResponseWriter, r *http.
 	}
 }
 
+// InitiateOAuth handles POST /api/v1/integrations/{id}/oauth/initiate
+func (h *IntegrationsAPIHandler) InitiateOAuth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract integration ID from URL
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 7 {
+		http.Error(w, "Invalid integration ID", http.StatusBadRequest)
+		return
+	}
+	integrationID := pathParts[4]
+
+	// Get user from context
+	user := auth.GetUserFromContext(r.Context())
+	if user == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Get integration to verify access
+	integration, err := h.integrationsService.GetIntegration(integrationID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get integration: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Verify user has access to this integration
+	if integration.FamilyID != user.FamilyID {
+		http.Error(w, "Access denied", http.StatusForbidden)
+		return
+	}
+
+	// Generate authorization URL using service layer
+	authURL, err := h.integrationsService.InitiateOAuth(integrationID, r.Host)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to initiate OAuth: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]string{
+		"authorization_url": authURL,
+	}); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // renderIntegrationsListHTML renders the integrations list template for HTMX
-func (h *IntegrationsAPIHandler) renderIntegrationsListHTML(w http.ResponseWriter, integrations []integrations.Integration) {
+func (h *IntegrationsAPIHandler) renderIntegrationsListHTML(w http.ResponseWriter, integrations []services.Integration) {
 	tmpl, err := template.ParseFiles("web/templates/integrations-list.html.tmpl")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to parse template: %v", err), http.StatusInternalServerError)

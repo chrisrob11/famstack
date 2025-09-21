@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FamStack</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/js/index.css">
+    <style>
+        /* Loading states */
+        .app-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-boundary {
+            padding: 2rem;
+            text-align: center;
+            color: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <!-- SPA Root Container -->
+    <div id="app">
+        <div class="app-loading">
+            <div class="loading-spinner"></div>
+            <p>Loading FamStack...</p>
+        </div>
+    </div>
+
+    <!-- Authentication Context -->
+    <div id="auth-context" style="display: none;"></div>
+
+    <!-- Error Boundary -->
+    <div id="error-boundary" class="error-boundary" style="display: none;">
+        <h2>Something went wrong</h2>
+        <p id="error-message"></p>
+        <button onclick="window.location.reload()">Reload Application</button>
+    </div>
+
+    <!-- Application Scripts -->
+    <script type="module" src="/static/js/spa/spa-main.js"></script>
+
+    <!-- Global App Configuration -->
+    <script data-famstack-config type="application/json">
+    {
+        "apiBaseUrl": "{{.APIBaseURL}}",
+        "csrfToken": "{{.CSRFToken}}",
+        "features": {
+            {{$first := true}}{{range $key, $value := .Features}}{{if not $first}},{{end}}"{{$key}}": {{$value}}{{$first = false}}{{end}}
+        }
+    }
+    </script>
+</body>
+</html>

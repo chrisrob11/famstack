@@ -143,7 +143,9 @@ export class FamilyService {
       throw new Error(`Failed to fetch family members: ${response.statusText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    // Handle wrapped response - backend returns { family_members: [...] }
+    return data.family_members || [];
   }
 
   async createFamilyMember(

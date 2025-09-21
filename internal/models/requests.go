@@ -66,30 +66,23 @@ type CreateUnifiedCalendarEventRequest struct {
 
 // Task schedule request models
 type CreateTaskScheduleRequest struct {
-	Name            string     `json:"name" validate:"required,min=1,max=255"`
-	Description     *string    `json:"description,omitempty" validate:"omitempty,max=1000"`
-	TaskTemplate    string     `json:"task_template" validate:"required,max=1000"`
-	AssignedTo      *string    `json:"assigned_to,omitempty"`
-	ScheduleType    string     `json:"schedule_type" validate:"required,oneof=cron interval weekly daily"`
-	CronExpression  *string    `json:"cron_expression,omitempty" validate:"omitempty,max=255"`
-	IntervalMinutes *int       `json:"interval_minutes,omitempty" validate:"omitempty,min=1"`
-	DaysOfWeek      *string    `json:"days_of_week,omitempty" validate:"omitempty,max=20"`
-	StartDate       time.Time  `json:"start_date" validate:"required"`
-	EndDate         *time.Time `json:"end_date,omitempty"`
-	NextRunAt       time.Time  `json:"next_run_at" validate:"required"`
+	Title       string   `json:"title" validate:"required,min=1,max=255"`
+	Description *string  `json:"description,omitempty" validate:"omitempty,max=1000"`
+	TaskType    string   `json:"task_type" validate:"required,oneof=todo chore appointment"`
+	AssignedTo  *string  `json:"assigned_to,omitempty"`
+	DaysOfWeek  []string `json:"days_of_week" validate:"required,min=1"`
+	TimeOfDay   *string  `json:"time_of_day,omitempty"`
+	Priority    int      `json:"priority" validate:"min=0,max=3"`
+	FamilyID    *string  `json:"family_id,omitempty"`
 }
 
 type UpdateTaskScheduleRequest struct {
-	Name            *string    `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	Description     *string    `json:"description,omitempty" validate:"omitempty,max=1000"`
-	TaskTemplate    *string    `json:"task_template,omitempty" validate:"omitempty,max=1000"`
-	AssignedTo      *string    `json:"assigned_to,omitempty"`
-	ScheduleType    *string    `json:"schedule_type,omitempty" validate:"omitempty,oneof=cron interval weekly daily"`
-	CronExpression  *string    `json:"cron_expression,omitempty" validate:"omitempty,max=255"`
-	IntervalMinutes *int       `json:"interval_minutes,omitempty" validate:"omitempty,min=1"`
-	DaysOfWeek      *string    `json:"days_of_week,omitempty" validate:"omitempty,max=20"`
-	StartDate       *time.Time `json:"start_date,omitempty"`
-	EndDate         *time.Time `json:"end_date,omitempty"`
-	NextRunAt       *time.Time `json:"next_run_at,omitempty"`
-	IsActive        *bool      `json:"is_active,omitempty"`
+	Title       *string   `json:"title,omitempty" validate:"omitempty,min=1,max=255"`
+	Description *string   `json:"description,omitempty" validate:"omitempty,max=1000"`
+	TaskType    *string   `json:"task_type,omitempty" validate:"omitempty,oneof=todo chore appointment"`
+	AssignedTo  *string   `json:"assigned_to,omitempty"`
+	DaysOfWeek  *[]string `json:"days_of_week,omitempty"`
+	TimeOfDay   *string   `json:"time_of_day,omitempty"`
+	Priority    *int      `json:"priority,omitempty" validate:"omitempty,min=0,max=3"`
+	Active      *bool     `json:"active,omitempty"`
 }

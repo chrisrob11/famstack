@@ -1,5 +1,5 @@
 import { ComponentConfig } from '../common/types.js';
-import { TaskSchedule } from './schedule-service.js';
+import { TaskSchedule, parseDaysOfWeek } from './schedule-service.js';
 
 export class ScheduleCard {
   private schedule: TaskSchedule;
@@ -46,9 +46,8 @@ export class ScheduleCard {
   }
 
   private getCardHTML(): string {
-    const daysString = this.schedule.days_of_week
-      .map(day => day.charAt(0).toUpperCase() + day.slice(1, 3))
-      .join(', ');
+    const days = parseDaysOfWeek(this.schedule.days_of_week);
+    const daysString = days.map(day => day.charAt(0).toUpperCase() + day.slice(1, 3)).join(', ');
 
     const timeDisplay = this.schedule.time_of_day
       ? ` at ${this.formatTime(this.schedule.time_of_day)}`

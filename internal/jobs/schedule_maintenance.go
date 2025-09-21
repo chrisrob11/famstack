@@ -6,20 +6,25 @@ import (
 	"log"
 	"time"
 
-	"famstack/internal/database"
 	"famstack/internal/jobsystem"
+	"famstack/internal/services"
 )
+
+// JobEnqueuer interface for job systems that can enqueue jobs
+type JobEnqueuer interface {
+	Enqueue(req *jobsystem.EnqueueRequest) (string, error)
+}
 
 type ScheduleMaintenancePayload struct {
 	// Empty payload - this job scans all schedules
 }
 
-func NewScheduleMaintenanceHandler(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem) jobsystem.JobHandler {
+func NewScheduleMaintenanceHandler(serviceRegistry *services.Registry, jobSystem JobEnqueuer) jobsystem.JobHandler {
 	return func(ctx context.Context, job *jobsystem.Job) error {
 		log.Println("Running schedule maintenance job")
 
 		// Find schedules that need more task generation
-		schedules, err := getSchedulesNeedingGeneration(db)
+		schedules, err := serviceRegistry.Schedules.GetSchedulesNeedingGeneration()
 		if err != nil {
 			return fmt.Errorf("failed to get schedules needing generation: %w", err)
 		}
@@ -30,13 +35,13 @@ func NewScheduleMaintenanceHandler(db *database.DB, jobSystem *jobsystem.SQLiteJ
 		}
 
 		// Enqueue 3 monthly generation jobs for each schedule that needs it
-		for _, scheduleID := range schedules {
-			err := enqueueMonthlyGenerationJobs(jobSystem, scheduleID)
+		for _, schedule := range schedules {
+			err := enqueueMonthlyGenerationJobs(jobSystem, schedule.ID)
 			if err != nil {
-				log.Printf("Failed to enqueue generation jobs for schedule %s: %v", scheduleID, err)
+				log.Printf("Failed to enqueue generation jobs for schedule %s: %v", schedule.ID, err)
 				continue
 			}
-			log.Printf("Enqueued 3 monthly generation jobs for schedule %s", scheduleID)
+			log.Printf("Enqueued 3 monthly generation jobs for schedule %s", schedule.ID)
 		}
 
 		log.Printf("Schedule maintenance completed - processed %d schedules", len(schedules))
@@ -44,36 +49,7 @@ func NewScheduleMaintenanceHandler(db *database.DB, jobSystem *jobsystem.SQLiteJ
 	}
 }
 
-func getSchedulesNeedingGeneration(db *database.DB) ([]string, error) {
-	// Find schedules where last_generated_date is less than 90 days from now
-	ninetyDaysFromNow := time.Now().AddDate(0, 0, 90)
-
-	query := `
-		SELECT id 
-		FROM task_schedules 
-		WHERE active = true 
-		AND (last_generated_date IS NULL OR last_generated_date < ?)
-	`
-
-	rows, err := db.Query(query, ninetyDaysFromNow.Format("2006-01-02 15:04:05"))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var scheduleIDs []string
-	for rows.Next() {
-		var scheduleID string
-		if err := rows.Scan(&scheduleID); err != nil {
-			return nil, err
-		}
-		scheduleIDs = append(scheduleIDs, scheduleID)
-	}
-
-	return scheduleIDs, nil
-}
-
-func enqueueMonthlyGenerationJobs(jobSystem *jobsystem.SQLiteJobSystem, scheduleID string) error {
+func enqueueMonthlyGenerationJobs(jobSystem JobEnqueuer, scheduleID string) error {
 	now := time.Now()
 
 	// Enqueue 3 monthly generation jobs starting from next month

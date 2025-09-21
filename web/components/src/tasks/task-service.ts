@@ -19,9 +19,11 @@ export interface CreateTaskData {
   title: string;
   description: string;
   task_type: string;
-  assigned_to?: string | undefined;
+  assigned_to?: string | null;
   family_id: string;
-  due_date?: Date;
+  due_date?: Date | null;
+  frequency?: string | null;
+  priority?: number;
 }
 
 /**
@@ -37,7 +39,7 @@ export class TaskService {
     // Add date parameter if provided
     if (date) {
       const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
-      url += `?date=${dateStr}`;
+      url += `?dueDate=${dateStr}`;
     }
 
     const response = await fetch(url);

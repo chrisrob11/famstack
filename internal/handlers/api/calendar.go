@@ -7,6 +7,7 @@ import (
 	"path"
 	"time"
 
+	"famstack/internal/auth"
 	"famstack/internal/models"
 	"famstack/internal/services"
 )
@@ -25,6 +26,8 @@ func NewCalendarAPIHandler(calendarService *services.CalendarService) *CalendarA
 
 // GetEvents retrieves unified calendar events for a specific date or date range
 func (h *CalendarAPIHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("🗓️  Calendar API called: %s\n", r.URL.String())
+
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -36,9 +39,16 @@ func (h *CalendarAPIHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 	endDateStr := r.URL.Query().Get("end_date")
 	familyID := r.URL.Query().Get("family_id")
 
+	fmt.Printf("🗓️  Query: date=%s, start_date=%s, end_date=%s, family_id=%s\n", date, startDateStr, endDateStr, familyID)
+
 	// Default to current family if not specified
 	if familyID == "" {
-		familyID = "fam1" // Default family for now
+		session := auth.GetSessionFromContext(r.Context())
+		if session == nil {
+			http.Error(w, "Authentication required", http.StatusUnauthorized)
+			return
+		}
+		familyID = session.FamilyID
 	}
 
 	var startDate, endDate time.Time
@@ -74,11 +84,20 @@ func (h *CalendarAPIHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Use the service to get events
+	fmt.Printf("🗓️  Querying events for family %s from %s to %s\n", familyID, startDate.Format("2006-01-02 15:04:05"), endDate.Format("2006-01-02 15:04:05"))
 	events, err := h.calendarService.GetUnifiedCalendarEvents(familyID, startDate, endDate)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to query events: %v", err), http.StatusInternalServerError)
-		return
+		fmt.Printf("❌ Calendar query error: %v\n", err)
+		// Return empty array instead of error to prevent frontend crashes
+		events = []models.UnifiedCalendarEvent{}
 	}
+
+	// Ensure we never return nil, always return an empty array
+	if events == nil {
+		events = []models.UnifiedCalendarEvent{}
+	}
+
+	fmt.Printf("✅ Found %d events\n", len(events))
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(events); err != nil {
@@ -101,7 +120,12 @@ func (h *CalendarAPIHandler) CreateEvent(w http.ResponseWriter, r *http.Request)
 
 	// Set defaults
 	if eventData.FamilyID == "" {
-		eventData.FamilyID = "fam1" // Default family
+		session := auth.GetSessionFromContext(r.Context())
+		if session == nil {
+			http.Error(w, "Authentication required", http.StatusUnauthorized)
+			return
+		}
+		eventData.FamilyID = session.FamilyID
 	}
 	// Note: EventType and Color are not part of CreateUnifiedCalendarEventRequest
 	// This is for external integration events

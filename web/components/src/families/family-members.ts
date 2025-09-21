@@ -50,10 +50,31 @@ export class FamilyMembers {
   private async loadMembers(): Promise<void> {
     try {
       this.showLoading();
-      this.members = await this.familyService.listFamilyMembers('fam1'); // TODO: Get actual family ID
+
+      // Get family ID from user session
+      const familyId = await this.getCurrentFamilyId();
+      if (!familyId) {
+        this.showErrorInContainer('No family ID found. Please log in again.');
+        return;
+      }
+
+      this.members = await this.familyService.listFamilyMembers(familyId);
       this.renderMembers();
     } catch (error) {
       this.showErrorInContainer('Failed to load family members');
+    }
+  }
+
+  private async getCurrentFamilyId(): Promise<string | null> {
+    try {
+      const response = await fetch('/auth/me');
+      if (!response.ok) {
+        return null;
+      }
+      const sessionData = await response.json();
+      return sessionData.session?.family_id || sessionData.user?.family_id || null;
+    } catch (error) {
+      return null;
     }
   }
 
@@ -165,7 +186,11 @@ export class FamilyMembers {
   }
 
   private async handleModalSave(data: FamilyMemberFormData, memberId?: string): Promise<void> {
-    const familyId = 'fam1'; // TODO: Get actual family ID
+    const familyId = await this.getCurrentFamilyId();
+    if (!familyId) {
+      this.showError('No family ID found. Please log in again.');
+      return;
+    }
 
     if (memberId) {
       // Edit existing member
@@ -188,7 +213,12 @@ export class FamilyMembers {
     if (!confirmed) return;
 
     try {
-      const familyId = 'fam1'; // TODO: Get actual family ID
+      const familyId = await this.getCurrentFamilyId();
+      if (!familyId) {
+        this.showError('No family ID found. Please log in again.');
+        return;
+      }
+
       await this.familyService.deleteFamilyMember(familyId, memberId);
       await this.loadMembers(); // Refresh the list
       this.showSuccess('Member deleted successfully!');

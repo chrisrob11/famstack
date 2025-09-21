@@ -1,7 +1,6 @@
 package models
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -18,10 +17,9 @@ const (
 type FamilyMember struct {
 	ID            string     `json:"id" db:"id"`
 	FamilyID      string     `json:"family_id" db:"family_id"`
-	Name          string     `json:"name" db:"name"`
-	Nickname      *string    `json:"nickname,omitempty" db:"nickname"`
+	FirstName     string     `json:"first_name" db:"first_name"`
+	LastName      string     `json:"last_name" db:"last_name"`
 	MemberType    MemberType `json:"member_type" db:"member_type"`
-	Age           *int       `json:"age,omitempty" db:"age"`
 	AvatarURL     *string    `json:"avatar_url,omitempty" db:"avatar_url"`
 	Email         *string    `json:"email,omitempty" db:"email"`
 	PasswordHash  *string    `json:"-" db:"password_hash"` // Never expose password hash in JSON
@@ -36,10 +34,12 @@ type FamilyMember struct {
 
 // DisplayName returns the preferred display name for the family member
 func (fm *FamilyMember) DisplayName() string {
-	if fm.Nickname != nil && *fm.Nickname != "" {
-		return *fm.Nickname
-	}
-	return fm.Name
+	return fm.FirstName + " " + fm.LastName
+}
+
+// FullName returns the full name (first + last)
+func (fm *FamilyMember) FullName() string {
+	return fm.FirstName + " " + fm.LastName
 }
 
 // HasAccount returns true if this family member has authentication credentials
@@ -67,48 +67,20 @@ func (fm *FamilyMember) IsPet() bool {
 	return fm.MemberType == MemberTypePet
 }
 
-// GetAgeDisplay returns a display-friendly age string
-func (fm *FamilyMember) GetAgeDisplay() string {
-	if fm.Age == nil {
-		return ""
-	}
-
-	age := *fm.Age
-	switch fm.MemberType {
-	case MemberTypePet:
-		if age == 1 {
-			return "1 year old"
-		}
-		return fmt.Sprintf("%d years old", age)
-	case MemberTypeChild:
-		if age == 1 {
-			return "1 year old"
-		}
-		return fmt.Sprintf("%d years old", age)
-	case MemberTypeAdult:
-		// Adults might not want age displayed
-		return ""
-	default:
-		return ""
-	}
-}
-
 // CreateFamilyMemberRequest represents a request to create a new family member
 type CreateFamilyMemberRequest struct {
-	Name         string     `json:"name" validate:"required,min=1,max=100"`
-	Nickname     *string    `json:"nickname,omitempty" validate:"omitempty,max=50"`
+	FirstName    string     `json:"first_name" validate:"required,min=1,max=100"`
+	LastName     string     `json:"last_name" validate:"required,min=1,max=100"`
 	MemberType   MemberType `json:"member_type" validate:"required,oneof=adult child pet"`
-	Age          *int       `json:"age,omitempty" validate:"omitempty,min=0,max=150"`
 	AvatarURL    *string    `json:"avatar_url,omitempty" validate:"omitempty,url"`
 	DisplayOrder *int       `json:"display_order,omitempty"`
 }
 
 // UpdateFamilyMemberRequest represents a request to update a family member
 type UpdateFamilyMemberRequest struct {
-	Name         *string     `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
-	Nickname     *string     `json:"nickname,omitempty" validate:"omitempty,max=50"`
+	FirstName    *string     `json:"first_name,omitempty" validate:"omitempty,min=1,max=100"`
+	LastName     *string     `json:"last_name,omitempty" validate:"omitempty,min=1,max=100"`
 	MemberType   *MemberType `json:"member_type,omitempty" validate:"omitempty,oneof=adult child pet"`
-	Age          *int        `json:"age,omitempty" validate:"omitempty,min=0,max=150"`
 	AvatarURL    *string     `json:"avatar_url,omitempty" validate:"omitempty,url"`
 	DisplayOrder *int        `json:"display_order,omitempty"`
 	IsActive     *bool       `json:"is_active,omitempty"`

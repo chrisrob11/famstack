@@ -3,6 +3,7 @@ import { TaskService, TasksResponse } from './task-service.js';
 import { PersonTasks } from './person-tasks.js';
 import { TaskModal, TaskFormData } from './task-modal.js';
 import { CreateTaskData } from './task-service.js';
+import { logger } from '../common/logger.js';
 
 /**
  * FamilyTasks - Component for managing and displaying tasks for all family members
@@ -192,11 +193,18 @@ export class FamilyTasks {
         return;
       }
 
+      // Get family ID from session
+      const familyId = await this.getCurrentFamilyId();
+      if (!familyId) {
+        alert('No family ID found. Please log in again.');
+        return;
+      }
+
       // Create new task - add family_id and set due_date to selected date
       const createData: CreateTaskData = {
         ...data,
-        assigned_to: data.assigned_to || undefined,
-        family_id: 'fam1', // TODO: Get actual family ID
+        assigned_to: data.assigned_to || null,
+        family_id: familyId,
         due_date: this.currentDate, // Set due date to selected date
       };
       await this.taskService.createTask(createData);
@@ -236,20 +244,31 @@ export class FamilyTasks {
       return;
     }
 
+    // Get family ID from session
+    const familyId = await this.getCurrentFamilyId();
+    if (!familyId) {
+      alert('No family ID found. Please log in again.');
+      return;
+    }
+
     // Create a simple new task for this person
     const createData: CreateTaskData = {
       title: 'New Task',
       description: '',
       task_type: 'todo',
       assigned_to: memberId,
-      family_id: 'fam1', // TODO: Get actual family ID
+      family_id: familyId,
       due_date: this.currentDate, // Set due date to selected date
     };
 
-    await this.taskService.createTask(createData);
-
-    // Refresh the tasks display
-    await this.loadTasks();
+    try {
+      await this.taskService.createTask(createData);
+      // Refresh the tasks display
+      await this.loadTasks();
+    } catch (error) {
+      alert('Failed to create task. Please try again.');
+      logger.error('Failed to create task:', error);
+    }
   }
 
   private async handleTaskUpdate(e: CustomEvent): Promise<void> {
@@ -278,6 +297,20 @@ export class FamilyTasks {
   public setDate(date: Date): void {
     this.currentDate = date;
     this.loadTasks();
+  }
+
+  private async getCurrentFamilyId(): Promise<string | null> {
+    try {
+      const response = await fetch('/auth/me');
+      if (!response.ok) {
+        return null;
+      }
+      const sessionData = await response.json();
+      return sessionData.session?.family_id || sessionData.user?.family_id || null;
+    } catch (error) {
+      logger.error('Failed to get current family ID:', error);
+      return null;
+    }
   }
 
   public destroy(): void {

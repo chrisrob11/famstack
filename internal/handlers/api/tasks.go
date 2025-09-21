@@ -41,7 +41,7 @@ func (h *TaskAPIHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	// Get date parameter from query string, default to today
-	dateParam := r.URL.Query().Get("date")
+	dateParam := r.URL.Query().Get("dueDate")
 	var dateFilter string
 	if dateParam != "" {
 		// Use provided date (expected in YYYY-MM-DD format)
@@ -61,7 +61,7 @@ func (h *TaskAPIHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	// The service response is already in the correct format for JSON output
 	response := map[string]interface{}{
 		"tasks_by_member": tasksResponse.TasksByMember,
-		"date":            time.Now().Format("Monday, January 2"),
+		"dueDate":         time.Now().Format("Monday, January 2"),
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {

@@ -10,12 +10,12 @@ import (
 
 // PageHandler handles all page requests
 type PageHandler struct {
-	db          *database.DB
+	db          *database.Fascade
 	authService *auth.Service
 }
 
 // NewPageHandler creates a new page handler
-func NewPageHandler(db *database.DB, authService *auth.Service) *PageHandler {
+func NewPageHandler(db *database.Fascade, authService *auth.Service) *PageHandler {
 	return &PageHandler{
 		db:          db,
 		authService: authService,
@@ -29,121 +29,55 @@ type PageData struct {
 	PageType  string // "tasks", "family", etc.
 }
 
-// ServePage serves different pages based on the page type
+// SPAConfig represents configuration data for the SPA
+type SPAConfig struct {
+	APIBaseURL string          `json:"apiBaseUrl"`
+	CSRFToken  string          `json:"csrfToken"`
+	Features   map[string]bool `json:"features"`
+}
+
+// ServePage serves the SPA for all routes
 func (h *PageHandler) ServePage(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// Extract page type from URL path
-	pageType := h.getPageTypeFromPath(r.URL.Path)
+	// Debug: Log that we're serving SPA
+	println("ServePage called for:", r.URL.Path)
 
-	// Check authentication for protected pages
-	if pageType != "login" && !h.isAuthenticated(r) {
-		// Redirect to login page
-		http.Redirect(w, r, "/login", http.StatusFound)
-		return
-	}
+	// For SPA, we serve the same HTML file for all routes
+	// The client-side router will handle the actual routing
 
-	// If authenticated and trying to access login page, redirect to tasks
-	if pageType == "login" && h.isAuthenticated(r) {
-		http.Redirect(w, r, "/tasks", http.StatusFound)
-		return
-	}
+	// Create config data for the SPA
+	config := h.getSPAConfig(r)
 
-	// Determine template and page data
-	templateName, pageData := h.getPageTemplate(pageType)
-
-	// Parse template
-	var tmpl *template.Template
-	var err error
-
-	if pageType == "integrations" {
-		// Parse the integrations template with navigation
-		tmpl, err = template.ParseFiles("web/templates/integrations.html.tmpl", "web/templates/navigation.html.tmpl")
-		if err != nil {
-			http.Error(w, "Template parse error", http.StatusInternalServerError)
-			return
-		}
-		// Execute the named template
-		w.Header().Set("Content-Type", "text/html")
-		if execErr := tmpl.ExecuteTemplate(w, "integrations", pageData); execErr != nil {
-			http.Error(w, "Template execution error", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// Parse regular templates
-		tmpl, err = template.ParseFiles(templateName)
-		if err != nil {
-			http.Error(w, "Template error", http.StatusInternalServerError)
-			return
-		}
-		// Execute template
-		w.Header().Set("Content-Type", "text/html")
-		if err := tmpl.Execute(w, pageData); err != nil {
-			http.Error(w, "Template execution error", http.StatusInternalServerError)
-			return
-		}
-	}
-}
-
-// isAuthenticated checks if the user has a valid authentication token
-func (h *PageHandler) isAuthenticated(r *http.Request) bool {
-	// Try to extract token from cookie
-	cookie, err := r.Cookie("auth_token")
+	// Parse the SPA template
+	tmpl, err := template.ParseFiles("web/app.html")
 	if err != nil {
-		return false
+		http.Error(w, "SPA template error", http.StatusInternalServerError)
+		return
 	}
 
-	// Validate token
-	_, err = h.authService.ValidateToken(cookie.Value)
-	return err == nil
-}
-
-// getPageTypeFromPath extracts the page type from the URL path
-func (h *PageHandler) getPageTypeFromPath(urlPath string) string {
-	switch urlPath {
-	case "/login":
-		return "login"
-	case "/tasks", "/":
-		return "tasks"
-	case "/schedules":
-		return "schedules"
-	case "/family/setup", "/family":
-		return "family"
-	case "/integrations":
-		return "integrations"
-	default:
-		return "tasks" // Default fallback
+	// Execute template with config
+	w.Header().Set("Content-Type", "text/html")
+	if err := tmpl.Execute(w, config); err != nil {
+		http.Error(w, "Template execution error", http.StatusInternalServerError)
+		return
 	}
 }
 
-// getPageTemplate returns the template path and page data for a given page type
-func (h *PageHandler) getPageTemplate(pageType string) (string, PageData) {
-	baseData := PageData{
-		CSRFToken: "dummy-csrf-token", // TODO: Implement proper CSRF token generation
-		PageType:  pageType,
-	}
-
-	switch pageType {
-	case "login":
-		baseData.PageTitle = "Login - FamStack"
-		return "web/templates/login.html.tmpl", baseData
-	case "tasks":
-		baseData.PageTitle = "Daily Tasks - FamStack"
-		return "web/templates/app.html.tmpl", baseData
-	case "schedules":
-		baseData.PageTitle = "Schedules - FamStack"
-		return "web/templates/app.html.tmpl", baseData
-	case "family":
-		baseData.PageTitle = "Family Setup - FamStack"
-		return "web/templates/app.html.tmpl", baseData
-	case "integrations":
-		baseData.PageTitle = "Integrations - FamStack"
-		return "web/templates/integrations.html.tmpl", baseData
-	default:
-		baseData.PageTitle = "FamStack"
-		return "web/templates/app.html.tmpl", baseData
+// getSPAConfig returns configuration data for the SPA
+func (h *PageHandler) getSPAConfig(r *http.Request) SPAConfig {
+	return SPAConfig{
+		APIBaseURL: "/api/v1",
+		CSRFToken:  "dummy-csrf-token", // TODO: Implement proper CSRF token generation
+		Features: map[string]bool{
+			"tasks":        true,
+			"calendar":     true,
+			"family":       true,
+			"schedules":    true,
+			"integrations": true,
+		},
 	}
 }

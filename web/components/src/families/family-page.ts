@@ -39,7 +39,7 @@ export class FamilyPage extends BasePage {
     return `
       <div class="family-page">
         <div class="setup-header">
-          <h2>Family Setup</h2>
+          <h2>Family</h2>
           <p>Manage your family members and settings</p>
         </div>
 
@@ -207,12 +207,17 @@ export class FamilyPage extends BasePage {
     }
 
     try {
-      const familyId = 'fam1'; // TODO: Get actual family ID
-      const response = await fetch(`${this.config.apiBaseUrl}/families/${familyId}/members`, {
+      // Get family ID from session
+      const familyId = await this.getCurrentFamilyId();
+      if (!familyId) {
+        this.showErrorMessage('No family ID found. Please log in again.');
+        return;
+      }
+
+      const response = await fetch(`/api/families/${familyId}/members`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': this.config.csrfToken,
         },
         body: JSON.stringify(memberData),
       });
@@ -285,6 +290,19 @@ export class FamilyPage extends BasePage {
   private clearMessages(): void {
     const resultDivs = this.container.querySelectorAll('#family-info-result, #add-member-result');
     resultDivs.forEach(div => (div.innerHTML = ''));
+  }
+
+  private async getCurrentFamilyId(): Promise<string | null> {
+    try {
+      const authResponse = await fetch('/auth/me');
+      if (!authResponse.ok) {
+        return null;
+      }
+      const sessionData = await authResponse.json();
+      return sessionData.session?.family_id || sessionData.user?.family_id || null;
+    } catch (error) {
+      return null;
+    }
   }
 
   async refresh(): Promise<void> {

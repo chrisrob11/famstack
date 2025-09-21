@@ -64,9 +64,8 @@ export class ScheduleList {
       }
       this.showSuccess('Schedule updated successfully!');
     } else {
-      // Create new schedule
-      const scheduleData = { ...data, family_id: 'fam1' };
-      const newSchedule = await this.scheduleService.createSchedule(scheduleData);
+      // Create new schedule - family_id will be set by the backend from session
+      const newSchedule = await this.scheduleService.createSchedule(data);
       this.addScheduleToList(newSchedule);
       this.showSuccess('Schedule created successfully!');
     }

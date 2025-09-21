@@ -1,5 +1,5 @@
 import { ComponentConfig } from '../common/types.js';
-import { TaskSchedule, CreateScheduleRequest } from './schedule-service.js';
+import { TaskSchedule, CreateScheduleRequest, parseDaysOfWeek } from './schedule-service.js';
 
 export type ScheduleFormData = Omit<CreateScheduleRequest, 'family_id'>;
 
@@ -142,13 +142,50 @@ export class ScheduleModal {
   private async populateUserOptions(): Promise<void> {
     const select = this.element.querySelector('#schedule-assigned-to') as HTMLSelectElement;
     if (select) {
-      // TODO: Replace with actual user fetching
-      select.innerHTML = `
-        <option value="">Select person...</option>
-        <option value="user1">John Smith</option>
-        <option value="user2">Jane Smith</option>
-        <option value="user3">Bobby Smith</option>
-      `;
+      try {
+        // Get current user session to extract family ID
+        const authResponse = await fetch('/auth/me', { credentials: 'include' });
+        if (!authResponse.ok) {
+          throw new Error('Failed to get user session');
+        }
+
+        const sessionData = await authResponse.json();
+        const familyId = sessionData.session?.family_id || sessionData.user?.family_id;
+
+        if (!familyId) {
+          throw new Error('No family ID found in session');
+        }
+
+        // Fetch family members
+        const response = await fetch(`/api/v1/families/${familyId}/members`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch family members');
+        }
+
+        const data = await response.json();
+        const members = data.family_members || [];
+
+        // Populate dropdown with real family members
+        let options = '<option value="">Select person...</option>';
+        members.forEach((member: any) => {
+          const fullName =
+            member.first_name && member.last_name
+              ? `${member.first_name} ${member.last_name}`.trim()
+              : member.first_name || member.last_name || 'Unknown';
+          options += `<option value="${member.id}">${fullName}</option>`;
+        });
+
+        select.innerHTML = options;
+      } catch (error) {
+        // Fallback to basic options
+        select.innerHTML = `
+          <option value="">Select person...</option>
+          <option value="">Unable to load family members</option>
+        `;
+      }
     }
   }
 
@@ -222,8 +259,9 @@ export class ScheduleModal {
     const dayCheckboxes = form.querySelectorAll(
       'input[name="days_of_week"]'
     ) as NodeListOf<HTMLInputElement>;
+    const days = parseDaysOfWeek(schedule.days_of_week);
     dayCheckboxes.forEach(checkbox => {
-      checkbox.checked = schedule.days_of_week.includes(checkbox.value);
+      checkbox.checked = days.includes(checkbox.value);
     });
   }
 
@@ -285,16 +323,19 @@ export class ScheduleModal {
       throw new Error('Please assign this schedule to a person');
     }
 
-    return {
+    const data: any = {
       title: formData.get('title') as string,
       description: (formData.get('description') as string) || '',
       task_type: formData.get('task_type') as 'todo' | 'chore' | 'appointment',
       assigned_to: (formData.get('assigned_to') as string) || null,
       days_of_week: selectedDays,
-      time_of_day: null,
       priority: parseInt(formData.get('priority') as string),
-      points: 0,
     };
+
+    // Only include time_of_day if it has a value
+    // For now, we don't have a time picker, so don't send it at all
+
+    return data;
   }
 
   private showFormError(form: HTMLFormElement, message: string): void {

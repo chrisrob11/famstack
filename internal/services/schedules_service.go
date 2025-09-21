@@ -2,43 +2,43 @@ package services
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
+	"famstack/internal/database"
 	"famstack/internal/models"
 )
 
 // SchedulesService handles all task schedule database operations
 type SchedulesService struct {
-	db *sql.DB
+	db *database.Fascade
 }
 
 // NewSchedulesService creates a new schedules service
-func NewSchedulesService(db *sql.DB) *SchedulesService {
+func NewSchedulesService(db *database.Fascade) *SchedulesService {
 	return &SchedulesService{db: db}
 }
 
 // GetSchedule returns a task schedule by ID
 func (s *SchedulesService) GetSchedule(scheduleID string) (*models.TaskSchedule, error) {
 	query := `
-		SELECT id, family_id, name, description, task_template, assigned_to,
-			   schedule_type, cron_expression, interval_minutes, days_of_week,
-			   start_date, end_date, next_run_at, is_active, created_by,
-			   created_at, updated_at
+		SELECT id, family_id, created_by, title, description, task_type, assigned_to,
+			   days_of_week, time_of_day, priority, points, active, created_at,
+			   last_generated_date
 		FROM task_schedules
 		WHERE id = ?
 	`
 
 	var schedule models.TaskSchedule
-	var description, assignedTo, cronExpression, daysOfWeek, endDate sql.NullString
-	var intervalMinutes sql.NullInt64
+	var description, assignedTo, daysOfWeek, timeOfDay sql.NullString
+	var lastGeneratedDate sql.NullTime
 
 	err := s.db.QueryRow(query, scheduleID).Scan(
-		&schedule.ID, &schedule.FamilyID, &schedule.Name, &description,
-		&schedule.TaskTemplate, &assignedTo, &schedule.ScheduleType,
-		&cronExpression, &intervalMinutes, &daysOfWeek, &schedule.StartDate,
-		&endDate, &schedule.NextRunAt, &schedule.IsActive, &schedule.CreatedBy,
-		&schedule.CreatedAt, &schedule.UpdatedAt,
+		&schedule.ID, &schedule.FamilyID, &schedule.CreatedBy, &schedule.Title,
+		&description, &schedule.TaskType, &assignedTo, &daysOfWeek,
+		&schedule.TimeOfDay, &schedule.Priority, &schedule.Points,
+		&schedule.Active, &schedule.CreatedAt, &schedule.LastGeneratedDate,
 	)
 
 	if err != nil {
@@ -55,20 +55,14 @@ func (s *SchedulesService) GetSchedule(scheduleID string) (*models.TaskSchedule,
 	if assignedTo.Valid {
 		schedule.AssignedTo = &assignedTo.String
 	}
-	if cronExpression.Valid {
-		schedule.CronExpression = &cronExpression.String
-	}
-	if intervalMinutes.Valid {
-		val := int(intervalMinutes.Int64)
-		schedule.IntervalMinutes = &val
-	}
 	if daysOfWeek.Valid {
 		schedule.DaysOfWeek = &daysOfWeek.String
 	}
-	if endDate.Valid {
-		if parsed, parseErr := time.Parse(time.RFC3339, endDate.String); parseErr == nil {
-			schedule.EndDate = &parsed
-		}
+	if timeOfDay.Valid {
+		schedule.TimeOfDay = &timeOfDay.String
+	}
+	if lastGeneratedDate.Valid {
+		schedule.LastGeneratedDate = &lastGeneratedDate.Time
 	}
 
 	return &schedule, nil
@@ -77,10 +71,9 @@ func (s *SchedulesService) GetSchedule(scheduleID string) (*models.TaskSchedule,
 // ListSchedules returns all task schedules for a family
 func (s *SchedulesService) ListSchedules(familyID string) ([]models.TaskSchedule, error) {
 	query := `
-		SELECT id, family_id, name, description, task_template, assigned_to,
-			   schedule_type, cron_expression, interval_minutes, days_of_week,
-			   start_date, end_date, next_run_at, is_active, created_by,
-			   created_at, updated_at
+		SELECT id, family_id, created_by, title, description, task_type, assigned_to,
+			   days_of_week, time_of_day, priority, points, active, created_at,
+			   last_generated_date
 		FROM task_schedules
 		WHERE family_id = ?
 		ORDER BY created_at DESC
@@ -92,7 +85,7 @@ func (s *SchedulesService) ListSchedules(familyID string) ([]models.TaskSchedule
 	}
 	defer rows.Close()
 
-	var schedules []models.TaskSchedule
+	schedules := make([]models.TaskSchedule, 0)
 	for rows.Next() {
 		schedule, scanErr := s.scanTaskSchedule(rows)
 		if scanErr != nil {
@@ -111,13 +104,12 @@ func (s *SchedulesService) ListSchedules(familyID string) ([]models.TaskSchedule
 // ListActiveSchedules returns all active schedules that are ready to run
 func (s *SchedulesService) ListActiveSchedules() ([]models.TaskSchedule, error) {
 	query := `
-		SELECT id, family_id, name, description, task_template, assigned_to,
-			   schedule_type, cron_expression, interval_minutes, days_of_week,
-			   start_date, end_date, next_run_at, is_active, created_by,
-			   created_at, updated_at
+		SELECT id, family_id, created_by, title, description, task_type, assigned_to,
+			   days_of_week, time_of_day, priority, points, active, created_at,
+			   last_generated_date
 		FROM task_schedules
-		WHERE is_active = true AND next_run_at <= CURRENT_TIMESTAMP
-		ORDER BY next_run_at ASC
+		WHERE active = true
+		ORDER BY created_at ASC
 	`
 
 	rows, err := s.db.Query(query)
@@ -126,7 +118,7 @@ func (s *SchedulesService) ListActiveSchedules() ([]models.TaskSchedule, error) 
 	}
 	defer rows.Close()
 
-	var schedules []models.TaskSchedule
+	schedules := make([]models.TaskSchedule, 0)
 	for rows.Next() {
 		schedule, scanErr := s.scanTaskSchedule(rows)
 		if scanErr != nil {
@@ -147,19 +139,24 @@ func (s *SchedulesService) CreateSchedule(familyID, createdBy string, req *model
 	scheduleID := generateScheduleID()
 	now := time.Now()
 
+	// For now, map the request to the actual database schema
+	// This is a temporary fix until the request models are updated
 	query := `
-		INSERT INTO task_schedules (id, family_id, name, description, task_template,
-								   assigned_to, schedule_type, cron_expression, interval_minutes,
-								   days_of_week, start_date, end_date, next_run_at, is_active,
-								   created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO task_schedules (id, family_id, created_by, title, description, task_type,
+								   assigned_to, days_of_week, time_of_day, priority, points,
+								   active, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := s.db.Exec(query,
-		scheduleID, familyID, req.Name, req.Description, req.TaskTemplate,
-		req.AssignedTo, req.ScheduleType, req.CronExpression, req.IntervalMinutes,
-		req.DaysOfWeek, req.StartDate, req.EndDate, req.NextRunAt, true,
-		createdBy, now, now,
+	// Convert days_of_week array to JSON string for database storage
+	daysJSON, err := json.Marshal(req.DaysOfWeek)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal days_of_week: %w", err)
+	}
+
+	_, err = s.db.Exec(query,
+		scheduleID, familyID, createdBy, req.Title, req.Description, req.TaskType,
+		req.AssignedTo, string(daysJSON), req.TimeOfDay, req.Priority, 0, true, now,
 	)
 
 	if err != nil {
@@ -171,60 +168,51 @@ func (s *SchedulesService) CreateSchedule(familyID, createdBy string, req *model
 
 // UpdateSchedule updates an existing task schedule
 func (s *SchedulesService) UpdateSchedule(scheduleID string, req *models.UpdateTaskScheduleRequest) (*models.TaskSchedule, error) {
-	// Build dynamic update query
-	setParts := []string{"updated_at = CURRENT_TIMESTAMP"}
+	// Simplified update function that maps to actual database schema
+	// TODO: Update request models to match database schema
+
+	setParts := []string{}
 	args := []interface{}{}
 
-	if req.Name != nil {
-		setParts = append(setParts, "name = ?")
-		args = append(args, *req.Name)
+	if req.Title != nil {
+		setParts = append(setParts, "title = ?")
+		args = append(args, *req.Title)
 	}
 	if req.Description != nil {
 		setParts = append(setParts, "description = ?")
 		args = append(args, *req.Description)
 	}
-	if req.TaskTemplate != nil {
-		setParts = append(setParts, "task_template = ?")
-		args = append(args, *req.TaskTemplate)
-	}
 	if req.AssignedTo != nil {
 		setParts = append(setParts, "assigned_to = ?")
 		args = append(args, *req.AssignedTo)
 	}
-	if req.ScheduleType != nil {
-		setParts = append(setParts, "schedule_type = ?")
-		args = append(args, *req.ScheduleType)
-	}
-	if req.CronExpression != nil {
-		setParts = append(setParts, "cron_expression = ?")
-		args = append(args, *req.CronExpression)
-	}
-	if req.IntervalMinutes != nil {
-		setParts = append(setParts, "interval_minutes = ?")
-		args = append(args, *req.IntervalMinutes)
-	}
 	if req.DaysOfWeek != nil {
+		// Convert []string to JSON string for database storage
+		daysJSON, marshalErr := json.Marshal(*req.DaysOfWeek)
+		if marshalErr != nil {
+			return nil, fmt.Errorf("cannot marshal days of week: %v", marshalErr)
+		}
 		setParts = append(setParts, "days_of_week = ?")
-		args = append(args, *req.DaysOfWeek)
+		args = append(args, string(daysJSON))
 	}
-	if req.StartDate != nil {
-		setParts = append(setParts, "start_date = ?")
-		args = append(args, *req.StartDate)
+	if req.TaskType != nil {
+		setParts = append(setParts, "task_type = ?")
+		args = append(args, *req.TaskType)
 	}
-	if req.EndDate != nil {
-		setParts = append(setParts, "end_date = ?")
-		args = append(args, *req.EndDate)
+	if req.TimeOfDay != nil {
+		setParts = append(setParts, "time_of_day = ?")
+		args = append(args, *req.TimeOfDay)
 	}
-	if req.NextRunAt != nil {
-		setParts = append(setParts, "next_run_at = ?")
-		args = append(args, *req.NextRunAt)
+	if req.Priority != nil {
+		setParts = append(setParts, "priority = ?")
+		args = append(args, *req.Priority)
 	}
-	if req.IsActive != nil {
-		setParts = append(setParts, "is_active = ?")
-		args = append(args, *req.IsActive)
+	if req.Active != nil {
+		setParts = append(setParts, "active = ?")
+		args = append(args, *req.Active)
 	}
 
-	if len(setParts) == 1 { // Only updated_at
+	if len(setParts) == 0 {
 		return s.GetSchedule(scheduleID) // No changes, return current
 	}
 
@@ -276,8 +264,9 @@ func (s *SchedulesService) DeleteSchedule(scheduleID string) error {
 }
 
 // UpdateNextRunTime updates the next run time for a schedule
+// Note: This field doesn't exist in current schema - using last_generated_date as workaround
 func (s *SchedulesService) UpdateNextRunTime(scheduleID string, nextRunAt time.Time) error {
-	query := `UPDATE task_schedules SET next_run_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+	query := `UPDATE task_schedules SET last_generated_date = ? WHERE id = ?`
 
 	result, err := s.db.Exec(query, nextRunAt, scheduleID)
 	if err != nil {
@@ -298,7 +287,7 @@ func (s *SchedulesService) UpdateNextRunTime(scheduleID string, nextRunAt time.T
 
 // ActivateSchedule activates a schedule
 func (s *SchedulesService) ActivateSchedule(scheduleID string) error {
-	query := `UPDATE task_schedules SET is_active = true, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+	query := `UPDATE task_schedules SET active = true WHERE id = ?`
 
 	result, err := s.db.Exec(query, scheduleID)
 	if err != nil {
@@ -319,7 +308,7 @@ func (s *SchedulesService) ActivateSchedule(scheduleID string) error {
 
 // DeactivateSchedule deactivates a schedule
 func (s *SchedulesService) DeactivateSchedule(scheduleID string) error {
-	query := `UPDATE task_schedules SET is_active = false, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+	query := `UPDATE task_schedules SET active = false WHERE id = ?`
 
 	result, err := s.db.Exec(query, scheduleID)
 	if err != nil {
@@ -344,15 +333,14 @@ func (s *SchedulesService) scanTaskSchedule(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.TaskSchedule, error) {
 	var schedule models.TaskSchedule
-	var description, assignedTo, cronExpression, daysOfWeek, endDate sql.NullString
-	var intervalMinutes sql.NullInt64
+	var description, assignedTo, daysOfWeek, timeOfDay sql.NullString
+	var lastGeneratedDate sql.NullTime
 
 	err := scanner.Scan(
-		&schedule.ID, &schedule.FamilyID, &schedule.Name, &description,
-		&schedule.TaskTemplate, &assignedTo, &schedule.ScheduleType,
-		&cronExpression, &intervalMinutes, &daysOfWeek, &schedule.StartDate,
-		&endDate, &schedule.NextRunAt, &schedule.IsActive, &schedule.CreatedBy,
-		&schedule.CreatedAt, &schedule.UpdatedAt,
+		&schedule.ID, &schedule.FamilyID, &schedule.CreatedBy, &schedule.Title,
+		&description, &schedule.TaskType, &assignedTo, &daysOfWeek,
+		&timeOfDay, &schedule.Priority, &schedule.Points, &schedule.Active,
+		&schedule.CreatedAt, &lastGeneratedDate,
 	)
 	if err != nil {
 		return nil, err
@@ -365,23 +353,104 @@ func (s *SchedulesService) scanTaskSchedule(scanner interface {
 	if assignedTo.Valid {
 		schedule.AssignedTo = &assignedTo.String
 	}
-	if cronExpression.Valid {
-		schedule.CronExpression = &cronExpression.String
-	}
-	if intervalMinutes.Valid {
-		val := int(intervalMinutes.Int64)
-		schedule.IntervalMinutes = &val
-	}
 	if daysOfWeek.Valid {
 		schedule.DaysOfWeek = &daysOfWeek.String
 	}
-	if endDate.Valid {
-		if parsed, parseErr := time.Parse(time.RFC3339, endDate.String); parseErr == nil {
-			schedule.EndDate = &parsed
-		}
+	if timeOfDay.Valid {
+		schedule.TimeOfDay = &timeOfDay.String
+	}
+	if lastGeneratedDate.Valid {
+		schedule.LastGeneratedDate = &lastGeneratedDate.Time
 	}
 
 	return &schedule, nil
+}
+
+// UpdateLastGeneratedDate updates the last generated date for a schedule
+func (s *SchedulesService) UpdateLastGeneratedDate(scheduleID string, endDate time.Time) error {
+	query := `
+		UPDATE task_schedules
+		SET last_generated_date = ?
+		WHERE id = ? AND (last_generated_date IS NULL OR last_generated_date < ?)
+	`
+
+	dateStr := endDate.Format("2006-01-02 15:04:05")
+	_, err := s.db.Exec(query, dateStr, scheduleID, dateStr)
+	if err != nil {
+		return fmt.Errorf("failed to update last generated date: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteScheduleWithTasks deletes a schedule and all its tasks in a transaction
+func (s *SchedulesService) DeleteScheduleWithTasks(scheduleID string) error {
+	return s.db.BeginCommit(func(tx *sql.Tx) error {
+		defer func() {
+			_ = tx.Rollback() // nolint:errcheck
+		}()
+
+		// First, delete all tasks associated with this schedule
+		deleteTasksQuery := `DELETE FROM tasks WHERE schedule_id = ?`
+		_, err := tx.Exec(deleteTasksQuery, scheduleID)
+		if err != nil {
+			return fmt.Errorf("failed to delete tasks for schedule %s: %w", scheduleID, err)
+		}
+
+		// Then, delete the schedule itself
+		deleteScheduleQuery := `DELETE FROM task_schedules WHERE id = ?`
+		result, err := tx.Exec(deleteScheduleQuery, scheduleID)
+		if err != nil {
+			return fmt.Errorf("failed to delete schedule %s: %w", scheduleID, err)
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to get schedule rows affected: %w", err)
+		}
+		if rowsAffected == 0 {
+			return fmt.Errorf("schedule %s not found", scheduleID)
+		}
+
+		return tx.Commit()
+	})
+}
+
+// GetSchedulesNeedingGeneration returns schedules that need task generation
+func (s *SchedulesService) GetSchedulesNeedingGeneration() ([]models.TaskSchedule, error) {
+	query := `
+		SELECT id, family_id, created_by, title, description, task_type, assigned_to,
+			   days_of_week, time_of_day, priority, points, active, created_at,
+			   last_generated_date
+		FROM task_schedules
+		WHERE active = true
+		AND (
+			last_generated_date IS NULL OR
+			last_generated_date < date('now', '+1 month')
+		)
+		ORDER BY created_at ASC
+	`
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schedules needing generation: %w", err)
+	}
+	defer rows.Close()
+
+	schedules := make([]models.TaskSchedule, 0)
+	for rows.Next() {
+		schedule, scanErr := s.scanTaskSchedule(rows)
+		if scanErr != nil {
+			return nil, fmt.Errorf("failed to scan schedule needing generation: %w", scanErr)
+		}
+		schedules = append(schedules, *schedule)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating schedules needing generation: %w", err)
+	}
+
+	return schedules, nil
 }
 
 func generateScheduleID() string {

@@ -37,8 +37,6 @@ type Task struct {
 	Status      string     `json:"status" db:"status"`       // 'pending', 'completed'
 	Priority    int        `json:"priority" db:"priority"`
 	DueDate     *time.Time `json:"due_date" db:"due_date"`
-	Frequency   *string    `json:"frequency" db:"frequency"` // For recurring tasks
-	Points      int        `json:"points" db:"points"`       // Gamification
 	CreatedBy   string     `json:"created_by" db:"created_by"`
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
 	CompletedAt *time.Time `json:"completed_at" db:"completed_at"`
@@ -166,9 +164,7 @@ func (t *Task) SetDefaults() {
 		t.TaskType = TaskTypeTodo
 	}
 
-	if t.FamilyID == "" {
-		t.FamilyID = "fam1" // Default family for now
-	}
+	// Note: FamilyID should be set explicitly by the caller, not defaulted
 
 	if t.CreatedAt.IsZero() {
 		t.CreatedAt = time.Now()

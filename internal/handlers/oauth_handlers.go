@@ -7,21 +7,21 @@ import (
 	"strings"
 
 	"famstack/internal/auth"
-	"famstack/internal/integrations"
 	"famstack/internal/jobsystem"
 	"famstack/internal/oauth"
+	"famstack/internal/services"
 )
 
 // OAuthHandlers handles OAuth-related HTTP requests
 type OAuthHandlers struct {
 	oauthService        *oauth.Service
 	authService         *auth.Service
-	jobSystem           *jobsystem.SQLiteJobSystem
-	integrationsService *integrations.Service
+	jobSystem           *jobsystem.DBJobSystem
+	integrationsService *services.IntegrationsService
 }
 
 // NewOAuthHandlers creates new OAuth handlers
-func NewOAuthHandlers(oauthService *oauth.Service, authService *auth.Service, jobSystem *jobsystem.SQLiteJobSystem, integrationsService *integrations.Service) *OAuthHandlers {
+func NewOAuthHandlers(oauthService *oauth.Service, authService *auth.Service, jobSystem *jobsystem.DBJobSystem, integrationsService *services.IntegrationsService) *OAuthHandlers {
 	return &OAuthHandlers{
 		oauthService:        oauthService,
 		authService:         authService,
@@ -57,7 +57,10 @@ func (h *OAuthHandlers) HandleGoogleConnect(w http.ResponseWriter, r *http.Reque
 
 // HandleGoogleCallback handles Google OAuth callback
 func (h *OAuthHandlers) HandleGoogleCallback(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("🔄 OAuth callback started - URL: %s\n", r.URL.String())
+
 	if r.Method != "GET" {
+		fmt.Printf("❌ OAuth callback failed: invalid method %s\n", r.Method)
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -67,42 +70,58 @@ func (h *OAuthHandlers) HandleGoogleCallback(w http.ResponseWriter, r *http.Requ
 	state := r.URL.Query().Get("state")
 	errorParam := r.URL.Query().Get("error")
 
+	fmt.Printf("📋 OAuth callback params - Code: %s, State: %s, Error: %s\n",
+		code[:min(10, len(code))]+"...", state[:min(10, len(state))]+"...", errorParam)
+
 	if errorParam != "" {
+		fmt.Printf("❌ OAuth callback failed: error parameter %s\n", errorParam)
 		http.Redirect(w, r, "/integrations?error=oauth_denied", http.StatusTemporaryRedirect)
 		return
 	}
 
 	if code == "" || state == "" {
+		fmt.Printf("❌ OAuth callback failed: missing code or state\n")
 		http.Redirect(w, r, "/integrations?error=invalid_callback", http.StatusTemporaryRedirect)
 		return
 	}
 
-	// Process OAuth callback
-	token, err := h.oauthService.HandleCallback(oauth.ProviderGoogle, code, state)
-	if err != nil {
-		http.Redirect(w, r, fmt.Sprintf("/integrations?error=callback_failed&details=%s", err.Error()), http.StatusTemporaryRedirect)
-		return
-	}
-
-	// Get user ID from state (OAuth service should decode this)
+	// Get user ID from state BEFORE processing callback (callback deletes state)
+	fmt.Printf("👤 Getting user ID from state...\n")
 	userID, err := h.oauthService.GetUserIDFromState(state)
 	if err != nil {
+		fmt.Printf("❌ Failed to get user ID from state: %v\n", err)
 		http.Redirect(w, r, fmt.Sprintf("/integrations?error=invalid_state&details=%s", err.Error()), http.StatusTemporaryRedirect)
 		return
 	}
+	fmt.Printf("✅ User ID retrieved: %s\n", userID)
+
+	// Process OAuth callback
+	fmt.Printf("🔑 Processing OAuth token exchange...\n")
+	token, err := h.oauthService.HandleCallback(oauth.ProviderGoogle, code, state)
+	if err != nil {
+		fmt.Printf("❌ OAuth token exchange failed: %v\n", err)
+		http.Redirect(w, r, fmt.Sprintf("/integrations?error=callback_failed&details=%s", err.Error()), http.StatusTemporaryRedirect)
+		return
+	}
+	fmt.Printf("✅ OAuth token received - AccessToken: %s..., ExpiresAt: %v\n",
+		token.AccessToken[:min(20, len(token.AccessToken))], token.ExpiresAt)
 
 	// Get user's family ID
-	user, err := h.authService.GetUserByID(userID)
+	fmt.Printf("👨‍👩‍👧‍👦 Getting user family info...\n")
+	user, err := h.authService.GetFamilyMemberByID(userID)
 	if err != nil {
+		fmt.Printf("❌ Failed to get user family info: %v\n", err)
 		http.Redirect(w, r, fmt.Sprintf("/integrations?error=user_not_found&details=%s", err.Error()), http.StatusTemporaryRedirect)
 		return
 	}
+	fmt.Printf("✅ User family retrieved: FamilyID=%s\n", user.FamilyID)
 
 	// Create integration record
-	integrationReq := &integrations.CreateIntegrationRequest{
-		IntegrationType: integrations.TypeCalendar,
-		Provider:        integrations.ProviderGoogle,
-		AuthMethod:      integrations.AuthOAuth2,
+	fmt.Printf("🔗 Creating integration record...\n")
+	integrationReq := &services.CreateIntegrationRequest{
+		IntegrationType: services.TypeCalendar,
+		Provider:        services.ProviderGoogle,
+		AuthMethod:      services.AuthOAuth2,
 		DisplayName:     "Google Calendar",
 		Description:     "Sync Google Calendar events",
 		Settings: map[string]any{
@@ -113,11 +132,14 @@ func (h *OAuthHandlers) HandleGoogleCallback(w http.ResponseWriter, r *http.Requ
 
 	createdIntegration, err := h.integrationsService.CreateIntegration(user.FamilyID, userID, integrationReq)
 	if err != nil {
+		fmt.Printf("❌ Failed to create integration: %v\n", err)
 		http.Redirect(w, r, fmt.Sprintf("/integrations?error=integration_failed&details=%s", err.Error()), http.StatusTemporaryRedirect)
 		return
 	}
+	fmt.Printf("✅ Integration created: ID=%s, Status=%s\n", createdIntegration.ID, createdIntegration.Status)
 
 	// Store OAuth credentials for the integration
+	fmt.Printf("🔐 Storing OAuth credentials...\n")
 	err = h.integrationsService.StoreOAuthCredentials(
 		createdIntegration.ID,
 		token.AccessToken,
@@ -127,12 +149,24 @@ func (h *OAuthHandlers) HandleGoogleCallback(w http.ResponseWriter, r *http.Requ
 		&token.ExpiresAt,
 	)
 	if err != nil {
-		// Integration created but credentials failed - log error but continue
-		fmt.Printf("Warning: Failed to store OAuth credentials for integration %s: %v\n", createdIntegration.ID, err)
+		fmt.Printf("❌ Failed to store OAuth credentials for integration %s: %v\n", createdIntegration.ID, err)
+		// Integration created but credentials failed - continue with error in URL
+		http.Redirect(w, r, fmt.Sprintf("/integrations?error=credentials_failed&details=%s", err.Error()), http.StatusTemporaryRedirect)
+		return
 	}
+	fmt.Printf("✅ OAuth credentials stored successfully for integration %s\n", createdIntegration.ID)
 
 	// Success - redirect to integrations page
+	fmt.Printf("🎉 OAuth flow completed successfully! Redirecting to integrations page\n")
 	http.Redirect(w, r, "/integrations?success=google_connected", http.StatusTemporaryRedirect)
+}
+
+// Helper function for safe string truncation
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // HandleDisconnectProvider disconnects OAuth provider

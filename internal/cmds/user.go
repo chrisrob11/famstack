@@ -134,7 +134,7 @@ func createUser(ctx *cli.Context) error {
 	}
 
 	// Initialize auth service
-	authService := auth.NewService(db.DB, encryptionService, "famstack")
+	authService := auth.NewService(db, encryptionService, "famstack")
 
 	// Get user details
 	email := ctx.String("email")
@@ -211,7 +211,7 @@ func createUser(ctx *cli.Context) error {
 		FamilyID:  familyID,
 	}
 
-	user, err := authService.CreateUser(req)
+	user, err := authService.CreateFamilyMember(req)
 	if err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -221,7 +221,7 @@ func createUser(ctx *cli.Context) error {
 	if user.Email != nil {
 		fmt.Printf("Email: %s\n", *user.Email)
 	}
-	fmt.Printf("Name: %s\n", user.Name)
+	fmt.Printf("Name: %s\n", user.FullName())
 	if user.Role != nil {
 		fmt.Printf("Role: %s\n", *user.Role)
 	}
@@ -242,7 +242,7 @@ func listUsers(ctx *cli.Context) error {
 
 	// Query family members with auth info
 	rows, err := db.Query(`
-		SELECT id, email, name, member_type, role, family_id, created_at
+		SELECT id, email, first_name, last_name, member_type, role, family_id, created_at
 		FROM family_members
 		WHERE password_hash IS NOT NULL
 		ORDER BY created_at DESC
@@ -257,10 +257,10 @@ func listUsers(ctx *cli.Context) error {
 	fmt.Println(strings.Repeat("-", 100))
 
 	for rows.Next() {
-		var id, familyID, createdAt, name, memberType string
+		var id, familyID, createdAt, firstName, lastName, memberType string
 		var email, role sql.NullString
 
-		err := rows.Scan(&id, &email, &name, &memberType, &role, &familyID, &createdAt)
+		err := rows.Scan(&id, &email, &firstName, &lastName, &memberType, &role, &familyID, &createdAt)
 		if err != nil {
 			return fmt.Errorf("failed to scan family member: %w", err)
 		}
@@ -279,16 +279,19 @@ func listUsers(ctx *cli.Context) error {
 			roleStr = role.String
 		}
 
+		// Combine first and last name
+		fullName := firstName + " " + lastName
+
 		// Truncate other fields if too long
 		if len(id) > 8 {
 			id = id[:8]
 		}
-		if len(name) > 20 {
-			name = name[:17] + "..."
+		if len(fullName) > 20 {
+			fullName = fullName[:17] + "..."
 		}
 
 		fmt.Printf("%-8s %-25s %-20s %-10s %-8s %-8s %-20s\n",
-			id, emailStr, name, memberType, roleStr, familyID, createdAt)
+			id, emailStr, fullName, memberType, roleStr, familyID, createdAt)
 	}
 
 	return nil
