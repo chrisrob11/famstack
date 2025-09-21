@@ -5,16 +5,35 @@ import (
 	"fmt"
 	"time"
 
+	"famstack/internal/database"
 	"famstack/internal/models"
 )
 
 // CalendarService handles all calendar and event database operations
 type CalendarService struct {
-	db *sql.DB
+	db *database.Fascade
+}
+
+// CalendarEventForSync represents a calendar event for sync operations
+type CalendarEventForSync struct {
+	ID          string     `json:"id"`
+	FamilyID    string     `json:"family_id"`
+	CreatedBy   string     `json:"created_by"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Location    string     `json:"location"`
+	StartTime   time.Time  `json:"start_time"`
+	EndTime     *time.Time `json:"end_time"`
+	AllDay      bool       `json:"all_day"`
+	Attendees   []string   `json:"attendees"`
+	SourceType  string     `json:"source_type"`
+	SourceID    string     `json:"source_id"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // NewCalendarService creates a new calendar service
-func NewCalendarService(db *sql.DB) *CalendarService {
+func NewCalendarService(db *database.Fascade) *CalendarService {
 	return &CalendarService{db: db}
 }
 
@@ -69,7 +88,7 @@ func (s *CalendarService) ListEvents(familyID string, startDate, endDate time.Ti
 
 	rows, err := s.db.Query(query, familyID, startDate, endDate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list calendar events: %w", err)
+		return []models.CalendarEvent{}, fmt.Errorf("failed to list calendar events: %w", err)
 	}
 	defer rows.Close()
 
@@ -77,13 +96,18 @@ func (s *CalendarService) ListEvents(familyID string, startDate, endDate time.Ti
 	for rows.Next() {
 		event, scanErr := s.scanCalendarEvent(rows)
 		if scanErr != nil {
-			return nil, fmt.Errorf("failed to scan calendar event: %w", scanErr)
+			return []models.CalendarEvent{}, fmt.Errorf("failed to scan calendar event: %w", scanErr)
 		}
 		events = append(events, *event)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating calendar events: %w", err)
+		return []models.CalendarEvent{}, fmt.Errorf("error iterating calendar events: %w", err)
+	}
+
+	// Ensure we always return a non-nil slice
+	if events == nil {
+		events = []models.CalendarEvent{}
 	}
 
 	return events, nil
@@ -101,7 +125,7 @@ func (s *CalendarService) ListEventsByMember(memberID string, startDate, endDate
 
 	rows, err := s.db.Query(query, memberID, startDate, endDate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list events by member: %w", err)
+		return []models.CalendarEvent{}, fmt.Errorf("failed to list events by member: %w", err)
 	}
 	defer rows.Close()
 
@@ -109,13 +133,18 @@ func (s *CalendarService) ListEventsByMember(memberID string, startDate, endDate
 	for rows.Next() {
 		event, scanErr := s.scanCalendarEvent(rows)
 		if scanErr != nil {
-			return nil, fmt.Errorf("failed to scan calendar event: %w", scanErr)
+			return []models.CalendarEvent{}, fmt.Errorf("failed to scan calendar event: %w", scanErr)
 		}
 		events = append(events, *event)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating calendar events: %w", err)
+		return []models.CalendarEvent{}, fmt.Errorf("error iterating calendar events: %w", err)
+	}
+
+	// Ensure we always return a non-nil slice
+	if events == nil {
+		events = []models.CalendarEvent{}
 	}
 
 	return events, nil
@@ -233,8 +262,8 @@ func (s *CalendarService) DeleteEvent(eventID string) error {
 // GetUnifiedCalendarEvents returns unified calendar events (from external integrations)
 func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, endDate time.Time) ([]models.UnifiedCalendarEvent, error) {
 	query := `
-		SELECT id, family_id, integration_id, external_event_id, title, description,
-			   start_time, end_time, location, organizer, attendees, created_at, updated_at
+		SELECT id, family_id, title, description, start_time, end_time, location,
+			   all_day, event_type, color, created_by, priority, status, created_at, updated_at
 		FROM unified_calendar_events
 		WHERE family_id = ? AND start_time >= ? AND start_time <= ?
 		ORDER BY start_time ASC
@@ -242,7 +271,7 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 
 	rows, err := s.db.Query(query, familyID, startDate, endDate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list unified calendar events: %w", err)
+		return []models.UnifiedCalendarEvent{}, fmt.Errorf("failed to list unified calendar events: %w", err)
 	}
 	defer rows.Close()
 
@@ -250,13 +279,18 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 	for rows.Next() {
 		event, scanErr := s.scanUnifiedCalendarEvent(rows)
 		if scanErr != nil {
-			return nil, fmt.Errorf("failed to scan unified calendar event: %w", scanErr)
+			return []models.UnifiedCalendarEvent{}, fmt.Errorf("failed to scan unified calendar event: %w", scanErr)
 		}
 		events = append(events, *event)
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating unified calendar events: %w", err)
+		return []models.UnifiedCalendarEvent{}, fmt.Errorf("error iterating unified calendar events: %w", err)
+	}
+
+	// Ensure we always return a non-nil slice
+	if events == nil {
+		events = []models.UnifiedCalendarEvent{}
 	}
 
 	return events, nil
@@ -290,19 +324,20 @@ func (s *CalendarService) CreateUnifiedCalendarEvent(req *models.CreateUnifiedCa
 // GetUnifiedCalendarEvent returns a unified calendar event by ID
 func (s *CalendarService) GetUnifiedCalendarEvent(eventID string) (*models.UnifiedCalendarEvent, error) {
 	query := `
-		SELECT id, family_id, integration_id, external_event_id, title, description,
-			   start_time, end_time, location, organizer, attendees, created_at, updated_at
+		SELECT id, family_id, title, description, start_time, end_time, location,
+			   all_day, event_type, color, created_by, priority, status, created_at, updated_at
 		FROM unified_calendar_events
 		WHERE id = ?
 	`
 
 	var event models.UnifiedCalendarEvent
-	var description, location, organizer, attendees sql.NullString
+	var description, location, createdBy sql.NullString
 
 	err := s.db.QueryRow(query, eventID).Scan(
-		&event.ID, &event.FamilyID, &event.IntegrationID, &event.ExternalEventID,
-		&event.Title, &description, &event.StartTime, &event.EndTime, &location,
-		&organizer, &attendees, &event.CreatedAt, &event.UpdatedAt,
+		&event.ID, &event.FamilyID, &event.Title, &description,
+		&event.StartTime, &event.EndTime, &location, &event.AllDay,
+		&event.EventType, &event.Color, &createdBy, &event.Priority,
+		&event.Status, &event.CreatedAt, &event.UpdatedAt,
 	)
 
 	if err != nil {
@@ -319,14 +354,75 @@ func (s *CalendarService) GetUnifiedCalendarEvent(eventID string) (*models.Unifi
 	if location.Valid {
 		event.Location = &location.String
 	}
-	if organizer.Valid {
-		event.Organizer = &organizer.String
-	}
-	if attendees.Valid {
-		event.Attendees = &attendees.String
+	if createdBy.Valid {
+		event.CreatedBy = &createdBy.String
 	}
 
 	return &event, nil
+}
+
+// UpsertCalendarEvent inserts or updates a calendar event from external sync
+func (s *CalendarService) UpsertCalendarEvent(event *CalendarEventForSync) error {
+	query := `
+		INSERT OR REPLACE INTO calendar_events
+		(id, family_id, created_by, title, description, location, start_time, end_time,
+		 all_day, attendees, source_type, source_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	attendeesJSON := "[]"
+	if len(event.Attendees) > 0 {
+		// Simple JSON encoding for attendees
+		attendeesJSON = `["` + joinStrings(event.Attendees, `","`) + `"]`
+	}
+
+	_, err := s.db.Exec(query,
+		event.ID, event.FamilyID, event.CreatedBy, event.Title, event.Description,
+		event.Location, event.StartTime, event.EndTime, event.AllDay,
+		attendeesJSON, event.SourceType, event.SourceID,
+		event.CreatedAt, event.UpdatedAt,
+	)
+
+	return err
+}
+
+// GetSyncSettings retrieves sync settings for a user
+func (s *CalendarService) GetSyncSettings(userID string) (*SyncSettings, error) {
+	query := `
+		SELECT sync_frequency_minutes, sync_range_days
+		FROM calendar_sync_settings
+		WHERE created_by = ?
+	`
+
+	var settings SyncSettings
+	err := s.db.QueryRow(query, userID).Scan(&settings.SyncFrequencyMinutes, &settings.SyncRangeDays)
+	if err != nil {
+		// Return default settings if not found
+		return &SyncSettings{
+			SyncFrequencyMinutes: 15,
+			SyncRangeDays:        30,
+		}, nil
+	}
+
+	return &settings, nil
+}
+
+// UpdateSyncStatus updates the sync status for a user
+func (s *CalendarService) UpdateSyncStatus(userID, status, errorMsg string, eventsSynced int) error {
+	query := `
+		INSERT OR REPLACE INTO calendar_sync_settings
+		(created_by, last_sync_at, sync_status, sync_error, events_synced, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+
+	_, err := s.db.Exec(query, userID, time.Now(), status, errorMsg, eventsSynced, time.Now())
+	return err
+}
+
+// SyncSettings represents calendar sync configuration
+type SyncSettings struct {
+	SyncFrequencyMinutes int `json:"sync_frequency_minutes"`
+	SyncRangeDays        int `json:"sync_range_days"`
 }
 
 // Helper functions
@@ -364,12 +460,13 @@ func (s *CalendarService) scanUnifiedCalendarEvent(scanner interface {
 	Scan(dest ...interface{}) error
 }) (*models.UnifiedCalendarEvent, error) {
 	var event models.UnifiedCalendarEvent
-	var description, location, organizer, attendees sql.NullString
+	var description, location, createdBy sql.NullString
 
 	err := scanner.Scan(
-		&event.ID, &event.FamilyID, &event.IntegrationID, &event.ExternalEventID,
-		&event.Title, &description, &event.StartTime, &event.EndTime, &location,
-		&organizer, &attendees, &event.CreatedAt, &event.UpdatedAt,
+		&event.ID, &event.FamilyID, &event.Title, &description,
+		&event.StartTime, &event.EndTime, &location, &event.AllDay,
+		&event.EventType, &event.Color, &createdBy, &event.Priority,
+		&event.Status, &event.CreatedAt, &event.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -382,11 +479,8 @@ func (s *CalendarService) scanUnifiedCalendarEvent(scanner interface {
 	if location.Valid {
 		event.Location = &location.String
 	}
-	if organizer.Valid {
-		event.Organizer = &organizer.String
-	}
-	if attendees.Valid {
-		event.Attendees = &attendees.String
+	if createdBy.Valid {
+		event.CreatedBy = &createdBy.String
 	}
 
 	return &event, nil

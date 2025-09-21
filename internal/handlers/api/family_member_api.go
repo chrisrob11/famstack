@@ -23,17 +23,30 @@ func NewFamilyMemberAPIHandler(service *services.FamilyMemberService) *FamilyMem
 	}
 }
 
-// ListFamilyMembers handles GET /api/v1/families/{family_id}/members
+// ListFamilyMembers handles GET /api/families/{family_id}/members
 func (h *FamilyMemberAPIHandler) ListFamilyMembers(w http.ResponseWriter, r *http.Request) {
-	// Extract family ID from session context
+	// Extract family ID from URL path
+	familyID := h.extractFamilyIDFromPath(r.URL.Path)
+	if familyID == "" {
+		http.Error(w, "Family ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Verify user has access to this family
 	session := auth.GetSessionFromContext(r.Context())
 	if session == nil {
 		http.Error(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
 
+	// For now, ensure user can only access their own family
+	if session.FamilyID != familyID {
+		http.Error(w, "Access denied to this family", http.StatusForbidden)
+		return
+	}
+
 	// List family members
-	members, err := h.service.ListFamilyMembers(session.FamilyID)
+	members, err := h.service.ListFamilyMembers(familyID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list family members: %v", err), http.StatusInternalServerError)
 		return
@@ -293,17 +306,51 @@ func (h *FamilyMemberAPIHandler) UnlinkUserFromMember(w http.ResponseWriter, r *
 // Helper methods
 
 func (h *FamilyMemberAPIHandler) extractIDFromPath(path, prefix string) string {
-	if !strings.HasPrefix(path, prefix) {
+	// Handle both v1 and non-v1 paths for member ID extraction
+	var actualPrefix string
+	if strings.Contains(path, "/api/v1/families/") && !strings.HasPrefix(prefix, "/api/v1/") {
+		// Convert non-v1 prefix to v1 prefix for compatibility
+		actualPrefix = strings.Replace(prefix, "/api/families/", "/api/v1/families/", 1)
+	} else {
+		actualPrefix = prefix
+	}
+
+	if !strings.HasPrefix(path, actualPrefix) {
 		return ""
 	}
 
-	id := strings.TrimPrefix(path, prefix)
+	id := strings.TrimPrefix(path, actualPrefix)
 	// Remove any trailing slashes or path segments
 	if slashIndex := strings.Index(id, "/"); slashIndex != -1 {
 		id = id[:slashIndex]
 	}
 
 	return id
+}
+
+func (h *FamilyMemberAPIHandler) extractFamilyIDFromPath(path string) string {
+	// Handle both formats:
+	// /api/families/{family_id}/members
+	// /api/v1/families/{family_id}/members
+	var prefix string
+	if strings.HasPrefix(path, "/api/v1/families/") {
+		prefix = "/api/v1/families/"
+	} else if strings.HasPrefix(path, "/api/families/") {
+		prefix = "/api/families/"
+	} else {
+		return ""
+	}
+
+	// Remove the prefix
+	remaining := strings.TrimPrefix(path, prefix)
+
+	// Extract family ID (everything before the next slash)
+	if slashIndex := strings.Index(remaining, "/"); slashIndex != -1 {
+		return remaining[:slashIndex]
+	}
+
+	// If no slash found, the entire remaining string is the family ID
+	return remaining
 }
 
 func (h *FamilyMemberAPIHandler) writeJSON(w http.ResponseWriter, data interface{}) {

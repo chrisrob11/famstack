@@ -2,10 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path"
 	"strings"
 
+	"famstack/internal/models"
 	"famstack/internal/services"
 )
 
@@ -109,5 +111,58 @@ func (h *FamilyAPIHandler) GetFamily(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(family); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
+	}
+}
+
+// UpdateFamily updates a family's information
+func (h *FamilyAPIHandler) UpdateFamily(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "PUT" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Extract family ID from URL path
+	familyID := path.Base(r.URL.Path)
+	if familyID == "" || familyID == "/" {
+		http.Error(w, "Family ID is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Name == "" {
+		http.Error(w, "Family name is required", http.StatusBadRequest)
+		return
+	}
+
+	// Update family name
+	updateReq := &models.UpdateFamilyRequest{
+		Name: &req.Name,
+	}
+	family, err := h.familiesService.UpdateFamily(familyID, updateReq)
+	if err != nil {
+		if err.Error() == "family not found" {
+			http.Error(w, "Family not found", http.StatusNotFound)
+		} else {
+			http.Error(w, fmt.Sprintf("Failed to update family: %v", err), http.StatusInternalServerError)
+		}
+		return
+	}
+
+	h.writeJSON(w, family)
+}
+
+func (h *FamilyAPIHandler) writeJSON(w http.ResponseWriter, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		fmt.Printf("Failed to encode JSON response: %v\n", err)
 	}
 }

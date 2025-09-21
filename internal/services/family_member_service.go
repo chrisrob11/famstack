@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"famstack/internal/database"
 	"famstack/internal/models"
 )
 
 // FamilyMemberService handles family member operations
 type FamilyMemberService struct {
-	db *sql.DB
+	db *database.Fascade
 }
 
 // NewFamilyMemberService creates a new family member service
-func NewFamilyMemberService(db *sql.DB) *FamilyMemberService {
+func NewFamilyMemberService(db *database.Fascade) *FamilyMemberService {
 	return &FamilyMemberService{
 		db: db,
 	}
@@ -23,7 +24,7 @@ func NewFamilyMemberService(db *sql.DB) *FamilyMemberService {
 // ListFamilyMembers returns all family members for a family
 func (s *FamilyMemberService) ListFamilyMembers(familyID string) ([]*models.FamilyMember, error) {
 	query := `
-		SELECT id, family_id, name, nickname, member_type, age,
+		SELECT id, family_id, first_name, last_name, member_type,
 			   avatar_url, email, role, email_verified, last_login_at,
 			   display_order, is_active, created_at, updated_at
 		FROM family_members
@@ -56,7 +57,7 @@ func (s *FamilyMemberService) ListFamilyMembers(familyID string) ([]*models.Fami
 // GetFamilyMember returns a specific family member by ID
 func (s *FamilyMemberService) GetFamilyMember(memberID string) (*models.FamilyMember, error) {
 	query := `
-		SELECT id, family_id, name, nickname, member_type, age,
+		SELECT id, family_id, first_name, last_name, member_type,
 			   avatar_url, email, role, email_verified, last_login_at,
 			   display_order, is_active, created_at, updated_at
 		FROM family_members
@@ -79,11 +80,11 @@ func (s *FamilyMemberService) CreateFamilyMember(familyID string, req *models.Cr
 	}
 
 	query := `
-		INSERT INTO family_members (id, family_id, name, nickname, member_type, age, avatar_url, display_order, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO family_members (id, family_id, first_name, last_name, member_type, avatar_url, display_order, is_active, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`
 
-	_, err := s.db.Exec(query, memberID, familyID, req.Name, req.Nickname, req.MemberType, req.Age, req.AvatarURL, displayOrder)
+	_, err := s.db.Exec(query, memberID, familyID, req.FirstName, req.LastName, req.MemberType, req.AvatarURL, displayOrder)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create family member: %w", err)
 	}
@@ -95,23 +96,19 @@ func (s *FamilyMemberService) CreateFamilyMember(familyID string, req *models.Cr
 func (s *FamilyMemberService) UpdateFamilyMember(memberID string, req *models.UpdateFamilyMemberRequest) (*models.FamilyMember, error) {
 	// Build dynamic update query
 	setParts := []string{"updated_at = CURRENT_TIMESTAMP"}
-	args := []interface{}{}
+	args := []any{}
 
-	if req.Name != nil {
-		setParts = append(setParts, "name = ?")
-		args = append(args, *req.Name)
+	if req.FirstName != nil {
+		setParts = append(setParts, "first_name = ?")
+		args = append(args, *req.FirstName)
 	}
-	if req.Nickname != nil {
-		setParts = append(setParts, "nickname = ?")
-		args = append(args, *req.Nickname)
+	if req.LastName != nil {
+		setParts = append(setParts, "last_name = ?")
+		args = append(args, *req.LastName)
 	}
 	if req.MemberType != nil {
 		setParts = append(setParts, "member_type = ?")
 		args = append(args, *req.MemberType)
-	}
-	if req.Age != nil {
-		setParts = append(setParts, "age = ?")
-		args = append(args, *req.Age)
 	}
 	if req.AvatarURL != nil {
 		setParts = append(setParts, "avatar_url = ?")
@@ -168,52 +165,28 @@ func (s *FamilyMemberService) DeleteFamilyMember(memberID string) error {
 	return nil
 }
 
+// FIXME: These functions reference non-existent 'user_id' column in family_members table
+// The current schema shows family members CAN BE users with email/password fields directly
+// These functions should be removed or redesigned to match actual schema
+
 // LinkUserToFamilyMember links an existing user account to a family member
 func (s *FamilyMemberService) LinkUserToFamilyMember(memberID, userID string) error {
-	query := `UPDATE family_members SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-
-	result, err := s.db.Exec(query, userID, memberID)
-	if err != nil {
-		return fmt.Errorf("failed to link user to family member: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("family member not found")
-	}
-
-	return nil
+	// TODO: Remove this function - family_members table has no user_id column
+	// Current schema: family members ARE users with optional email/password fields
+	return fmt.Errorf("function deprecated: family_members table has no user_id column")
 }
 
 // UnlinkUserFromFamilyMember removes the user account link from a family member
 func (s *FamilyMemberService) UnlinkUserFromFamilyMember(memberID string) error {
-	query := `UPDATE family_members SET user_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-
-	result, err := s.db.Exec(query, memberID)
-	if err != nil {
-		return fmt.Errorf("failed to unlink user from family member: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to check affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("family member not found")
-	}
-
-	return nil
+	// TODO: Remove this function - family_members table has no user_id column
+	// Current schema: family members ARE users with optional email/password fields
+	return fmt.Errorf("function deprecated: family_members table has no user_id column")
 }
 
 // GetFamilyMembersWithStats returns family members with task completion statistics
 func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*models.FamilyMemberWithStats, error) {
 	query := `
-		SELECT fm.id, fm.family_id, fm.name, fm.nickname, fm.member_type, fm.age,
+		SELECT fm.id, fm.family_id, fm.first_name, fm.last_name, fm.member_type,
 			   fm.avatar_url, fm.email, fm.role, fm.email_verified, fm.last_login_at,
 			   fm.display_order, fm.is_active, fm.created_at, fm.updated_at,
 			   COUNT(t.id) as total_tasks,
@@ -222,7 +195,7 @@ func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*mod
 		FROM family_members fm
 		LEFT JOIN tasks t ON t.assigned_to = fm.id
 		WHERE fm.family_id = ? AND fm.is_active = true
-		GROUP BY fm.id, fm.family_id, fm.name, fm.nickname, fm.member_type, fm.age,
+		GROUP BY fm.id, fm.family_id, fm.first_name, fm.last_name, fm.member_type,
 				 fm.avatar_url, fm.email, fm.role, fm.email_verified, fm.last_login_at,
 				 fm.display_order, fm.is_active, fm.created_at, fm.updated_at
 		ORDER BY fm.display_order ASC, fm.created_at ASC
@@ -253,15 +226,15 @@ func (s *FamilyMemberService) GetFamilyMembersWithStats(familyID string) ([]*mod
 // Helper functions
 
 func (s *FamilyMemberService) scanFamilyMember(scanner interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }) (*models.FamilyMember, error) {
 	var member models.FamilyMember
 	var email, role sql.NullString
 	var lastLoginAt sql.NullTime
 
 	err := scanner.Scan(
-		&member.ID, &member.FamilyID, &member.Name, &member.Nickname, &member.MemberType,
-		&member.Age, &member.AvatarURL, &email, &role, &member.EmailVerified, &lastLoginAt,
+		&member.ID, &member.FamilyID, &member.FirstName, &member.LastName, &member.MemberType,
+		&member.AvatarURL, &email, &role, &member.EmailVerified, &lastLoginAt,
 		&member.DisplayOrder, &member.IsActive, &member.CreatedAt, &member.UpdatedAt,
 	)
 	if err != nil {
@@ -283,7 +256,7 @@ func (s *FamilyMemberService) scanFamilyMember(scanner interface {
 }
 
 func (s *FamilyMemberService) scanFamilyMemberWithStats(scanner interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }) (*models.FamilyMemberWithStats, error) {
 	var member models.FamilyMember
 	var email, role sql.NullString
@@ -291,8 +264,8 @@ func (s *FamilyMemberService) scanFamilyMemberWithStats(scanner interface {
 	var totalTasks, completedTasks, pendingTasks int
 
 	err := scanner.Scan(
-		&member.ID, &member.FamilyID, &member.Name, &member.Nickname, &member.MemberType,
-		&member.Age, &member.AvatarURL, &email, &role, &member.EmailVerified, &lastLoginAt,
+		&member.ID, &member.FamilyID, &member.FirstName, &member.LastName, &member.MemberType,
+		&member.AvatarURL, &email, &role, &member.EmailVerified, &lastLoginAt,
 		&member.DisplayOrder, &member.IsActive, &member.CreatedAt, &member.UpdatedAt,
 		&totalTasks, &completedTasks, &pendingTasks,
 	)

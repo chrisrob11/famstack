@@ -11,20 +11,20 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
 
-	"famstack/internal/database"
 	"famstack/internal/encryption"
+	"famstack/internal/services"
 )
 
 // Service handles OAuth operations
 type Service struct {
-	db            *database.DB
+	oauthService  *services.OAuthService
 	config        *OAuthConfig
 	googleConfig  *oauth2.Config
 	encryptionSvc *encryption.Service
 }
 
 // NewService creates a new OAuth service
-func NewService(db *database.DB, config *OAuthConfig, encryptionSvc *encryption.Service) *Service {
+func NewService(oauthService *services.OAuthService, config *OAuthConfig, encryptionSvc *encryption.Service) *Service {
 	var googleConfig *oauth2.Config
 	if config.Google != nil {
 		googleConfig = &oauth2.Config{
@@ -37,7 +37,7 @@ func NewService(db *database.DB, config *OAuthConfig, encryptionSvc *encryption.
 	}
 
 	return &Service{
-		db:            db,
+		oauthService:  oauthService,
 		config:        config,
 		googleConfig:  googleConfig,
 		encryptionSvc: encryptionSvc,
@@ -76,49 +76,48 @@ func (s *Service) HandleCallback(provider Provider, code, state string) (*OAuthT
 
 // GetToken retrieves stored OAuth token for user and provider
 func (s *Service) GetToken(userID string, provider Provider) (*OAuthToken, error) {
-	query := `
-		SELECT id, family_id, user_id, provider, access_token, refresh_token,
-		       token_type, expires_at, scope, created_at, updated_at
-		FROM oauth_tokens
-		WHERE user_id = ? AND provider = ?
-	`
-
-	var token OAuthToken
-	var encryptedAccessToken, encryptedRefreshToken string
-	err := s.db.QueryRow(query, userID, provider).Scan(
-		&token.ID, &token.FamilyID, &token.UserID, &token.Provider,
-		&encryptedAccessToken, &encryptedRefreshToken, &token.TokenType,
-		&token.ExpiresAt, &token.Scope, &token.CreatedAt, &token.UpdatedAt,
-	)
-
+	serviceToken, err := s.oauthService.GetToken(userID, string(provider))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get token: %w", err)
 	}
 
+	// Convert from service token to OAuth token and decrypt
+	token := &OAuthToken{
+		ID:        serviceToken.ID,
+		FamilyID:  serviceToken.FamilyID,
+		UserID:    serviceToken.UserID,
+		Provider:  Provider(serviceToken.Provider),
+		TokenType: serviceToken.TokenType,
+		ExpiresAt: serviceToken.ExpiresAt,
+		Scope:     serviceToken.Scope,
+		CreatedAt: serviceToken.CreatedAt,
+		UpdatedAt: serviceToken.UpdatedAt,
+	}
+
 	// Decrypt tokens
 	if s.encryptionSvc != nil {
-		token.AccessToken, err = s.encryptionSvc.Decrypt(encryptedAccessToken)
+		token.AccessToken, err = s.encryptionSvc.Decrypt(serviceToken.AccessToken)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt access token: %w", err)
 		}
 
-		if encryptedRefreshToken != "" {
-			token.RefreshToken, err = s.encryptionSvc.Decrypt(encryptedRefreshToken)
+		if serviceToken.RefreshToken != "" {
+			token.RefreshToken, err = s.encryptionSvc.Decrypt(serviceToken.RefreshToken)
 			if err != nil {
 				return nil, fmt.Errorf("failed to decrypt refresh token: %w", err)
 			}
 		}
 	} else {
-		token.AccessToken = encryptedAccessToken
-		token.RefreshToken = encryptedRefreshToken
+		token.AccessToken = serviceToken.AccessToken
+		token.RefreshToken = serviceToken.RefreshToken
 	}
 
-	return &token, nil
+	return token, nil
 }
 
 // GetUserIDFromState extracts user ID from OAuth state parameter
 func (s *Service) GetUserIDFromState(state string) (string, error) {
-	stateData, err := s.getState(state)
+	stateData, err := s.oauthService.GetState(state)
 	if err != nil {
 		return "", fmt.Errorf("failed to get state data: %w", err)
 	}
@@ -146,17 +145,15 @@ func (s *Service) generateState(provider Provider, userID string) (string, error
 	state := hex.EncodeToString(bytes)
 
 	// Store state temporarily with user ID for callback processing
-	// TODO: Store in cache/database with expiration
-	// For now, encode userID in state (in production, use proper state storage)
-	stateData := &OAuthState{
+	stateData := &services.OAuthState{
 		State:     state,
 		UserID:    userID,
-		Provider:  provider,
+		Provider:  string(provider),
 		ExpiresAt: time.Now().Add(10 * time.Minute),
 		CreatedAt: time.Now(),
 	}
 
-	if err := s.saveState(stateData); err != nil {
+	if err := s.oauthService.SaveState(stateData); err != nil {
 		return "", fmt.Errorf("failed to save state: %w", err)
 	}
 
@@ -165,8 +162,15 @@ func (s *Service) generateState(provider Provider, userID string) (string, error
 
 func (s *Service) verifyState(state string) bool {
 	// Verify state exists in database and hasn't expired
-	_, err := s.getState(state)
-	return err == nil
+	fmt.Printf("🔍 Verifying OAuth state: %s\n", state)
+	stateData, err := s.oauthService.GetState(state)
+	if err != nil {
+		fmt.Printf("❌ State verification failed: %v\n", err)
+		return false
+	}
+	fmt.Printf("✅ State verified successfully: Provider=%s, UserID=%s, ExpiresAt=%v\n",
+		stateData.Provider, stateData.UserID, stateData.ExpiresAt)
+	return true
 }
 
 func (s *Service) getGoogleAuthURL(state string) (string, error) {
@@ -183,13 +187,13 @@ func (s *Service) handleGoogleCallback(code, state string) (*OAuthToken, error) 
 	}
 
 	// Extract user ID from stored state
-	stateData, err := s.getState(state)
+	stateData, err := s.oauthService.GetState(state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get state data: %w", err)
 	}
 
 	// Get user's family ID
-	familyID, err := s.getUserFamilyID(stateData.UserID)
+	familyID, err := s.oauthService.GetUserFamilyID(stateData.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user family ID: %w", err)
 	}
@@ -217,12 +221,12 @@ func (s *Service) handleGoogleCallback(code, state string) (*OAuthToken, error) 
 	}
 
 	// Save token to database
-	if err := s.saveToken(oauthToken); err != nil {
+	if err := s.saveTokenWithEncryption(oauthToken); err != nil {
 		return nil, fmt.Errorf("failed to save token: %w", err)
 	}
 
 	// Clean up state
-	if err := s.deleteState(state); err != nil {
+	if err := s.oauthService.DeleteState(state); err != nil {
 		// Log error but don't fail the entire operation
 		fmt.Printf("Warning: Failed to delete OAuth state: %v\n", err)
 	}
@@ -263,15 +267,15 @@ func (s *Service) refreshGoogleToken(token *OAuthToken) (*OAuthToken, error) {
 	token.UpdatedAt = time.Now()
 
 	// Save updated token
-	if err := s.saveToken(token); err != nil {
+	if err := s.saveTokenWithEncryption(token); err != nil {
 		return nil, fmt.Errorf("failed to save refreshed token: %w", err)
 	}
 
 	return token, nil
 }
 
-// saveToken stores OAuth token in database with encryption
-func (s *Service) saveToken(token *OAuthToken) error {
+// saveTokenWithEncryption stores OAuth token in database with encryption
+func (s *Service) saveTokenWithEncryption(token *OAuthToken) error {
 	var encryptedAccessToken, encryptedRefreshToken string
 	var err error
 
@@ -293,20 +297,22 @@ func (s *Service) saveToken(token *OAuthToken) error {
 		encryptedRefreshToken = token.RefreshToken
 	}
 
-	query := `
-		INSERT OR REPLACE INTO oauth_tokens
-		(id, family_id, user_id, provider, access_token, refresh_token,
-		 token_type, expires_at, scope, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
+	// Convert to service token format
+	serviceToken := &services.OAuthToken{
+		ID:           token.ID,
+		FamilyID:     token.FamilyID,
+		UserID:       token.UserID,
+		Provider:     string(token.Provider),
+		AccessToken:  encryptedAccessToken,
+		RefreshToken: encryptedRefreshToken,
+		TokenType:    token.TokenType,
+		ExpiresAt:    token.ExpiresAt,
+		Scope:        token.Scope,
+		CreatedAt:    token.CreatedAt,
+		UpdatedAt:    token.UpdatedAt,
+	}
 
-	_, err = s.db.Exec(query,
-		token.ID, token.FamilyID, token.UserID, token.Provider,
-		encryptedAccessToken, encryptedRefreshToken, token.TokenType,
-		token.ExpiresAt, token.Scope, token.CreatedAt, token.UpdatedAt,
-	)
-
-	return err
+	return s.oauthService.SaveToken(serviceToken)
 }
 
 // generateID creates a new random ID
@@ -334,69 +340,7 @@ func (s *Service) GetOAuth2Token(token *OAuthToken) *oauth2.Token {
 	}
 }
 
-// saveState stores OAuth state temporarily
-func (s *Service) saveState(state *OAuthState) error {
-	query := `
-		INSERT OR REPLACE INTO oauth_states
-		(state, user_id, provider, expires_at, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`
-
-	_, err := s.db.Exec(query,
-		state.State, state.UserID, state.Provider,
-		state.ExpiresAt, state.CreatedAt,
-	)
-
-	return err
-}
-
-// getState retrieves OAuth state
-func (s *Service) getState(state string) (*OAuthState, error) {
-	query := `
-		SELECT state, user_id, provider, expires_at, created_at
-		FROM oauth_states
-		WHERE state = ? AND expires_at > datetime('now')
-	`
-
-	var stateData OAuthState
-	err := s.db.QueryRow(query, state).Scan(
-		&stateData.State, &stateData.UserID, &stateData.Provider,
-		&stateData.ExpiresAt, &stateData.CreatedAt,
-	)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to get state: %w", err)
-	}
-
-	return &stateData, nil
-}
-
-// deleteState removes OAuth state
-func (s *Service) deleteState(state string) error {
-	query := `DELETE FROM oauth_states WHERE state = ?`
-	_, err := s.db.Exec(query, state)
-	return err
-}
-
-// getUserFamilyID gets the family ID for a user
-func (s *Service) getUserFamilyID(userID string) (string, error) {
-	query := `SELECT family_id FROM family_members WHERE id = ?`
-
-	var familyID string
-	err := s.db.QueryRow(query, userID).Scan(&familyID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user family ID: %w", err)
-	}
-
-	return familyID, nil
-}
-
 // DeleteToken removes OAuth token for user and provider
 func (s *Service) DeleteToken(userID string, provider Provider) error {
-	query := `DELETE FROM oauth_tokens WHERE user_id = ? AND provider = ?`
-	_, err := s.db.Exec(query, userID, provider)
-	if err != nil {
-		return fmt.Errorf("failed to delete token: %w", err)
-	}
-	return nil
+	return s.oauthService.DeleteToken(userID, string(provider))
 }

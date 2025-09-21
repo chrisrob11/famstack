@@ -4,15 +4,15 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"famstack/internal/auth"
 	"famstack/internal/config"
-	"famstack/internal/database"
-	"famstack/internal/encryption"
 	"famstack/internal/handlers"
 	"famstack/internal/handlers/api"
 	"famstack/internal/jobsystem"
+	"famstack/internal/middleware"
 	"famstack/internal/oauth"
 	"famstack/internal/services"
 )
@@ -25,33 +25,34 @@ type Config struct {
 
 // Server represents the HTTP server
 type Server struct {
-	db            *database.DB
-	jobSystem     *jobsystem.SQLiteJobSystem
-	authService   *auth.Service
-	encryptionSvc *encryption.Service
-	configManager *config.Manager
-	config        *Config
-	server        *http.Server
+	serviceRegistry *services.Registry
+	jobSystem       *jobsystem.DBJobSystem
+	authService     *auth.Service
+	configManager   *config.Manager
+	config          *Config
+	server          *http.Server
 }
 
 // New creates a new server instance
-func New(db *database.DB, jobSystem *jobsystem.SQLiteJobSystem, authService *auth.Service, encryptionSvc *encryption.Service, configManager *config.Manager, config *Config) *Server {
+func New(serviceRegistry *services.Registry, jobSystem *jobsystem.DBJobSystem, authService *auth.Service, configManager *config.Manager, config *Config) *Server {
 	s := &Server{
-		db:            db,
-		jobSystem:     jobSystem,
-		authService:   authService,
-		encryptionSvc: encryptionSvc,
-		configManager: configManager,
-		config:        config,
+		serviceRegistry: serviceRegistry,
+		jobSystem:       jobSystem,
+		authService:     authService,
+		configManager:   configManager,
+		config:          config,
 	}
 
 	// Set up routes
 	mux := http.NewServeMux()
 	s.setupRoutes(mux)
 
+	// Wrap with logging middleware
+	loggedHandler := middleware.LoggingMiddleware(mux)
+
 	s.server = &http.Server{
 		Addr:         ":" + config.Port,
-		Handler:      mux,
+		Handler:      loggedHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -72,17 +73,14 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // setupRoutes configures the HTTP routes
 func (s *Server) setupRoutes(mux *http.ServeMux) {
-	// Initialize service registry with all services
-	serviceRegistry := services.NewRegistry(s.db, s.encryptionSvc)
-
-	// Initialize handlers with services
-	pageHandler := handlers.NewPageHandler(s.db, s.authService)
-	taskAPIHandler := api.NewTaskAPIHandler(serviceRegistry.Tasks)
-	familyAPIHandler := api.NewFamilyAPIHandler(serviceRegistry.Families)
-	familyMemberAPIHandler := api.NewFamilyMemberAPIHandler(serviceRegistry.FamilyMembers)
-	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(serviceRegistry.Schedules, s.jobSystem)
-	calendarAPIHandler := api.NewCalendarAPIHandler(serviceRegistry.Calendar)
-	integrationsAPIHandler := api.NewIntegrationsAPIHandler(serviceRegistry.Integrations)
+	// Initialize handlers with services from the registry
+	pageHandler := handlers.NewPageHandler(s.serviceRegistry.GetDB(), s.authService)
+	taskAPIHandler := api.NewTaskAPIHandler(s.serviceRegistry.Tasks)
+	familyAPIHandler := api.NewFamilyAPIHandler(s.serviceRegistry.Families)
+	familyMemberAPIHandler := api.NewFamilyMemberAPIHandler(s.serviceRegistry.FamilyMembers)
+	scheduleAPIHandler := api.NewScheduleHandlerWithJobSystem(s.serviceRegistry.Schedules, s.jobSystem)
+	calendarAPIHandler := api.NewCalendarAPIHandler(s.serviceRegistry.Calendar)
+	integrationsAPIHandler := api.NewIntegrationsAPIHandler(s.serviceRegistry.Integrations)
 	configAPIHandler := api.NewConfigAPIHandler(s.configManager)
 	authHandler := auth.NewHandlers(s.authService)
 	authMiddleware := auth.NewMiddleware(s.authService)
@@ -107,8 +105,8 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	} else {
 		oauthConfig = &oauth.OAuthConfig{} // Empty config
 	}
-	oauthService := oauth.NewService(s.db, oauthConfig, s.encryptionSvc)
-	oauthHandler := handlers.NewOAuthHandlers(oauthService, s.authService, s.jobSystem, serviceRegistry.Integrations)
+	oauthService := oauth.NewService(s.serviceRegistry.OAuth, oauthConfig, s.serviceRegistry.GetEncryptionService())
+	oauthHandler := handlers.NewOAuthHandlers(oauthService, s.authService, s.jobSystem, s.serviceRegistry.Integrations)
 
 	// Static file serving
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("web/static/"))))
@@ -149,16 +147,12 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 		`)
 	})
 
-	// Page routes
-	mux.HandleFunc("/login", pageHandler.ServePage) // Login page - no auth required
-
-	// Protected app pages - require authentication
-	mux.Handle("/tasks", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
-	mux.Handle("/daily", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
-	mux.Handle("/family/setup", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
-	mux.Handle("/family", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
-	mux.Handle("/schedules", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
-	mux.Handle("/integrations", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	// SPA routes - serve the same HTML file for all page routes
+	// The client-side router will handle authentication and routing
+	pageRoutes := []string{"/", "/login", "/tasks", "/daily", "/family", "/family/setup", "/schedules", "/integrations"}
+	for _, route := range pageRoutes {
+		mux.HandleFunc(route, pageHandler.ServePage)
+	}
 
 	// JSON API routes - protected with authentication
 	mux.Handle("/api/v1/tasks", authMiddleware.RequireEntityAction(auth.EntityTask, auth.ActionRead)(
@@ -188,12 +182,19 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			}
 		})))
 
-	// Family API routes - protected with authentication
-	mux.Handle("/api/v1/families", authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionRead)(
+	// Family collection API routes
+	mux.Handle("/api/v1/families", authMiddleware.RequireAuth(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Only handle exact path match for collection operations
+			if r.URL.Path != "/api/v1/families" {
+				http.Error(w, "Not found", http.StatusNotFound)
+				return
+			}
+
 			switch r.Method {
 			case "GET":
-				familyAPIHandler.ListFamilies(w, r)
+				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionRead)(
+					http.HandlerFunc(familyAPIHandler.ListFamilies)).ServeHTTP(w, r)
 			case "POST":
 				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionCreate)(
 					http.HandlerFunc(familyAPIHandler.CreateFamily)).ServeHTTP(w, r)
@@ -202,10 +203,92 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			}
 		})))
 
-	// NOTE: User routes have been removed as the users table is gone.
-	// User functionality is now handled through family members at /api/v1/families/members
+	// Individual family and family member API routes
+	mux.Handle("/api/v1/families/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Handle family member routes
+			if strings.Contains(r.URL.Path, "/members") {
+				if strings.HasSuffix(r.URL.Path, "/members") {
+					// /api/v1/families/{family_id}/members
+					switch r.Method {
+					case "GET":
+						familyMemberAPIHandler.ListFamilyMembers(w, r)
+					case "POST":
+						authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+							http.HandlerFunc(familyMemberAPIHandler.CreateFamilyMember)).ServeHTTP(w, r)
+					default:
+						http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					}
+				} else {
+					// /api/v1/families/{family_id}/members/{member_id}
+					switch r.Method {
+					case "GET":
+						familyMemberAPIHandler.GetFamilyMember(w, r)
+					case "PATCH":
+						authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+							http.HandlerFunc(familyMemberAPIHandler.UpdateFamilyMember)).ServeHTTP(w, r)
+					case "DELETE":
+						authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+							http.HandlerFunc(familyMemberAPIHandler.DeleteFamilyMember)).ServeHTTP(w, r)
+					default:
+						http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					}
+				}
+				return
+			}
 
-	// Family Member API routes - protected with authentication
+			// Handle specific family by ID (not member routes)
+			switch r.Method {
+			case "GET":
+				familyAPIHandler.GetFamily(w, r)
+			case "PUT":
+				authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+					http.HandlerFunc(familyAPIHandler.UpdateFamily)).ServeHTTP(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
+	// NOTE: User routes have been removed as the users table is gone.
+	// User functionality is now handled through family members at hierarchical API
+
+	// Hierarchical Family Member API routes - /api/families/{family_id}/members
+	mux.Handle("/api/families/", authMiddleware.RequireAuth(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Handle hierarchical family member routes
+			if strings.Contains(r.URL.Path, "/members") {
+				if strings.HasSuffix(r.URL.Path, "/members") {
+					// /api/families/{family_id}/members
+					switch r.Method {
+					case "GET":
+						familyMemberAPIHandler.ListFamilyMembers(w, r)
+					case "POST":
+						authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+							http.HandlerFunc(familyMemberAPIHandler.CreateFamilyMember)).ServeHTTP(w, r)
+					default:
+						http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					}
+				} else {
+					// /api/families/{family_id}/members/{member_id}
+					switch r.Method {
+					case "GET":
+						familyMemberAPIHandler.GetFamilyMember(w, r)
+					case "PATCH":
+						authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+							http.HandlerFunc(familyMemberAPIHandler.UpdateFamilyMember)).ServeHTTP(w, r)
+					case "DELETE":
+						authMiddleware.RequireEntityAction(auth.EntityFamily, auth.ActionUpdate)(
+							http.HandlerFunc(familyMemberAPIHandler.DeleteFamilyMember)).ServeHTTP(w, r)
+					default:
+						http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					}
+				}
+			} else {
+				http.Error(w, "Not found", http.StatusNotFound)
+			}
+		})))
+
+	// Legacy Family Member API routes for backward compatibility - will be deprecated
 	mux.Handle("/api/v1/families/members", authMiddleware.RequireAuth(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
@@ -255,10 +338,10 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			case "GET":
 				scheduleAPIHandler.GetSchedule(w, r)
 			case "PATCH":
-				authMiddleware.RequireEntityAction(auth.EntitySchedule, auth.ActionUpdate)(
+				authMiddleware.RequireAuth(
 					http.HandlerFunc(scheduleAPIHandler.UpdateSchedule)).ServeHTTP(w, r)
 			case "DELETE":
-				authMiddleware.RequireEntityAction(auth.EntitySchedule, auth.ActionDelete)(
+				authMiddleware.RequireAuth(
 					http.HandlerFunc(scheduleAPIHandler.DeleteSchedule)).ServeHTTP(w, r)
 			default:
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -325,6 +408,22 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 
 	mux.Handle("/api/v1/integrations/", authMiddleware.RequireAuth(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Check if this is a sub-route like /sync, /test, or /oauth/initiate
+			if r.Method == "POST" {
+				if strings.Contains(r.URL.Path, "/sync") {
+					integrationsAPIHandler.SyncIntegration(w, r)
+					return
+				}
+				if strings.Contains(r.URL.Path, "/test") {
+					integrationsAPIHandler.TestIntegration(w, r)
+					return
+				}
+				if strings.Contains(r.URL.Path, "/oauth/initiate") {
+					integrationsAPIHandler.InitiateOAuth(w, r)
+					return
+				}
+			}
+
 			switch r.Method {
 			case "GET":
 				integrationsAPIHandler.GetIntegration(w, r)
@@ -360,6 +459,5 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/v1/config/features", authMiddleware.RequireEntityAction(auth.EntityUser, auth.ActionUpdate)(
 		http.HandlerFunc(configAPIHandler.UpdateFeatureConfig)))
 
-	// Root route serves daily page - requires authentication
-	mux.Handle("/", authMiddleware.RequireAuth(http.HandlerFunc(pageHandler.ServePage)))
+	// No catch-all route needed - SPA routes are handled above
 }

@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"famstack/internal/calendar"
-	"famstack/internal/database"
 	"famstack/internal/jobsystem"
 	"famstack/internal/oauth"
+	"famstack/internal/services"
 )
 
 // CalendarSyncJobType represents the job type for calendar synchronization
@@ -27,17 +27,17 @@ type CalendarSyncPayload struct {
 
 // CalendarSyncHandler handles calendar synchronization jobs
 type CalendarSyncHandler struct {
-	db           *database.DB
-	oauthService *oauth.Service
-	googleClient *calendar.GoogleClient
+	serviceRegistry *services.Registry
+	oauthService    *oauth.Service
+	googleClient    *calendar.GoogleClient
 }
 
 // NewCalendarSyncHandler creates a new calendar sync handler
-func NewCalendarSyncHandler(db *database.DB, oauthService *oauth.Service, googleClient *calendar.GoogleClient) *CalendarSyncHandler {
+func NewCalendarSyncHandler(serviceRegistry *services.Registry, oauthService *oauth.Service, googleClient *calendar.GoogleClient) *CalendarSyncHandler {
 	return &CalendarSyncHandler{
-		db:           db,
-		oauthService: oauthService,
-		googleClient: googleClient,
+		serviceRegistry: serviceRegistry,
+		oauthService:    oauthService,
+		googleClient:    googleClient,
 	}
 }
 
@@ -242,110 +242,32 @@ type CalendarEvent struct {
 
 // upsertCalendarEvent inserts or updates a calendar event
 func (h *CalendarSyncHandler) upsertCalendarEvent(event *CalendarEvent) error {
-	attendeesJSON, err := json.Marshal(event.Attendees)
-	if err != nil {
-		return fmt.Errorf("failed to marshal attendees: %w", err)
+	serviceEvent := &services.CalendarEventForSync{
+		ID:          event.ID,
+		FamilyID:    event.FamilyID,
+		CreatedBy:   event.CreatedBy,
+		Title:       event.Title,
+		Description: event.Description,
+		Location:    event.Location,
+		StartTime:   event.StartTime,
+		EndTime:     event.EndTime,
+		AllDay:      event.AllDay,
+		Attendees:   event.Attendees,
+		SourceType:  event.SourceType,
+		SourceID:    event.SourceID,
+		CreatedAt:   event.CreatedAt,
+		UpdatedAt:   event.UpdatedAt,
 	}
 
-	query := `
-		INSERT OR REPLACE INTO calendar_events
-		(id, family_id, created_by, title, description, location, start_time, end_time,
-		 all_day, attendees, source_type, source_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	_, err = h.db.Exec(query,
-		event.ID, event.FamilyID, event.CreatedBy, event.Title, event.Description,
-		event.Location, event.StartTime, event.EndTime, event.AllDay,
-		string(attendeesJSON), event.SourceType, event.SourceID,
-		event.CreatedAt, event.UpdatedAt,
-	)
-
-	return err
+	return h.serviceRegistry.Calendar.UpsertCalendarEvent(serviceEvent)
 }
 
 // getSyncSettings retrieves sync settings for a user
-func (h *CalendarSyncHandler) getSyncSettings(userID string) (*SyncSettings, error) {
-	query := `
-		SELECT sync_frequency_minutes, sync_range_days
-		FROM calendar_sync_settings
-		WHERE user_id = ?
-	`
-
-	var settings SyncSettings
-	err := h.db.QueryRow(query, userID).Scan(&settings.SyncFrequencyMinutes, &settings.SyncRangeDays)
-	if err != nil {
-		// Return default settings if not found
-		return &SyncSettings{
-			SyncFrequencyMinutes: 15,
-			SyncRangeDays:        30,
-		}, nil
-	}
-
-	return &settings, nil
+func (h *CalendarSyncHandler) getSyncSettings(userID string) (*services.SyncSettings, error) {
+	return h.serviceRegistry.Calendar.GetSyncSettings(userID)
 }
 
 // updateSyncStatus updates the sync status for a user
 func (h *CalendarSyncHandler) updateSyncStatus(userID, status, errorMsg string, eventsSynced int) error {
-	query := `
-		INSERT OR REPLACE INTO calendar_sync_settings
-		(user_id, last_sync_at, sync_status, sync_error, events_synced, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`
-
-	_, err := h.db.Exec(query, userID, time.Now(), status, errorMsg, eventsSynced, time.Now())
-	return err
-}
-
-// SyncSettings represents calendar sync configuration
-type SyncSettings struct {
-	SyncFrequencyMinutes int `json:"sync_frequency_minutes"`
-	SyncRangeDays        int `json:"sync_range_days"`
-}
-
-// ScheduleCalendarSync schedules calendar sync jobs for all users with OAuth tokens
-func ScheduleCalendarSync(js *jobsystem.SQLiteJobSystem, db *database.DB) error {
-	// Get all users with Google OAuth tokens
-	query := `
-		SELECT DISTINCT user_id, family_id
-		FROM oauth_tokens
-		WHERE provider = 'google' AND expires_at > datetime('now')
-	`
-
-	rows, err := db.Query(query)
-	if err != nil {
-		return fmt.Errorf("failed to query OAuth tokens: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var userID, familyID string
-		if err := rows.Scan(&userID, &familyID); err != nil {
-			log.Printf("Failed to scan OAuth token row: %v", err)
-			continue
-		}
-
-		// Create sync job payload
-		payload := map[string]interface{}{
-			"userId":   userID,
-			"familyId": familyID,
-			"provider": "google",
-		}
-
-		// Schedule the job
-		req := &jobsystem.EnqueueRequest{
-			QueueName:  "calendar-sync",
-			JobType:    CalendarSyncJobType,
-			Payload:    payload,
-			Priority:   1,
-			MaxRetries: 3,
-		}
-
-		_, err := js.Enqueue(req)
-		if err != nil {
-			log.Printf("Failed to enqueue calendar sync job for user %s: %v", userID, err)
-		}
-	}
-
-	return nil
+	return h.serviceRegistry.Calendar.UpdateSyncStatus(userID, status, errorMsg, eventsSynced)
 }

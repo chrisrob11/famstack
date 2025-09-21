@@ -20,6 +20,7 @@ import (
 	"famstack/internal/jobsystem"
 	"famstack/internal/oauth"
 	"famstack/internal/server"
+	"famstack/internal/services"
 )
 
 // StartCommand returns the start command configuration
@@ -78,7 +79,7 @@ func startServer(ctx *cli.Context) error {
 
 	// Handle migration commands
 	if migrateUp {
-		if migErr := database.MigrateUp(db); migErr != nil {
+		if migErr := db.MigrateUp(); migErr != nil {
 			return fmt.Errorf("failed to run migrations up: %w", migErr)
 		}
 		log.Println("Migrations completed successfully")
@@ -86,7 +87,7 @@ func startServer(ctx *cli.Context) error {
 	}
 
 	if migrateDown {
-		if migErr := database.MigrateDown(db); migErr != nil {
+		if migErr := db.MigrateDown(); migErr != nil {
 			return fmt.Errorf("failed to run migrations down: %w", migErr)
 		}
 		log.Println("Migrations rolled back successfully")
@@ -94,7 +95,7 @@ func startServer(ctx *cli.Context) error {
 	}
 
 	// Run migrations automatically if not explicitly handling them
-	if migErr := database.MigrateUp(db); migErr != nil {
+	if migErr := db.MigrateUp(); migErr != nil {
 		return fmt.Errorf("failed to run automatic migrations: %w", migErr)
 	}
 
@@ -119,8 +120,12 @@ func startServer(ctx *cli.Context) error {
 	log.Println("🔐 Encryption service initialized successfully")
 
 	// Initialize authentication service using encryption service for JWT signing
-	authService := auth.NewService(db.DB, encryptionService, "famstack")
+	authService := auth.NewService(db, encryptionService, "famstack")
 	log.Println("🔑 Authentication service initialized successfully")
+
+	// Initialize service registry with all services
+	serviceRegistry := services.NewRegistry(db, encryptionService)
+	log.Println("🔧 Service registry initialized successfully")
 
 	// Configure job system
 	jobConfig := jobsystem.DefaultConfig()
@@ -131,7 +136,7 @@ func startServer(ctx *cli.Context) error {
 	}
 
 	// Create job system
-	jobSystem := jobsystem.NewSQLiteJobSystem(jobConfig, db)
+	jobSystem := jobsystem.NewDBJobSystem(jobConfig, serviceRegistry.Jobs)
 
 	// Initialize OAuth and calendar services for job handlers
 	// Get OAuth configuration from config manager
@@ -156,18 +161,18 @@ func startServer(ctx *cli.Context) error {
 		log.Println("⚠️  Google OAuth not configured - calendar integration will be unavailable")
 		oauthConfig = &oauth.OAuthConfig{} // Empty config
 	}
-	oauthService := oauth.NewService(db, oauthConfig, encryptionService)
+	oauthService := oauth.NewService(serviceRegistry.OAuth, oauthConfig, encryptionService)
 	googleClient := calendar.NewGoogleClient(oauthService)
 
 	// Register job handlers
-	jobSystem.Register("monthly_task_generation", jobs.NewMonthlyTaskGenerationHandler(db))
-	jobSystem.Register("schedule_maintenance", jobs.NewScheduleMaintenanceHandler(db, jobSystem))
-	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(db))
-	calendarSyncHandler := jobs.NewCalendarSyncHandler(db, oauthService, googleClient)
+	jobSystem.Register("monthly_task_generation", jobs.NewMonthlyTaskGenerationHandler(serviceRegistry))
+	jobSystem.Register("schedule_maintenance", jobs.NewScheduleMaintenanceHandler(serviceRegistry, jobSystem))
+	jobSystem.Register("delete_schedule", jobs.NewScheduleDeletionHandler(serviceRegistry))
+	calendarSyncHandler := jobs.NewCalendarSyncHandler(serviceRegistry, oauthService, googleClient)
 	jobSystem.Register("calendar_sync", calendarSyncHandler.Handle)
 
 	// Create and start server
-	srv := server.New(db, jobSystem, authService, encryptionService, configManager, &server.Config{
+	srv := server.New(serviceRegistry, jobSystem, authService, configManager, &server.Config{
 		Port: port,
 		Dev:  dev,
 	})

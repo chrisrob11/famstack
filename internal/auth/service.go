@@ -6,12 +6,14 @@ import (
 	"sync"
 	"time"
 
+	"famstack/internal/database"
 	"famstack/internal/encryption"
+	"famstack/internal/models"
 )
 
 // Service handles authentication operations
 type Service struct {
-	db         *sql.DB
+	db         *database.Fascade
 	jwtManager *JWTManager
 
 	// Rate limiting for password attempts
@@ -20,7 +22,7 @@ type Service struct {
 }
 
 // NewService creates a new authentication service using encryption service for JWT signing
-func NewService(db *sql.DB, encryptionService *encryption.Service, issuer string) *Service {
+func NewService(db *database.Fascade, encryptionService *encryption.Service, issuer string) *Service {
 	// Get JWT signing key from encryption service
 	jwtKey, err := encryptionService.GetJWTSigningKey()
 	if err != nil {
@@ -38,7 +40,7 @@ func NewService(db *sql.DB, encryptionService *encryption.Service, issuer string
 // Login authenticates a user with email and password
 func (s *Service) Login(email, password string) (*AuthResponse, error) {
 	// Get user by email
-	user, err := s.getUserByEmail(email)
+	user, err := s.getFamilyMemberByEmail(email)
 	if err != nil {
 		return nil, fmt.Errorf("invalid credentials")
 	}
@@ -65,12 +67,14 @@ func (s *Service) Login(email, password string) (*AuthResponse, error) {
 	}
 
 	// Create JWT token (4 hours expiration for full sessions)
-	token, err := s.jwtManager.CreateToken(user.ID, user.FamilyID, *user.Role, 4*time.Hour)
+
+	token, err := s.jwtManager.CreateToken(user.ID, user.FamilyID, Role(*user.Role), 4*time.Hour)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token: %w", err)
 	}
 
 	// Create session from token
+
 	claims, err := s.jwtManager.ValidateToken(token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse created token: %w", err)
@@ -81,7 +85,7 @@ func (s *Service) Login(email, password string) (*AuthResponse, error) {
 		User:        user,
 		Session:     session,
 		Token:       token,
-		Permissions: GetPermissionList(*user.Role),
+		Permissions: GetPermissionList(Role(*user.Role)),
 	}, nil
 }
 
@@ -131,7 +135,7 @@ func (s *Service) UpgradeWithPassword(token, password string) (*TokenResponse, e
 	}
 
 	// Get user and verify password
-	user, err := s.getUserByID(claims.UserID)
+	user, err := s.getFamilyMemberByID(claims.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("user not found")
 	}
@@ -207,14 +211,14 @@ func (s *Service) RefreshToken(token string) (*TokenResponse, error) {
 	}, nil
 }
 
-// GetUserByToken gets user info from a valid token
-func (s *Service) GetUserByToken(token string) (*User, error) {
+// GetFamilyMemberByToken gets user info from a valid token
+func (s *Service) GetFamilyMemberByToken(token string) (*models.FamilyMember, error) {
 	claims, err := s.jwtManager.ValidateToken(token)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.getUserByID(claims.UserID)
+	return s.getFamilyMemberByID(claims.UserID)
 }
 
 // checkUpgradeRateLimit implements rate limiting for password upgrade attempts
@@ -245,23 +249,22 @@ func (s *Service) checkUpgradeRateLimit(userID string) bool {
 	return true
 }
 
-// getUserByEmail fetches a family member by email address
-func (s *Service) getUserByEmail(email string) (*User, error) {
+// getFamilyMemberByEmail fetches a family member by email address
+func (s *Service) getFamilyMemberByEmail(email string) (*models.FamilyMember, error) {
 	query := `
-		SELECT id, family_id, name, nickname, member_type, age, avatar_url, email, password_hash,
+		SELECT id, family_id, first_name, last_name, member_type, avatar_url, email, password_hash,
 			   role, email_verified, last_login_at, display_order, is_active, created_at, updated_at
 		FROM family_members
 		WHERE email = ? AND email_verified = true AND password_hash IS NOT NULL
 	`
 
-	var user User
-	var nickname, userEmail, passwordHash, avatarURL sql.NullString
-	var age sql.NullInt64
+	var user models.FamilyMember
+	var userEmail, passwordHash, avatarURL sql.NullString
 	var role sql.NullString
 	var lastLoginAt sql.NullTime
 
 	err := s.db.QueryRow(query, email).Scan(
-		&user.ID, &user.FamilyID, &user.Name, &nickname, &user.MemberType, &age, &avatarURL,
+		&user.ID, &user.FamilyID, &user.FirstName, &user.LastName, &user.MemberType, &avatarURL,
 		&userEmail, &passwordHash, &role, &user.EmailVerified,
 		&lastLoginAt, &user.DisplayOrder, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 	)
@@ -274,13 +277,6 @@ func (s *Service) getUserByEmail(email string) (*User, error) {
 	}
 
 	// Handle nullable fields
-	if nickname.Valid {
-		user.Nickname = &nickname.String
-	}
-	if age.Valid {
-		ageInt := int(age.Int64)
-		user.Age = &ageInt
-	}
 	if avatarURL.Valid {
 		user.AvatarURL = &avatarURL.String
 	}
@@ -291,8 +287,7 @@ func (s *Service) getUserByEmail(email string) (*User, error) {
 		user.PasswordHash = &passwordHash.String
 	}
 	if role.Valid {
-		roleEnum := Role(role.String)
-		user.Role = &roleEnum
+		user.Role = &role.String
 	}
 	if lastLoginAt.Valid {
 		user.LastLoginAt = &lastLoginAt.Time
@@ -301,23 +296,22 @@ func (s *Service) getUserByEmail(email string) (*User, error) {
 	return &user, nil
 }
 
-// getUserByID fetches a family member by ID
-func (s *Service) getUserByID(userID string) (*User, error) {
+// getFamilyMemberByID fetches a family member by ID
+func (s *Service) getFamilyMemberByID(userID string) (*models.FamilyMember, error) {
 	query := `
-		SELECT id, family_id, name, nickname, member_type, age, avatar_url, email, password_hash,
+		SELECT id, family_id, first_name, last_name, member_type, avatar_url, email, password_hash,
 			   role, email_verified, last_login_at, display_order, is_active, created_at, updated_at
 		FROM family_members
 		WHERE id = ?
 	`
 
-	var user User
-	var nickname, userEmail, passwordHash, avatarURL sql.NullString
-	var age sql.NullInt64
+	var user models.FamilyMember
+	var userEmail, passwordHash, avatarURL sql.NullString
 	var role sql.NullString
 	var lastLoginAt sql.NullTime
 
 	err := s.db.QueryRow(query, userID).Scan(
-		&user.ID, &user.FamilyID, &user.Name, &nickname, &user.MemberType, &age, &avatarURL,
+		&user.ID, &user.FamilyID, &user.FirstName, &user.LastName, &user.MemberType, &avatarURL,
 		&userEmail, &passwordHash, &role, &user.EmailVerified,
 		&lastLoginAt, &user.DisplayOrder, &user.IsActive, &user.CreatedAt, &user.UpdatedAt,
 	)
@@ -330,13 +324,6 @@ func (s *Service) getUserByID(userID string) (*User, error) {
 	}
 
 	// Handle nullable fields
-	if nickname.Valid {
-		user.Nickname = &nickname.String
-	}
-	if age.Valid {
-		ageInt := int(age.Int64)
-		user.Age = &ageInt
-	}
 	if avatarURL.Valid {
 		user.AvatarURL = &avatarURL.String
 	}
@@ -347,8 +334,7 @@ func (s *Service) getUserByID(userID string) (*User, error) {
 		user.PasswordHash = &passwordHash.String
 	}
 	if role.Valid {
-		roleEnum := Role(role.String)
-		user.Role = &roleEnum
+		user.Role = &role.String
 	}
 	if lastLoginAt.Valid {
 		user.LastLoginAt = &lastLoginAt.Time
@@ -357,9 +343,9 @@ func (s *Service) getUserByID(userID string) (*User, error) {
 	return &user, nil
 }
 
-// GetUserByID is a public wrapper for getUserByID
-func (s *Service) GetUserByID(userID string) (*User, error) {
-	return s.getUserByID(userID)
+// GetFamilyMemberByID is a public wrapper for getFamilyMemberByID
+func (s *Service) GetFamilyMemberByID(userID string) (*models.FamilyMember, error) {
+	return s.getFamilyMemberByID(userID)
 }
 
 // updateLastLogin updates the family member's last login timestamp
@@ -369,32 +355,26 @@ func (s *Service) updateLastLogin(userID string) error {
 	return err
 }
 
-// CreateUser creates a new family member with auth details
-func (s *Service) CreateUser(req *CreateUserRequest) (*User, error) {
+// CreateFamilyMember creates a new family member with auth details
+func (s *Service) CreateFamilyMember(req *CreateUserRequest) (*models.FamilyMember, error) {
 	// Hash the password
 	hashedPassword, err := HashPassword(req.Password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Build the name from first and last name
-	name := req.FirstName
-	if req.LastName != "" {
-		name = req.FirstName + " " + req.LastName
-	}
-
 	// Insert family member into database with auth fields
 	query := `
-		INSERT INTO family_members (family_id, name, member_type, email, password_hash, role, email_verified, is_active, created_at, updated_at)
-		VALUES (?, ?, 'adult', ?, ?, ?, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO family_members (family_id, first_name, last_name, member_type, email, password_hash, role, email_verified, is_active, created_at, updated_at)
+		VALUES (?, ?, ?, 'adult', ?, ?, ?, true, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`
 
-	_, err = s.db.Exec(query, req.FamilyID, name, req.Email, hashedPassword, req.Role)
+	_, err = s.db.Exec(query, req.FamilyID, req.FirstName, req.LastName, req.Email, hashedPassword, req.Role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create family member: %w", err)
 	}
 
 	// For SQLite, we can't get the UUID directly, so we need to query by email
 	// This is safe because email should be unique per family
-	return s.getUserByEmail(req.Email)
+	return s.getFamilyMemberByEmail(req.Email)
 }

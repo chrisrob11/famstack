@@ -2,11 +2,18 @@ import { ComponentConfig } from '../common/types.js';
 
 export interface CalendarEvent {
   id: string;
+  family_id: string;
   title: string;
+  description?: string | null;
   start_time: string;
   end_time: string;
-  description?: string;
-  attendees?: string[];
+  location?: string | null;
+  event_type: string;
+  assigned_to?: string | null;
+  attendees?: string[] | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 /**

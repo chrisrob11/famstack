@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"time"
 
+	"famstack/internal/database"
 	"famstack/internal/models"
 )
 
 // FamiliesService handles all family database operations
 type FamiliesService struct {
-	db *sql.DB
+	db *database.Fascade
 }
 
 // NewFamiliesService creates a new families service
-func NewFamiliesService(db *sql.DB) *FamiliesService {
+func NewFamiliesService(db *database.Fascade) *FamiliesService {
 	return &FamiliesService{db: db}
 }
 

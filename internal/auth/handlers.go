@@ -38,12 +38,18 @@ func (h *Handlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Log login attempt
+	fmt.Printf("🔐 Login attempt for email: %s\n", req.Email)
+
 	// Authenticate user
 	authResponse, err := h.authService.Login(req.Email, req.Password)
 	if err != nil {
+		fmt.Printf("❌ Login failed for %s: %v\n", req.Email, err)
 		h.writeError(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
+
+	fmt.Printf("✅ Login successful for %s (User ID: %s)\n", req.Email, authResponse.User.ID)
 
 	// Set JWT token in HTTP-only cookie
 	h.setAuthCookie(w, authResponse.Token)
@@ -55,6 +61,7 @@ func (h *Handlers) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		"permissions": authResponse.Permissions,
 	}
 
+	fmt.Printf("📤 Sending login response for %s\n", req.Email)
 	h.writeJSON(w, response)
 }
 
@@ -192,6 +199,8 @@ func (h *Handlers) HandleRefresh(w http.ResponseWriter, r *http.Request) {
 
 // HandleMe handles requests for current user info
 func (h *Handlers) HandleMe(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("🔍 /auth/me called\n")
+
 	if r.Method != http.MethodGet {
 		h.writeError(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -200,9 +209,12 @@ func (h *Handlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 	// Extract token directly since this endpoint doesn't use middleware
 	token, err := h.extractToken(r)
 	if err != nil {
+		fmt.Printf("❌ /auth/me: Failed to extract token: %v\n", err)
 		h.writeError(w, "Authentication required", http.StatusUnauthorized)
 		return
 	}
+
+	fmt.Printf("✅ /auth/me: Token extracted successfully\n")
 
 	// Validate token and get session
 	session, err := h.authService.ValidateToken(token)
@@ -212,7 +224,7 @@ func (h *Handlers) HandleMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user info
-	user, err := h.authService.GetUserByToken(token)
+	user, err := h.authService.GetFamilyMemberByToken(token)
 	if err != nil {
 		h.writeError(w, "User not found", http.StatusUnauthorized)
 		return

@@ -2,21 +2,16 @@ package jobs
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
-	"famstack/internal/database"
 	"famstack/internal/jobsystem"
+	"famstack/internal/models"
+	"famstack/internal/services"
 )
-
-type TaskGenerationPayload struct {
-	ScheduleID string `json:"schedule_id"`
-	TargetDate string `json:"target_date"`
-}
 
 type MonthlyTaskGenerationPayload struct {
 	ScheduleID string `json:"schedule_id"`
@@ -26,6 +21,54 @@ type MonthlyTaskGenerationPayload struct {
 
 type ScheduleDeletionPayload struct {
 	ScheduleID string `json:"schedule_id"`
+}
+
+func NewMonthlyTaskGenerationHandler(serviceRegistry *services.Registry) jobsystem.JobHandler {
+	return func(ctx context.Context, job *jobsystem.Job) error {
+		var payload MonthlyTaskGenerationPayload
+
+		payloadBytes, err := json.Marshal(job.Payload)
+		if err != nil {
+			return fmt.Errorf("failed to marshal job payload: %w", err)
+		}
+
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return fmt.Errorf("failed to unmarshal monthly task generation payload: %w", err)
+		}
+
+		return generateMonthlyTasks(serviceRegistry, payload.ScheduleID, payload.StartDate, payload.EndDate)
+	}
+}
+
+func convertScheduleToLegacyFormat(schedule *models.TaskSchedule) *TaskSchedule {
+	var daysOfWeek []string
+	if schedule.DaysOfWeek != nil {
+		// Parse JSON days of week
+		if err := json.Unmarshal([]byte(*schedule.DaysOfWeek), &daysOfWeek); err != nil {
+			// Log error but continue with empty days of week
+			log.Printf("Failed to unmarshal days of week for schedule %s: %v", schedule.ID, err)
+		}
+	}
+
+	return &TaskSchedule{
+		ID:        schedule.ID,
+		FamilyID:  schedule.FamilyID,
+		CreatedBy: schedule.CreatedBy,
+		Title:     schedule.Title,
+		Description: func() string {
+			if schedule.Description != nil {
+				return *schedule.Description
+			} else {
+				return ""
+			}
+		}(),
+		TaskType:   schedule.TaskType,
+		AssignedTo: schedule.AssignedTo,
+		DaysOfWeek: daysOfWeek,
+		TimeOfDay:  schedule.TimeOfDay,
+		Priority:   schedule.Priority,
+		Points:     schedule.Points,
+	}
 }
 
 type TaskSchedule struct {
@@ -42,80 +85,7 @@ type TaskSchedule struct {
 	Points      int
 }
 
-func NewMonthlyTaskGenerationHandler(db *database.DB) jobsystem.JobHandler {
-	return func(ctx context.Context, job *jobsystem.Job) error {
-		var payload MonthlyTaskGenerationPayload
-
-		payloadBytes, err := json.Marshal(job.Payload)
-		if err != nil {
-			return fmt.Errorf("failed to marshal job payload: %w", err)
-		}
-
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			return fmt.Errorf("failed to unmarshal monthly task generation payload: %w", err)
-		}
-
-		return generateMonthlyTasks(db, payload.ScheduleID, payload.StartDate, payload.EndDate)
-	}
-}
-
-func getTaskSchedule(db *database.DB, scheduleID string) (*TaskSchedule, error) {
-	query := `
-		SELECT id, family_id, created_by, title, description, task_type,
-			   assigned_to, days_of_week, time_of_day, priority, points
-		FROM task_schedules 
-		WHERE id = ? AND active = true
-	`
-
-	var schedule TaskSchedule
-	var assignedTo sql.NullString
-	var timeOfDay sql.NullString
-	var daysOfWeekJSON string
-
-	err := db.QueryRow(query, scheduleID).Scan(
-		&schedule.ID,
-		&schedule.FamilyID,
-		&schedule.CreatedBy,
-		&schedule.Title,
-		&schedule.Description,
-		&schedule.TaskType,
-		&assignedTo,
-		&daysOfWeekJSON,
-		&timeOfDay,
-		&schedule.Priority,
-		&schedule.Points,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if assignedTo.Valid {
-		schedule.AssignedTo = &assignedTo.String
-	}
-	if timeOfDay.Valid {
-		schedule.TimeOfDay = &timeOfDay.String
-	}
-
-	err = json.Unmarshal([]byte(daysOfWeekJSON), &schedule.DaysOfWeek)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse days_of_week: %w", err)
-	}
-
-	return &schedule, nil
-}
-
-// isUniqueConstraintViolation checks if the error is a SQLite unique constraint violation
-func isUniqueConstraintViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	errMsg := err.Error()
-	return strings.Contains(errMsg, "UNIQUE constraint failed") &&
-		strings.Contains(errMsg, "idx_tasks_schedule_target_date")
-}
-
-func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr string) error {
+func generateMonthlyTasks(serviceRegistry *services.Registry, scheduleID, startDateStr, endDateStr string) error {
 	startDate, err := time.Parse("2006-01-02", startDateStr)
 	if err != nil {
 		return fmt.Errorf("invalid start date format: %w", err)
@@ -126,13 +96,15 @@ func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr 
 		return fmt.Errorf("invalid end date format: %w", err)
 	}
 
-	schedule, err := getTaskSchedule(db, scheduleID)
+	scheduleModel, err := serviceRegistry.Schedules.GetSchedule(scheduleID)
 	if err != nil {
 		return fmt.Errorf("failed to get schedule: %w", err)
 	}
 
+	schedule := convertScheduleToLegacyFormat(scheduleModel)
+
 	// Find existing tasks in the date range to avoid duplicates
-	existingTasks, err := getExistingTasksInRange(db, scheduleID, startDate, endDate)
+	existingTasks, err := serviceRegistry.Tasks.GetExistingTasksInRange(scheduleID, startDate, endDate)
 	if err != nil {
 		return fmt.Errorf("failed to get existing tasks: %w", err)
 	}
@@ -144,7 +116,7 @@ func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr 
 
 	// Generate all tasks for the month that don't already exist
 	today := time.Now().Truncate(24 * time.Hour)
-	var tasksToCreate []taskToCreate
+	var tasksToCreate []services.BulkTaskRequest
 	for current := startDate; !current.After(endDate); current = current.AddDate(0, 0, 1) {
 		// Only generate tasks for today and future dates
 		currentTruncated := current.Truncate(24 * time.Hour)
@@ -171,9 +143,27 @@ func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr 
 			continue
 		}
 
-		task := taskToCreate{
-			schedule:   schedule,
-			targetDate: current,
+		var dueDate *time.Time
+		if schedule.TimeOfDay != nil {
+			timeStr := *schedule.TimeOfDay
+			if timePart, parseErr := time.Parse("15:04", timeStr); parseErr == nil {
+				dueDateWithTime := time.Date(
+					current.Year(), current.Month(), current.Day(),
+					timePart.Hour(), timePart.Minute(), 0, 0, current.Location(),
+				)
+				dueDate = &dueDateWithTime
+			}
+		}
+
+		task := services.BulkTaskRequest{
+			Title:       schedule.Title,
+			Description: schedule.Description,
+			TaskType:    schedule.TaskType,
+			AssignedTo:  schedule.AssignedTo,
+			Priority:    schedule.Priority,
+			Points:      schedule.Points,
+			DueDate:     dueDate,
+			ScheduleID:  schedule.ID,
 		}
 		tasksToCreate = append(tasksToCreate, task)
 	}
@@ -184,13 +174,13 @@ func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr 
 	}
 
 	// Bulk create tasks
-	err = bulkCreateTasks(db, tasksToCreate)
+	err = serviceRegistry.Tasks.BulkCreateTasks(schedule.FamilyID, schedule.CreatedBy, tasksToCreate)
 	if err != nil {
 		return fmt.Errorf("failed to bulk create tasks: %w", err)
 	}
 
 	// Update last_generated_date if this range extends it
-	err = updateLastGeneratedDate(db, scheduleID, endDate)
+	err = serviceRegistry.Schedules.UpdateLastGeneratedDate(scheduleID, endDate)
 	if err != nil {
 		return fmt.Errorf("failed to update last generated date: %w", err)
 	}
@@ -199,142 +189,7 @@ func generateMonthlyTasks(db *database.DB, scheduleID, startDateStr, endDateStr 
 	return nil
 }
 
-type taskToCreate struct {
-	schedule   *TaskSchedule
-	targetDate time.Time
-}
-
-func getExistingTasksInRange(db *database.DB, scheduleID string, startDate, endDate time.Time) ([]string, error) {
-	// Get existing task dates based on when they were supposed to be due, not when they were created
-	query := `
-		SELECT DISTINCT 
-			CASE 
-				WHEN due_date IS NOT NULL THEN DATE(due_date)
-				ELSE DATE(created_at)
-			END as target_date
-		FROM tasks 
-		WHERE schedule_id = ? 
-		AND (
-			(due_date IS NOT NULL AND DATE(due_date) >= ? AND DATE(due_date) <= ?) OR
-			(due_date IS NULL AND DATE(created_at) >= ? AND DATE(created_at) <= ?)
-		)
-	`
-
-	rows, err := db.Query(query, scheduleID,
-		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"),
-		startDate.Format("2006-01-02"), endDate.Format("2006-01-02"))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var dates []string
-	for rows.Next() {
-		var date string
-		if err := rows.Scan(&date); err != nil {
-			return nil, err
-		}
-		dates = append(dates, date)
-	}
-
-	return dates, nil
-}
-
-func bulkCreateTasks(db *database.DB, tasks []taskToCreate) error {
-	if len(tasks) == 0 {
-		return nil
-	}
-
-	// Begin transaction for bulk insert
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback() // nolint:errcheck // Ignore error as we'll commit or it's already rolled back
-	}()
-
-	query := `
-		INSERT INTO tasks (family_id, assigned_to, title, description, task_type,
-						  status, priority, points, due_date, created_by, schedule_id)
-		VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)
-	`
-
-	stmt, err := tx.Prepare(query)
-	if err != nil {
-		return fmt.Errorf("failed to prepare statement: %w", err)
-	}
-	defer stmt.Close()
-
-	for _, task := range tasks {
-		var assignedToValue interface{}
-		if task.schedule.AssignedTo != nil {
-			assignedToValue = *task.schedule.AssignedTo
-		} else {
-			assignedToValue = nil
-		}
-
-		var dueDate *time.Time
-		if task.schedule.TimeOfDay != nil {
-			timeStr := *task.schedule.TimeOfDay
-			if timePart, parseErr := time.Parse("15:04", timeStr); parseErr == nil {
-				dueDateWithTime := time.Date(
-					task.targetDate.Year(), task.targetDate.Month(), task.targetDate.Day(),
-					timePart.Hour(), timePart.Minute(), 0, 0, task.targetDate.Location(),
-				)
-				dueDate = &dueDateWithTime
-			}
-		}
-
-		var dueDateValue interface{}
-		if dueDate != nil {
-			dueDateValue = dueDate.Format("2006-01-02 15:04:05")
-		} else {
-			dueDateValue = nil
-		}
-
-		_, err = stmt.Exec(
-			task.schedule.FamilyID,
-			assignedToValue,
-			task.schedule.Title,
-			task.schedule.Description,
-			task.schedule.TaskType,
-			task.schedule.Priority,
-			task.schedule.Points,
-			dueDateValue,
-			task.schedule.CreatedBy,
-			task.schedule.ID,
-		)
-		if err != nil {
-			if isUniqueConstraintViolation(err) {
-				// Task already exists for this schedule on this date - skip and continue
-				log.Printf("Task already exists for schedule %s on %s (concurrent creation detected)", task.schedule.ID, task.targetDate.Format("2006-01-02"))
-				continue
-			}
-			return fmt.Errorf("failed to insert task for date %s: %w", task.targetDate.Format("2006-01-02"), err)
-		}
-	}
-
-	return tx.Commit()
-}
-
-func updateLastGeneratedDate(db *database.DB, scheduleID string, endDate time.Time) error {
-	query := `
-		UPDATE task_schedules 
-		SET last_generated_date = ?
-		WHERE id = ? AND (last_generated_date IS NULL OR last_generated_date < ?)
-	`
-
-	dateStr := endDate.Format("2006-01-02 15:04:05")
-	_, err := db.Exec(query, dateStr, scheduleID, dateStr)
-	if err != nil {
-		return fmt.Errorf("failed to update last generated date: %w", err)
-	}
-
-	return nil
-}
-
-func NewScheduleDeletionHandler(db *database.DB) jobsystem.JobHandler {
+func NewScheduleDeletionHandler(serviceRegistry *services.Registry) jobsystem.JobHandler {
 	return func(ctx context.Context, job *jobsystem.Job) error {
 		var payload ScheduleDeletionPayload
 
@@ -347,55 +202,19 @@ func NewScheduleDeletionHandler(db *database.DB) jobsystem.JobHandler {
 			return fmt.Errorf("failed to unmarshal schedule deletion payload: %w", err)
 		}
 
-		return deleteScheduleAndTasks(db, payload.ScheduleID)
+		return deleteScheduleAndTasks(serviceRegistry, payload.ScheduleID)
 	}
 }
 
-func deleteScheduleAndTasks(db *database.DB, scheduleID string) error {
+func deleteScheduleAndTasks(serviceRegistry *services.Registry, scheduleID string) error {
 	log.Printf("Starting deletion of schedule %s and all its tasks", scheduleID)
 
-	// Start transaction to ensure atomicity
-	tx, err := db.Begin()
+	// Use the schedule service to delete schedule and all its tasks
+	err := serviceRegistry.Schedules.DeleteScheduleWithTasks(scheduleID)
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() {
-		_ = tx.Rollback() // nolint:errcheck // Ignore error as we'll commit or it's already rolled back
-	}()
-
-	// First, delete all tasks associated with this schedule
-	deleteTasksQuery := `DELETE FROM tasks WHERE schedule_id = ?`
-	result, err := tx.Exec(deleteTasksQuery, scheduleID)
-	if err != nil {
-		return fmt.Errorf("failed to delete tasks for schedule %s: %w", scheduleID, err)
+		return fmt.Errorf("failed to delete schedule and tasks: %w", err)
 	}
 
-	taskRowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get task rows affected: %w", err)
-	}
-	log.Printf("Deleted %d tasks for schedule %s", taskRowsAffected, scheduleID)
-
-	// Then, delete the schedule itself
-	deleteScheduleQuery := `DELETE FROM task_schedules WHERE id = ?`
-	result, err = tx.Exec(deleteScheduleQuery, scheduleID)
-	if err != nil {
-		return fmt.Errorf("failed to delete schedule %s: %w", scheduleID, err)
-	}
-
-	scheduleRowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get schedule rows affected: %w", err)
-	}
-	if scheduleRowsAffected == 0 {
-		return fmt.Errorf("schedule %s not found", scheduleID)
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("failed to commit deletion transaction: %w", err)
-	}
-
-	log.Printf("Successfully deleted schedule %s and %d associated tasks", scheduleID, taskRowsAffected)
+	log.Printf("Successfully deleted schedule %s and all associated tasks", scheduleID)
 	return nil
 }

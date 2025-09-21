@@ -5,27 +5,41 @@ export interface TaskSchedule {
   family_id: string;
   created_by: string;
   title: string;
-  description: string;
+  description?: string | null;
   task_type: 'todo' | 'chore' | 'appointment';
   assigned_to?: string | null;
-  days_of_week: string[];
+  days_of_week?: string | null; // JSON string that needs parsing
   time_of_day?: string | null;
   priority: number;
   points: number;
   active: boolean;
   created_at: string;
+  last_generated_date?: string | null;
 }
 
 export interface CreateScheduleRequest {
   title: string;
-  description: string;
+  description?: string | null;
   task_type: 'todo' | 'chore' | 'appointment';
   assigned_to?: string | null;
-  days_of_week: string[];
+  days_of_week: string[]; // Will be converted to JSON string for API
   time_of_day?: string | null;
   priority: number;
-  points: number;
-  family_id: string;
+  family_id?: string; // Optional - backend will get from session if not provided
+}
+
+// Helper functions for days_of_week handling
+export function parseDaysOfWeek(daysOfWeekJson?: string | null): string[] {
+  if (!daysOfWeekJson) return [];
+  try {
+    return JSON.parse(daysOfWeekJson);
+  } catch {
+    return [];
+  }
+}
+
+export function stringifyDaysOfWeek(daysOfWeek: string[]): string {
+  return JSON.stringify(daysOfWeek);
 }
 
 export class ScheduleService {
@@ -35,13 +49,14 @@ export class ScheduleService {
     this.config = config;
   }
 
-  async listSchedules(familyId: string = 'fam1'): Promise<TaskSchedule[]> {
-    const response = await fetch(`${this.config.apiBaseUrl}/schedules?family_id=${familyId}`, {
+  async listSchedules(): Promise<TaskSchedule[]> {
+    const response = await fetch(`${this.config.apiBaseUrl}/schedules`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': this.config.csrfToken,
       },
+      credentials: 'include', // Include authentication cookies
     });
 
     if (!response.ok) {
@@ -52,13 +67,20 @@ export class ScheduleService {
   }
 
   async createSchedule(scheduleData: CreateScheduleRequest): Promise<TaskSchedule> {
+    // Send days_of_week as actual array, not JSON string
+    const apiData = {
+      ...scheduleData,
+      days_of_week: scheduleData.days_of_week,
+    };
+
     const response = await fetch(`${this.config.apiBaseUrl}/schedules`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': this.config.csrfToken,
       },
-      body: JSON.stringify(scheduleData),
+      credentials: 'include',
+      body: JSON.stringify(apiData),
     });
 
     if (!response.ok) {
@@ -76,6 +98,7 @@ export class ScheduleService {
         'Content-Type': 'application/json',
         'X-CSRF-Token': this.config.csrfToken,
       },
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -95,6 +118,7 @@ export class ScheduleService {
         'Content-Type': 'application/json',
         'X-CSRF-Token': this.config.csrfToken,
       },
+      credentials: 'include',
       body: JSON.stringify(updates),
     });
 
@@ -111,6 +135,7 @@ export class ScheduleService {
       headers: {
         'X-CSRF-Token': this.config.csrfToken,
       },
+      credentials: 'include',
     });
 
     if (!response.ok) {

@@ -23,7 +23,7 @@ func (a *AuthorizationService) HasPermission(entity Entity, action Action, resou
 
 	// 2. Check for "own" scope permission
 	if a.hasExactPermission(entity, action, ScopeOwn) {
-		return a.isOwner(resourceOwnerID)
+		return a.isOwner(entity, resourceOwnerID)
 	}
 
 	// 3. Default to no access
@@ -36,7 +36,7 @@ func (a *AuthorizationService) hasExactPermission(entity Entity, action Action, 
 }
 
 // isOwner checks if the current user owns the resource
-func (a *AuthorizationService) isOwner(resourceOwnerID *string) bool {
+func (a *AuthorizationService) isOwner(entity Entity, resourceOwnerID *string) bool {
 	// Shared sessions can't own anything
 	if a.session.Role == RoleShared {
 		return false
@@ -46,7 +46,15 @@ func (a *AuthorizationService) isOwner(resourceOwnerID *string) bool {
 		return false // No owner specified
 	}
 
-	return a.session.UserID == *resourceOwnerID
+	// Check ownership based on entity type
+	switch entity {
+	case EntityFamily:
+		// For families, compare against FamilyID
+		return a.session.FamilyID == *resourceOwnerID
+	default:
+		// For other entities (tasks, calendar, schedules, etc.), compare against UserID
+		return a.session.UserID == *resourceOwnerID
+	}
 }
 
 // CanUpgradeToAccess checks if upgrading to original role would grant access

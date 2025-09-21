@@ -198,8 +198,12 @@ export class TaskModal {
     try {
       this.setSubmitting(true);
       await this.onSave(data, this.currentTask?.id);
-      this.hide();
-      this.resetForm();
+
+      // Brief delay to show success before hiding modal
+      setTimeout(() => {
+        this.hide();
+        this.resetForm();
+      }, 300);
     } catch (error) {
       this.showError('title-error', 'Failed to save task. Please try again.');
     } finally {

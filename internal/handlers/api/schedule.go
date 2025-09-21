@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path"
 
+	"famstack/internal/auth"
 	"famstack/internal/jobsystem"
 	"famstack/internal/models"
 	"famstack/internal/services"
@@ -13,7 +14,7 @@ import (
 
 type ScheduleHandler struct {
 	schedulesService *services.SchedulesService
-	jobSystem        *jobsystem.SQLiteJobSystem
+	jobSystem        *jobsystem.DBJobSystem
 }
 
 func NewScheduleHandler(schedulesService *services.SchedulesService) *ScheduleHandler {
@@ -22,7 +23,7 @@ func NewScheduleHandler(schedulesService *services.SchedulesService) *ScheduleHa
 	}
 }
 
-func NewScheduleHandlerWithJobSystem(schedulesService *services.SchedulesService, jobSystem *jobsystem.SQLiteJobSystem) *ScheduleHandler {
+func NewScheduleHandlerWithJobSystem(schedulesService *services.SchedulesService, jobSystem *jobsystem.DBJobSystem) *ScheduleHandler {
 	return &ScheduleHandler{
 		schedulesService: schedulesService,
 		jobSystem:        jobSystem,
@@ -36,10 +37,13 @@ func (h *ScheduleHandler) ListSchedules(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	familyID := r.URL.Query().Get("family_id")
-	if familyID == "" {
-		familyID = "fam1" // Default family for now
+	// Get family ID from session context
+	session := auth.GetSessionFromContext(r.Context())
+	if session == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
 	}
+	familyID := session.FamilyID
 
 	// Use the service to get schedules
 	schedules, err := h.schedulesService.ListSchedules(familyID)
@@ -67,8 +71,14 @@ func (h *ScheduleHandler) CreateSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	familyID := "fam1"    // Default family for now
-	createdBy := "system" // TODO: Get from auth context
+	// Get family ID and user ID from session context
+	session := auth.GetSessionFromContext(r.Context())
+	if session == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+	familyID := session.FamilyID
+	createdBy := session.UserID
 
 	// Use the service to create the schedule
 	schedule, err := h.schedulesService.CreateSchedule(familyID, createdBy, &req)
@@ -129,6 +139,34 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Get session to check authorization
+	session := auth.GetSessionFromContext(r.Context())
+	if session == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the schedule to check ownership
+	schedule, getErr := h.schedulesService.GetSchedule(scheduleID)
+	if getErr != nil {
+		if getErr.Error() == "schedule not found" {
+			http.Error(w, "Schedule not found", http.StatusNotFound)
+		} else {
+			http.Error(w, "Failed to query schedule", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Check if user can update this schedule:
+	// 1. User is an admin (has admin role)
+	// 2. User is the creator of the schedule
+	canUpdate := session.Role == auth.RoleAdmin || session.UserID == schedule.CreatedBy
+
+	if !canUpdate {
+		http.Error(w, "Insufficient permissions: only admins or schedule creators can update schedules", http.StatusForbidden)
+		return
+	}
+
 	var req models.UpdateTaskScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON data", http.StatusBadRequest)
@@ -136,7 +174,7 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Use the service to update the schedule
-	schedule, err := h.schedulesService.UpdateSchedule(scheduleID, &req)
+	updatedSchedule, err := h.schedulesService.UpdateSchedule(scheduleID, &req)
 	if err != nil {
 		if err.Error() == "schedule not found" {
 			http.Error(w, "Schedule not found", http.StatusNotFound)
@@ -147,7 +185,7 @@ func (h *ScheduleHandler) UpdateSchedule(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(schedule); err != nil {
+	if err := json.NewEncoder(w).Encode(updatedSchedule); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }
@@ -166,13 +204,41 @@ func (h *ScheduleHandler) DeleteSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Use the service to delete the schedule
-	err := h.schedulesService.DeleteSchedule(scheduleID)
-	if err != nil {
-		if err.Error() == "schedule not found" {
+	// Get session to check authorization
+	session := auth.GetSessionFromContext(r.Context())
+	if session == nil {
+		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+
+	// Get the schedule to check ownership
+	schedule, getErr := h.schedulesService.GetSchedule(scheduleID)
+	if getErr != nil {
+		if getErr.Error() == "schedule not found" {
 			http.Error(w, "Schedule not found", http.StatusNotFound)
 		} else {
-			http.Error(w, fmt.Sprintf("Failed to delete schedule: %v", err), http.StatusInternalServerError)
+			http.Error(w, "Failed to query schedule", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Check if user can delete this schedule:
+	// 1. User is an admin (has admin role)
+	// 2. User is the creator of the schedule
+	canDelete := session.Role == auth.RoleAdmin || session.UserID == schedule.CreatedBy
+
+	if !canDelete {
+		http.Error(w, "Insufficient permissions: only admins or schedule creators can delete schedules", http.StatusForbidden)
+		return
+	}
+
+	// Use the service to delete the schedule
+	deleteErr := h.schedulesService.DeleteSchedule(scheduleID)
+	if deleteErr != nil {
+		if deleteErr.Error() == "schedule not found" {
+			http.Error(w, "Schedule not found", http.StatusNotFound)
+		} else {
+			http.Error(w, fmt.Sprintf("Failed to delete schedule: %v", deleteErr), http.StatusInternalServerError)
 		}
 		return
 	}

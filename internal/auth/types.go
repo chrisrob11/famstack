@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"famstack/internal/models"
 	"time"
 )
 
@@ -57,45 +58,6 @@ type Session struct {
 	IssuedAt     time.Time `json:"issued_at"`
 }
 
-// User represents a family member with optional authentication info
-type User struct {
-	ID            string     `json:"id" db:"id"`
-	FamilyID      string     `json:"family_id" db:"family_id"`
-	Name          string     `json:"name" db:"name"`
-	Nickname      *string    `json:"nickname,omitempty" db:"nickname"`
-	MemberType    string     `json:"member_type" db:"member_type"`
-	Age           *int       `json:"age,omitempty" db:"age"`
-	AvatarURL     *string    `json:"avatar_url,omitempty" db:"avatar_url"`
-	Email         *string    `json:"email,omitempty" db:"email"`
-	PasswordHash  *string    `json:"-" db:"password_hash"`
-	Role          *Role      `json:"role,omitempty" db:"role"`
-	EmailVerified bool       `json:"email_verified" db:"email_verified"`
-	LastLoginAt   *time.Time `json:"last_login_at,omitempty" db:"last_login_at"`
-	DisplayOrder  int        `json:"display_order" db:"display_order"`
-	IsActive      bool       `json:"is_active" db:"is_active"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
-}
-
-// DisplayName returns the preferred display name for the user
-func (u *User) DisplayName() string {
-	if u.Nickname != nil && *u.Nickname != "" {
-		return *u.Nickname
-	}
-	if u.Name != "" {
-		return u.Name
-	}
-	if u.Email != nil {
-		return *u.Email
-	}
-	return "Unnamed Member"
-}
-
-// FullName returns the full name of the user
-func (u *User) FullName() string {
-	return u.Name
-}
-
 // IsExpired checks if the session has expired
 func (s *Session) IsExpired() bool {
 	return time.Now().After(s.ExpiresAt)
@@ -136,10 +98,10 @@ type PasswordUpgradeRequest struct {
 
 // AuthResponse represents the response after authentication
 type AuthResponse struct {
-	User        *User    `json:"user"`
-	Session     *Session `json:"session"`
-	Token       string   `json:"token"`
-	Permissions []string `json:"permissions"`
+	User        *models.FamilyMember `json:"user"`
+	Session     *Session             `json:"session"`
+	Token       string               `json:"token"`
+	Permissions []string             `json:"permissions"`
 }
 
 // TokenResponse represents a response containing just a token
@@ -149,7 +111,7 @@ type TokenResponse struct {
 	Permissions []string `json:"permissions"`
 }
 
-// CreateUserRequest represents a request to create a new user
+// CreateUserRequest represents a request to create a new user with auth details
 type CreateUserRequest struct {
 	Email     string `json:"email" validate:"required,email"`
 	Password  string `json:"password" validate:"required,min=8"`

@@ -44,12 +44,13 @@ describe('ScheduleService', () => {
 
       const result = await scheduleService.listSchedules();
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/schedules?family_id=fam1', {
+      expect(fetch).toHaveBeenCalledWith('/api/v1/schedules', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'X-CSRF-Token': 'test-csrf-token'
-        }
+        },
+        credentials: 'include'
       });
       expect(result).toEqual(mockSchedules);
     });
@@ -101,6 +102,7 @@ describe('ScheduleService', () => {
           'Content-Type': 'application/json',
           'X-CSRF-Token': 'test-csrf-token'
         },
+        credentials: 'include',
         body: JSON.stringify(scheduleData)
       });
       expect(result).toEqual(mockCreatedSchedule);

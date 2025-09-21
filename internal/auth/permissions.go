@@ -42,8 +42,9 @@ var RolePermissions = map[Role]PermissionSet{
 		MakePermission(EntitySchedule, ActionUpdate, ScopeOwn): true,
 		MakePermission(EntitySchedule, ActionDelete, ScopeOwn): true,
 
-		// Family - can view but not modify
-		MakePermission(EntityFamily, ActionRead, ScopeAny): true,
+		// Family - can view and update own family
+		MakePermission(EntityFamily, ActionRead, ScopeAny):   true,
+		MakePermission(EntityFamily, ActionUpdate, ScopeOwn): true,
 
 		// Users - can view family members
 		MakePermission(EntityUser, ActionRead, ScopeAny): true,

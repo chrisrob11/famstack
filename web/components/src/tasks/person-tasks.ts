@@ -199,7 +199,7 @@ export class PersonTasks {
       if (status === 'completed') {
         task.completed_at = new Date().toISOString();
       } else {
-        task.completed_at = undefined;
+        task.completed_at = null;
       }
     }
   }

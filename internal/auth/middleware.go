@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"famstack/internal/models"
 )
 
 // ContextKey is used for context keys to avoid collisions
@@ -48,7 +50,7 @@ func (m *Middleware) RequireAuth(next http.Handler) http.Handler {
 		}
 
 		// Get user info
-		user, err := m.authService.GetUserByToken(token)
+		user, err := m.authService.GetFamilyMemberByToken(token)
 		if err != nil {
 			m.writeError(w, r, "User not found", http.StatusUnauthorized)
 			return
@@ -119,7 +121,7 @@ func (m *Middleware) OptionalAuth(next http.Handler) http.Handler {
 		}
 
 		// Get user info
-		user, err := m.authService.GetUserByToken(token)
+		user, err := m.authService.GetFamilyMemberByToken(token)
 		if err != nil {
 			// Can't get user, proceed without auth
 			next.ServeHTTP(w, r)
@@ -167,6 +169,22 @@ func (m *Middleware) extractResourceOwnerID(r *http.Request, entity Entity) *str
 	case EntityCalendar:
 		// For calendar events, similar logic
 		return nil // TODO: Implement calendar event ownership lookup
+	case EntityFamily:
+		// For families, the user's family_id should match the family being accessed
+		// Extract family ID from URL path (e.g., /api/v1/families/{family_id})
+		path := r.URL.Path
+		if strings.Contains(path, "/families/") {
+			parts := strings.Split(path, "/families/")
+			if len(parts) > 1 {
+				familyID := strings.Split(parts[1], "/")[0]
+				return &familyID
+			}
+		}
+		return nil
+	case EntitySchedule:
+		// For schedules, we'll handle the ownership check in the handler
+		// since it requires database access. Return nil to skip middleware-level ownership check.
+		return nil
 	default:
 		return nil
 	}
@@ -230,8 +248,8 @@ func GetSessionFromContext(ctx context.Context) *Session {
 }
 
 // GetUserFromContext extracts user from request context
-func GetUserFromContext(ctx context.Context) *User {
-	if user, ok := ctx.Value(UserContextKey).(*User); ok {
+func GetUserFromContext(ctx context.Context) *models.FamilyMember {
+	if user, ok := ctx.Value(UserContextKey).(*models.FamilyMember); ok {
 		return user
 	}
 	return nil
