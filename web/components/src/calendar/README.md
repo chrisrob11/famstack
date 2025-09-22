@@ -36,10 +36,10 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 **Calendar Support Level:** Empty time grid with hour markings, no events
 **User Validation:** See clean time grid with hour labels (7 AM - 10 PM)
 
-- [ ] Implement time grid (7 AM - 10 PM, 15-min blocks)
-- [ ] Add hour line separators and time labels
-- [ ] Responsive horizontal tablet layout
-- [ ] CSS structure with custom properties
+- [x] Implement time grid (7 AM - 10 PM, 15-min blocks)
+- [x] Add hour line separators and time labels
+- [x] Responsive horizontal tablet layout
+- [x] CSS structure with custom properties
 
 ### Milestone 3: Event Data & API Integration (Sessions 5-6)
 **Status:** ❌ Not Started

@@ -1,4 +1,3 @@
-
 import { BasePage } from './base-page.js';
 import { ComponentConfig } from '../common/types.js';
 
@@ -10,6 +9,7 @@ export class CalendarDevPage extends BasePage {
   async init(): Promise<void> {
     this.render();
     this.loadCalendarComponent();
+    this.setupEventListeners();
   }
 
   private render(): void {
@@ -17,11 +17,16 @@ export class CalendarDevPage extends BasePage {
       <div class="calendar-dev-page">
         <div class="dev-header">
           <h1>📅 Daily Calendar Component - Development</h1>
-          <p>Milestone 1: Foundation Setup - Basic component with "Hello World"</p>
+          <p>Milestone 2: Core Layout & Time Grid - Full 24-hour coverage with configurable format</p>
           <div class="dev-status">
-            <span class="status-badge">✅ Lit Framework Installed</span>
-            <span class="status-badge">✅ Component Structure Created</span>
-            <span class="status-badge">🔄 Testing Environment Active</span>
+            <span class="status-badge">✅ Time Grid Complete</span>
+            <span class="status-badge">✅ Scroll Synchronization</span>
+            <span class="status-badge">🔄 12h/24h Time Format</span>
+          </div>
+          <div class="dev-controls">
+            <label>
+              <input type="checkbox" id="time-format-toggle"> Use 24-hour format
+            </label>
           </div>
         </div>
         <div class="component-container">
@@ -80,6 +85,26 @@ export class CalendarDevPage extends BasePage {
           border: 1px solid #c1d9ff;
         }
 
+        .dev-controls {
+          margin-top: 1rem;
+          padding-top: 1rem;
+          border-top: 1px solid #e9ecef;
+        }
+
+        .dev-controls label {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.875rem;
+          color: #495057;
+          cursor: pointer;
+        }
+
+        .dev-controls input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+        }
+
         .component-container {
           flex: 1;
           display: flex;
@@ -121,6 +146,17 @@ export class CalendarDevPage extends BasePage {
       await import('../calendar/daily-calendar.js');
     } catch (error) {
       this.showComponentError();
+    }
+  }
+
+  private setupEventListeners(): void {
+    const toggle = this.container.querySelector('#time-format-toggle') as HTMLInputElement;
+    const calendar = this.container.querySelector('daily-calendar') as any;
+
+    if (toggle && calendar) {
+      toggle.addEventListener('change', () => {
+        calendar.use24Hour = toggle.checked;
+      });
     }
   }
 

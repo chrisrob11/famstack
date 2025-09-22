@@ -64,26 +64,44 @@ export function setInnerHTML(element: HTMLElement, html: string): void {
   // Use proper HTML sanitization library to prevent XSS
   const sanitized = sanitizeHtml(html, {
     allowedTags: [
-      'b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li',
-      'div', 'span', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'blockquote', 'code', 'pre'
+      'b',
+      'i',
+      'em',
+      'strong',
+      'a',
+      'p',
+      'br',
+      'ul',
+      'ol',
+      'li',
+      'div',
+      'span',
+      'h1',
+      'h2',
+      'h3',
+      'h4',
+      'h5',
+      'h6',
+      'blockquote',
+      'code',
+      'pre',
     ],
     allowedAttributes: {
-      'a': ['href', 'title'],
-      'div': ['class'],
-      'span': ['class'],
-      'p': ['class'],
-      'h1': ['class'],
-      'h2': ['class'],
-      'h3': ['class'],
-      'h4': ['class'],
-      'h5': ['class'],
-      'h6': ['class']
+      a: ['href', 'title'],
+      div: ['class'],
+      span: ['class'],
+      p: ['class'],
+      h1: ['class'],
+      h2: ['class'],
+      h3: ['class'],
+      h4: ['class'],
+      h5: ['class'],
+      h6: ['class'],
     },
     allowedSchemes: ['http', 'https', 'mailto'],
     disallowedTagsMode: 'discard',
     allowedSchemesByTag: {},
-    allowedSchemesAppliedToAttributes: ['href']
+    allowedSchemesAppliedToAttributes: ['href'],
   });
 
   element.innerHTML = sanitized;
