@@ -1,8 +1,11 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { styleMap } from 'lit/directives/style-map.js';
 import { calendarApiService, UnifiedCalendarEvent, GetEventsOptions } from './services/calendar-api.js';
+import './components/event-card.js';
 
 const TIME_SLOT_HEIGHT_PX = 15;
+const PIXEL_PER_MINUTE = TIME_SLOT_HEIGHT_PX / 15;
 
 @customElement('daily-calendar')
 export class DailyCalendar extends LitElement {
@@ -14,6 +17,12 @@ export class DailyCalendar extends LitElement {
 
   @state()
   private _events: UnifiedCalendarEvent[] = [];
+
+  @state()
+  private _allDayEvents: UnifiedCalendarEvent[] = [];
+
+  @state()
+  private _timedEvents: UnifiedCalendarEvent[] = [];
 
   static override styles = css`
     :host {
@@ -139,6 +148,22 @@ export class DailyCalendar extends LitElement {
       position: relative;
     }
 
+    .events-container {
+      position: absolute;
+      top: 0;
+      left: 42px; /* Width of label cell + border */
+      right: 0;
+      bottom: 0;
+      z-index: 1;
+    }
+
+    .event-wrapper {
+      position: absolute;
+      left: 2px;
+      right: 8px; /* Gap on the right side */
+      overflow: hidden;
+    }
+
     .grid-content::-webkit-scrollbar {
       width: 8px;
     }
@@ -177,6 +202,12 @@ export class DailyCalendar extends LitElement {
       options.date = this.date;
     }
     this._events = await calendarApiService.getUnifiedCalendarEvents(options);
+    this._processEvents();
+  }
+
+  private _processEvents() {
+    this._allDayEvents = this._events.filter(e => e.all_day);
+    this._timedEvents = this._events.filter(e => !e.all_day);
   }
 
   private formatDate(dateString: string | undefined): string {
@@ -231,6 +262,32 @@ export class DailyCalendar extends LitElement {
     }
   }
 
+  private renderTimedEvents() {
+    return html`
+      ${this._timedEvents.map(event => {
+        const startTime = new Date(event.start_time);
+        const endTime = new Date(event.end_time);
+
+        const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
+        const durationMinutes = (endTime.getTime() - startTime.getTime()) / 60000;
+
+        const top = startMinutes * PIXEL_PER_MINUTE;
+        const height = durationMinutes * PIXEL_PER_MINUTE - 2; // -2 for a small gap
+
+        const eventStyles = {
+          top: `${top}px`,
+          height: `${height}px`,
+        };
+
+        return html`
+          <div class="event-wrapper" style=${styleMap(eventStyles)}>
+            <event-card .event=${event}></event-card>
+          </div>
+        `;
+      })}
+    `;
+  }
+
   private renderTimeGrid() {
     const slots = this.generateTimeSlots();
     return html`
@@ -245,6 +302,9 @@ export class DailyCalendar extends LitElement {
             </div>
           `
         )}
+        <div class="events-container">
+          ${this.renderTimedEvents()}
+        </div>
       </div>
     `;
   }
@@ -264,11 +324,11 @@ export class DailyCalendar extends LitElement {
       <div class="all-day-section" role="region" aria-labelledby="all-day-heading">
         <div id="all-day-heading" class="all-day-label" role="rowheader">All Day</div>
         <div class="all-day-events" role="grid">
-          <div role="row">
-            <div role="gridcell">
-              <span class="all-day-placeholder">No all-day events</span>
-            </div>
-          </div>
+          ${this._allDayEvents.length > 0
+            ? this._allDayEvents.map(
+                event => html`<event-card .event=${event}></event-card>`
+              )
+            : html`<span class="all-day-placeholder">No all-day events</span>`}
         </div>
       </div>
     `;
@@ -277,7 +337,7 @@ export class DailyCalendar extends LitElement {
   override render() {
     return html`
       <div class="calendar-container">
-      <div class="header">
+        <div class="header">
           <h1 class="date-title">${this.formatDate(this.date)}</h1>
         </div>
         ${this.renderAllDaySection()}

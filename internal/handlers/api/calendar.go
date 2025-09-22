@@ -55,36 +55,36 @@ func (h *CalendarAPIHandler) GetEvents(w http.ResponseWriter, r *http.Request) {
 
 	if date != "" {
 		// Single date query - use same date for start and end
-		parsedDate, err := time.Parse("2006-01-02", date)
+		parsedDate, err := time.ParseInLocation("2006-01-02", date, time.UTC)
 		if err != nil {
 			http.Error(w, "Invalid date format", http.StatusBadRequest)
 			return
 		}
 		startDate = parsedDate
-		endDate = parsedDate.Add(24 * time.Hour)
+		endDate = startDate.Add(24 * time.Hour)
 	} else if startDateStr != "" && endDateStr != "" {
 		// Date range query
 		var err error
-		startDate, err = time.Parse("2006-01-02", startDateStr)
+		startDate, err = time.ParseInLocation("2006-01-02", startDateStr, time.UTC)
 		if err != nil {
 			http.Error(w, "Invalid start_date format", http.StatusBadRequest)
 			return
 		}
-		endDate, err = time.Parse("2006-01-02", endDateStr)
+		endDate, err = time.ParseInLocation("2006-01-02", endDateStr, time.UTC)
 		if err != nil {
 			http.Error(w, "Invalid end_date format", http.StatusBadRequest)
 			return
 		}
 		endDate = endDate.Add(24 * time.Hour) // Include the end date
 	} else {
-		// Default to today's events
-		now := time.Now()
-		startDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		// Default to today's events in UTC
+		now := time.Now().UTC()
+		startDate = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 		endDate = startDate.Add(24 * time.Hour)
 	}
 
 	// Use the service to get events
-	fmt.Printf("🗓️  Querying events for family %s from %s to %s\n", familyID, startDate.Format("2006-01-02 15:04:05"), endDate.Format("2006-01-02 15:04:05"))
+	fmt.Printf("🗓️  Querying events for family %s from %s to %s\n", familyID, startDate.Format(time.RFC3339), endDate.Format(time.RFC3339))
 	events, err := h.calendarService.GetUnifiedCalendarEvents(familyID, startDate, endDate)
 	if err != nil {
 		fmt.Printf("❌ Calendar query error: %v\n", err)

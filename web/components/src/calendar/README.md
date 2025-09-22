@@ -52,20 +52,22 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 - [x] Process events into all-day vs. timed
 
 ### Milestone 4: Basic Event Rendering (Sessions 7-8)
-**Status:** ❌ Not Started
+**Status:** ✅ Complete
 **Calendar Support Level:** Simple events - title only, single color, stacked if overlapping
 **User Validation:** See events appear in correct time slots, all-day events at top
 
-- [ ] Create `<event-card>` component
-- [ ] Render events as simple blocks in correct time slots
-- [ ] All-day events section at top
-- [ ] Basic positioning (no overlap handling)
+- [x] Create `<event-card>` component
+- [x] Render events as simple blocks in correct time slots
+- [x] All-day events section at top
+- [x] Basic positioning (no overlap handling)
 
 ### Milestone 5: Person Identification System (Sessions 9-10)
 **Status:** ❌ Not Started
 **Calendar Support Level:** Events with colored person indicators, multi-person support
 **User Validation:** Each event shows person circles, colors are consistent per person
 
+- [ ] Enhance API to embed attendee data to reduce requests
+- [ ] Add `color` and `initial` columns to `family_members` table
 - [ ] Family member color coding system
 - [ ] Add person circles/dots with initials to events
 - [ ] Multi-person events show multiple circles
@@ -76,6 +78,7 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 **Calendar Support Level:** Sophisticated overlap handling, events don't stack
 **User Validation:** Overlapping events appear side-by-side, not on top of each other
 
+- [ ] Refactor layout logic into a dedicated `layout-utils.ts` module
 - [ ] Detect overlapping events
 - [ ] Side-by-side layout for concurrent events
 - [ ] Dynamic width calculation
@@ -192,10 +195,10 @@ web/components/src/calendar/
 
 ## Progress Tracking
 
-**Current Status:** Milestone 3 Complete - Data Integration
-**Next Session:** Start Milestone 4 - Basic Event Rendering
-**Sessions Completed:** 2/25
-**Estimated Completion:** 6-8 weeks
+**Current Status:** Milestone 4 Complete - Basic Event Rendering
+**Next Session:** Start Milestone 5 - Person Identification System
+**Sessions Completed:** 3/25
+**Estimated Completion:** 5-7 weeks
 
 ### Session Log
 - **Session 0 (Planning):** Created development plan and roadmap.
@@ -210,6 +213,12 @@ web/components/src/calendar/
   - Refactored component to improve i18n and remove magic numbers.
   - Enhanced accessibility by adding ARIA roles to the calendar grid.
   - Updated `README.md` to reflect design improvements.
+- **Session 3 (Event Rendering):** ✅ Complete
+  - Created `<event-card>` component for displaying individual events.
+  - Implemented logic to separate all-day and timed events.
+  - Rendered all-day events in the dedicated header section.
+  - Implemented positioning logic to render timed events on the main grid.
+  - Fixed visual bugs related to event layering and height calculation.
 
 ---
 
