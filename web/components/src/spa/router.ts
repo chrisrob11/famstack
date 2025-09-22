@@ -226,7 +226,12 @@ export const defaultRoutes: Route[] = [
     title: 'Integrations',
   },
   { path: '/login', component: 'login-page', requiresAuth: false, title: 'Login' },
-  { path: '/calendar-dev', component: 'calendar-dev-page', requiresAuth: false, title: 'Calendar Development' },
+  {
+    path: '/calendar-dev',
+    component: 'calendar-dev-page',
+    requiresAuth: false,
+    title: 'Calendar Development',
+  },
 ];
 
 export const routerConfig: RouterConfig = {
