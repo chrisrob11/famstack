@@ -266,11 +266,11 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 		SELECT id, family_id, title, description, start_time, end_time, location,
 			   all_day, event_type, color, created_by, priority, status, created_at, updated_at
 		FROM unified_calendar_events
-		WHERE family_id = ? AND start_time >= ? AND start_time <= ?
+		WHERE family_id = ? AND start_time < ? AND end_time > ?
 		ORDER BY start_time ASC
 	`
 
-	rows, err := s.db.Query(query, familyID, startDate, endDate)
+	rows, err := s.db.Query(query, familyID, endDate, startDate) // Note: endDate and startDate are intentionally swapped for the query logic
 	if err != nil {
 		return []models.UnifiedCalendarEvent{}, fmt.Errorf("failed to list unified calendar events: %w", err)
 	}
