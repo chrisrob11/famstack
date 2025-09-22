@@ -149,7 +149,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 
 	// SPA routes - serve the same HTML file for all page routes
 	// The client-side router will handle authentication and routing
-	pageRoutes := []string{"/", "/login", "/tasks", "/daily", "/family", "/family/setup", "/schedules", "/integrations"}
+	pageRoutes := []string{"/", "/login", "/tasks", "/daily", "/family", "/family/setup", "/schedules", "/integrations", "/calendar-dev"}
 	for _, route := range pageRoutes {
 		mux.HandleFunc(route, pageHandler.ServePage)
 	}
