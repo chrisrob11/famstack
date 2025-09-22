@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"famstack/internal/database"
@@ -219,7 +220,7 @@ func (s *CalendarService) UpdateEvent(eventID string, req *models.UpdateCalendar
 		UPDATE calendar_events
 		SET %s
 		WHERE id = ?
-	`, joinStrings(setParts, ", "))
+	`, strings.Join(setParts, ", "))
 
 	result, err := s.db.Exec(query, args...)
 	if err != nil {
@@ -289,8 +290,53 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 	}
 
 	// Ensure we always return a non-nil slice
-	if events == nil {
-		events = []models.UnifiedCalendarEvent{}
+	if len(events) == 0 {
+		return []models.UnifiedCalendarEvent{}, nil
+	}
+
+	// Step 2: Collect all event IDs
+	eventIDs := make([]string, len(events))
+	for i, event := range events {
+		eventIDs[i] = event.ID
+	}
+
+	// Step 3: Fetch all attendees for these events in a single query
+	attendeeQuery := `
+		SELECT event_id, user_id
+		FROM unified_calendar_event_attendees
+		WHERE event_id IN (?` + strings.Repeat(",?", len(eventIDs)-1) + `)
+	`
+	args := make([]interface{}, len(eventIDs))
+	for i, id := range eventIDs {
+		args[i] = id
+	}
+
+	attendeeRows, err := s.db.Query(attendeeQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query for attendees: %w", err)
+	}
+	defer attendeeRows.Close()
+
+	// Step 4: Map attendees to their event ID
+	attendeeMap := make(map[string][]string)
+	for attendeeRows.Next() {
+		var eventID, userID string
+		if err = attendeeRows.Scan(&eventID, &userID); err != nil {
+			return nil, fmt.Errorf("failed to scan attendee: %w", err)
+		}
+		attendeeMap[eventID] = append(attendeeMap[eventID], userID)
+	}
+	if err = attendeeRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating attendee rows: %w", err)
+	}
+
+	// Step 5: Attach attendees to the events
+	for i, event := range events {
+		if attendees, ok := attendeeMap[event.ID]; ok {
+			events[i].Attendees = attendees
+		} else {
+			events[i].Attendees = []string{} // Ensure it's an empty slice, not nil
+		}
 	}
 
 	return events, nil
@@ -373,7 +419,7 @@ func (s *CalendarService) UpsertCalendarEvent(event *CalendarEventForSync) error
 	attendeesJSON := "[]"
 	if len(event.Attendees) > 0 {
 		// Simple JSON encoding for attendees
-		attendeesJSON = `["` + joinStrings(event.Attendees, `","`) + `"]`
+		attendeesJSON = `["` + strings.Join(event.Attendees, `","`) + `"]`
 	}
 
 	_, err := s.db.Exec(query,

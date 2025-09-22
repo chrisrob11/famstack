@@ -1,5 +1,8 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
+import { calendarApiService, UnifiedCalendarEvent, GetEventsOptions } from './services/calendar-api.js';
+
+const TIME_SLOT_HEIGHT_PX = 15;
 
 @customElement('daily-calendar')
 export class DailyCalendar extends LitElement {
@@ -9,13 +12,16 @@ export class DailyCalendar extends LitElement {
   @property({ type: Boolean, attribute: 'use-24hour' })
   use24Hour = false;
 
+  @state()
+  private _events: UnifiedCalendarEvent[] = [];
+
   static override styles = css`
     :host {
       --calendar-bg: #f8f9fa;
       --calendar-text: #333;
       --grid-border: #e1e5e9;
       --hour-text: #6c757d;
-      --time-slot-height: 15px;
+      --time-slot-height: ${TIME_SLOT_HEIGHT_PX}px;
       --hour-line-color: #dee2e6;
 
       display: block;
@@ -165,12 +171,20 @@ export class DailyCalendar extends LitElement {
     }
   `;
 
+  private async _fetchEvents() {
+    const options: GetEventsOptions = {};
+    if (this.date) {
+      options.date = this.date;
+    }
+    this._events = await calendarApiService.getUnifiedCalendarEvents(options);
+  }
+
   private formatDate(dateString: string | undefined): string {
     if (!dateString) {
       dateString = new Date().toISOString().split('T')[0];
     }
     const date = new Date(dateString!);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(undefined, {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -194,7 +208,7 @@ export class DailyCalendar extends LitElement {
           minutes,
           timeString,
           isHourBoundary,
-          position: ((hour - startHour) * 4 + quarter) * 15,
+          position: ((hour - startHour) * 4 + quarter) * TIME_SLOT_HEIGHT_PX,
         });
       }
     }
@@ -220,12 +234,14 @@ export class DailyCalendar extends LitElement {
   private renderTimeGrid() {
     const slots = this.generateTimeSlots();
     return html`
-      <div class="grid-content">
+      <div class="grid-content" role="grid" aria-label="Daily calendar time grid">
         ${slots.map(
           slot => html`
-            <div class="time-row ${slot.isHourBoundary ? 'hour-boundary' : ''}">
-              <div class="time-label-cell">${slot.isHourBoundary ? slot.timeString : ''}</div>
-              <div class="time-slot" data-time="${slot.timeString}"></div>
+            <div class="time-row ${slot.isHourBoundary ? 'hour-boundary' : ''}" role="row">
+              <div class="time-label-cell" role="rowheader">
+                ${slot.isHourBoundary ? slot.timeString : ''}
+              </div>
+              <div class="time-slot" role="gridcell" aria-label=${slot.timeString}></div>
             </div>
           `
         )}
@@ -234,20 +250,25 @@ export class DailyCalendar extends LitElement {
   }
 
   override firstUpdated() {
-    // Scroll to 7 AM on initial load (7 hours from midnight start = 7 * 4 slots * 15px)
+    this._fetchEvents();
+    // Scroll to 7 AM on initial load
     const gridContent = this.shadowRoot?.querySelector('.grid-content') as HTMLElement;
     if (gridContent) {
-      const scrollTo7AM = 7 * 4 * 15; // 7 hours * 4 quarters * 15px per slot
+      const scrollTo7AM = 7 * 4 * TIME_SLOT_HEIGHT_PX; // 7 hours * 4 quarters * height
       gridContent.scrollTop = scrollTo7AM;
     }
   }
 
   private renderAllDaySection() {
     return html`
-      <div class="all-day-section">
-        <div class="all-day-label">All Day</div>
-        <div class="all-day-events">
-          <span class="all-day-placeholder">No all-day events</span>
+      <div class="all-day-section" role="region" aria-labelledby="all-day-heading">
+        <div id="all-day-heading" class="all-day-label" role="rowheader">All Day</div>
+        <div class="all-day-events" role="grid">
+          <div role="row">
+            <div role="gridcell">
+              <span class="all-day-placeholder">No all-day events</span>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -256,7 +277,7 @@ export class DailyCalendar extends LitElement {
   override render() {
     return html`
       <div class="calendar-container">
-        <div class="header">
+      <div class="header">
           <h1 class="date-title">${this.formatDate(this.date)}</h1>
         </div>
         ${this.renderAllDaySection()}

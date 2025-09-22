@@ -32,25 +32,24 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 - [x] Basic component registration and HTML integration
 
 ### Milestone 2: Core Layout & Time Grid (Sessions 3-4)
-**Status:** ❌ Not Started
-**Calendar Support Level:** Empty time grid with hour markings, no events
-**User Validation:** See clean time grid with hour labels (7 AM - 10 PM)
+**Status:** ✅ Complete
+  **Calendar Support Level:** Empty time grid with hour markings, no events
+  **User Validation:** See clean 24-hour time grid with hour labels, scrolled to a reasonable morning hour
 
-- [x] Implement time grid (7 AM - 10 PM, 15-min blocks)
-- [x] Add hour line separators and time labels
-- [x] Responsive horizontal tablet layout
+- [x] Implement a full 24-hour time grid (15-min blocks), with the view auto-scrolling to 7 AM on initial load
+- [x] Add hour line separators and time labels- [x] Responsive horizontal tablet layout
 - [x] CSS structure with custom properties
 
 ### Milestone 3: Event Data & API Integration (Sessions 5-6)
-**Status:** ❌ Not Started
+**Status:** ✅ Complete
 **Calendar Support Level:** Loads real/mock event data, no visual events yet
-**User Validation:** Check browser console - events loaded and processed correctly
+**User Validation:** API call returns event data with attendees
 
-- [ ] Review/update calendar event data model
-- [ ] Create mock test data for development
-- [ ] Integrate with calendar API endpoint
-- [ ] Handle authentication and error states
-- [ ] Process events into all-day vs. timed
+- [x] Review/update calendar event data model
+- [x] Create mock test data for development
+- [x] Integrate with calendar API endpoint
+- [x] Handle authentication and error states
+- [x] Process events into all-day vs. timed
 
 ### Milestone 4: Basic Event Rendering (Sessions 7-8)
 **Status:** ❌ Not Started
@@ -193,23 +192,26 @@ web/components/src/calendar/
 
 ## Progress Tracking
 
-**Current Status:** Milestone 1 Complete - Foundation Established
-**Next Session:** Start Milestone 2 - Core Layout & Time Grid
-**Sessions Completed:** 1/25
+**Current Status:** Milestone 3 Complete - Data Integration
+**Next Session:** Start Milestone 4 - Basic Event Rendering
+**Sessions Completed:** 2/25
 **Estimated Completion:** 6-8 weeks
 
 ### Session Log
-- **Session 0 (Planning):** Created development plan and roadmap
+- **Session 0 (Planning):** Created development plan and roadmap.
 - **Session 1 (Foundation Setup):** ✅ Complete
-  - Integrated Lit framework with TypeScript build system
-  - Created basic `<daily-calendar>` Web Component with proper styling
-  - Set up `/calendar-dev` experiment page with development environment
-  - Configured hot reload workflow with TypeScript watch mode
-  - Added Lit module resolution via import map with CDN
-  - All code passes linting and builds successfully
-  - Component displays "Hello World" with formatted date as specified
+  - Integrated Lit framework with TypeScript build system.
+  - Created basic `<daily-calendar>` Web Component.
+  - Set up `/calendar-dev` experiment page.
+- **Session 2 (Data & Refactoring):** ✅ Complete
+  - Implemented API data fetching for calendar events, including attendees.
+  - Created a dedicated `CalendarApiService` for separation of concerns.
+  - Added a reusable database seed script for test data.
+  - Refactored component to improve i18n and remove magic numbers.
+  - Enhanced accessibility by adding ARIA roles to the calendar grid.
+  - Updated `README.md` to reflect design improvements.
 
 ---
 
-*Last Updated: September 21, 2025*
+*Last Updated: September 22, 2025*
 *This document is updated after each development session to track progress*

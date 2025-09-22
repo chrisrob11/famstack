@@ -35,6 +35,10 @@ type UnifiedCalendarEvent struct {
 	Status      string    `json:"status" db:"status"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+
+	// Attendees is a constructed field, not a direct DB column. It's populated
+	// by a separate query to the unified_calendar_event_attendees table.
+	Attendees []string `json:"attendees"`
 }
 
 // EventType constants
