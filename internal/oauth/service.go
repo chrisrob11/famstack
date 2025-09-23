@@ -149,8 +149,8 @@ func (s *Service) generateState(provider Provider, userID string) (string, error
 		State:     state,
 		UserID:    userID,
 		Provider:  string(provider),
-		ExpiresAt: time.Now().Add(10 * time.Minute),
-		CreatedAt: time.Now(),
+		ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
+		CreatedAt: time.Now().UTC(),
 	}
 
 	if err := s.oauthService.SaveState(stateData); err != nil {
@@ -216,8 +216,8 @@ func (s *Service) handleGoogleCallback(code, state string) (*OAuthToken, error) 
 		TokenType:    token.TokenType,
 		ExpiresAt:    token.Expiry,
 		Scope:        calendar.CalendarReadonlyScope,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+		CreatedAt:    time.Now().UTC(),
+		UpdatedAt:    time.Now().UTC(),
 	}
 
 	// Save token to database
@@ -264,7 +264,7 @@ func (s *Service) refreshGoogleToken(token *OAuthToken) (*OAuthToken, error) {
 	}
 	token.TokenType = freshToken.TokenType
 	token.ExpiresAt = freshToken.Expiry
-	token.UpdatedAt = time.Now()
+	token.UpdatedAt = time.Now().UTC()
 
 	// Save updated token
 	if err := s.saveTokenWithEncryption(token); err != nil {

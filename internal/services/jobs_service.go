@@ -78,7 +78,7 @@ func (s *JobsService) EnqueueJob(queueName, jobType string, payload string, prio
 		priority,
 		maxRetries,
 		runAt.Format("2006-01-02 15:04:05"),
-		time.Now().Format("2006-01-02 15:04:05"),
+		time.Now().UTC().Format("2006-01-02 15:04:05"),
 		idempotencyKey,
 	).Scan(&jobID)
 
@@ -175,7 +175,7 @@ func (s *JobsService) GetPendingJobs(queueName string, limit int) ([]Job, error)
 
 // ClaimJob attempts to claim a job for processing using optimistic locking
 func (s *JobsService) ClaimJob(jobID string, expectedVersion int) (bool, error) {
-	startedAt := time.Now()
+	startedAt := time.Now().UTC()
 	query := `
 		UPDATE jobs
 		SET status = 'running', started_at = ?, updated_at = ?, version = version + 1
@@ -183,7 +183,7 @@ func (s *JobsService) ClaimJob(jobID string, expectedVersion int) (bool, error) 
 	`
 	result, err := s.db.Exec(query,
 		startedAt.Format("2006-01-02 15:04:05"),
-		time.Now().Format("2006-01-02 15:04:05"),
+		time.Now().UTC().Format("2006-01-02 15:04:05"),
 		jobID,
 		expectedVersion,
 	)
@@ -245,7 +245,7 @@ func (s *JobsService) RecordJobMetric(queueName, jobType, status string, duratio
 
 // GetJobMetrics retrieves job metrics for analysis
 func (s *JobsService) GetJobMetrics(queueName, jobType string, timeWindow time.Duration) (*JobMetricsResult, error) {
-	cutoff := time.Now().Add(-timeWindow)
+	cutoff := time.Now().UTC().Add(-timeWindow)
 
 	query := `
 		SELECT

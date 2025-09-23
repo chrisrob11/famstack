@@ -226,7 +226,7 @@ func (s *Service) checkUpgradeRateLimit(userID string) bool {
 	s.upgradeMutex.Lock()
 	defer s.upgradeMutex.Unlock()
 
-	now := time.Now()
+	now := time.Now().UTC()
 	attempts := s.upgradeAttempts[userID]
 
 	// Remove attempts older than 15 minutes

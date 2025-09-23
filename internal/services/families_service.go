@@ -67,7 +67,7 @@ func (s *FamiliesService) ListFamilies() ([]models.Family, error) {
 // CreateFamily creates a new family
 func (s *FamiliesService) CreateFamily(name string) (*models.Family, error) {
 	familyID := generateFamilyID()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	query := `INSERT INTO families (id, name, created_at) VALUES (?, ?, ?)`
 
@@ -188,5 +188,5 @@ func (s *FamiliesService) GetFamilyStatistics(familyID string) (*models.FamilySt
 // Helper functions
 
 func generateFamilyID() string {
-	return fmt.Sprintf("fam_%d", time.Now().UnixNano())
+	return fmt.Sprintf("fam_%d", time.Now().UTC().UnixNano())
 }

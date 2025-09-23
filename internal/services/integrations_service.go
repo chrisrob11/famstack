@@ -207,8 +207,8 @@ func (s *IntegrationsService) CreateIntegration(familyID, userID string, req *Cr
 		DisplayName:     req.DisplayName,
 		Description:     req.Description,
 		Settings:        settingsJSON,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
 	}
 
 	query := `
@@ -387,7 +387,7 @@ func (s *IntegrationsService) UpdateIntegration(integrationID string, req *Updat
 	if req.Status != "" {
 		integration.Status = req.Status
 	}
-	integration.UpdatedAt = time.Now()
+	integration.UpdatedAt = time.Now().UTC()
 
 	query := `
 		UPDATE integrations
@@ -440,7 +440,7 @@ func (s *IntegrationsService) StoreOAuthCredentials(integrationID string, access
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	now := time.Now()
+	now := time.Now().UTC()
 	_, err = s.db.Exec(query,
 		generateID(), integrationID, encryptedAccessToken, encryptedRefreshToken,
 		tokenType, expiresAt, scope, now, now,
@@ -586,5 +586,5 @@ func (s *IntegrationsService) InitiateOAuth(integrationID, host string) (string,
 // generateID creates a new random ID
 func generateID() string {
 	// Simple implementation - in production you might want something more robust
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	return fmt.Sprintf("%d", time.Now().UTC().UnixNano())
 }

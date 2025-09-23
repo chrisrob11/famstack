@@ -74,11 +74,50 @@ func (s *CalendarService) GetEvent(eventID string) (*models.CalendarEvent, error
 		event.AssignedTo = &assignedTo.String
 	}
 
+	familyTimezone, err := s.getFamilyTimezone(event.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event conversion: %w", err)
+	}
+
+	event.StartTime, err = s.convertFromUTC(event.StartTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start time from UTC: %w", err)
+	}
+
+	event.EndTime, err = s.convertFromUTC(event.EndTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end time from UTC: %w", err)
+	}
+
+	event.CreatedAt, err = s.convertFromUTC(event.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created_at from UTC: %w", err)
+	}
+
+	event.UpdatedAt, err = s.convertFromUTC(event.UpdatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert updated_at from UTC: %w", err)
+	}
+
 	return &event, nil
 }
 
 // ListEvents returns calendar events for a family within a date range
 func (s *CalendarService) ListEvents(familyID string, startDate, endDate time.Time) ([]models.CalendarEvent, error) {
+	familyTimezone, err := s.getFamilyTimezone(familyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event listing: %w", err)
+	}
+
+	startUTC, err := s.convertToUTC(startDate, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start date to UTC: %w", err)
+	}
+	endUTC, err := s.convertToUTC(endDate, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end date to UTC: %w", err)
+	}
+
 	query := `
 		SELECT id, family_id, title, description, start_time, end_time,
 			   location, event_type, assigned_to, created_by, created_at, updated_at
@@ -87,7 +126,7 @@ func (s *CalendarService) ListEvents(familyID string, startDate, endDate time.Ti
 		ORDER BY start_time ASC
 	`
 
-	rows, err := s.db.Query(query, familyID, startDate, endDate)
+	rows, err := s.db.Query(query, familyID, startUTC, endUTC)
 	if err != nil {
 		return []models.CalendarEvent{}, fmt.Errorf("failed to list calendar events: %w", err)
 	}
@@ -109,6 +148,27 @@ func (s *CalendarService) ListEvents(familyID string, startDate, endDate time.Ti
 	// Ensure we always return a non-nil slice
 	if events == nil {
 		events = []models.CalendarEvent{}
+		return events, nil
+	}
+
+	// Convert all event times to the family's local timezone
+	for i := range events {
+		events[i].StartTime, err = s.convertFromUTC(events[i].StartTime, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert start time for event %s: %w", events[i].ID, err)
+		}
+		events[i].EndTime, err = s.convertFromUTC(events[i].EndTime, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert end time for event %s: %w", events[i].ID, err)
+		}
+		events[i].CreatedAt, err = s.convertFromUTC(events[i].CreatedAt, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert created_at for event %s: %w", events[i].ID, err)
+		}
+		events[i].UpdatedAt, err = s.convertFromUTC(events[i].UpdatedAt, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert updated_at for event %s: %w", events[i].ID, err)
+		}
 	}
 
 	return events, nil
@@ -116,6 +176,25 @@ func (s *CalendarService) ListEvents(familyID string, startDate, endDate time.Ti
 
 // ListEventsByMember returns calendar events assigned to a specific family member
 func (s *CalendarService) ListEventsByMember(memberID string, startDate, endDate time.Time) ([]models.CalendarEvent, error) {
+	familyID, err := s.getFamilyIDForMember(memberID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family for member %s: %w", memberID, err)
+	}
+
+	familyTimezone, err := s.getFamilyTimezone(familyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event listing: %w", err)
+	}
+
+	startUTC, err := s.convertToUTC(startDate, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start date to UTC: %w", err)
+	}
+	endUTC, err := s.convertToUTC(endDate, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end date to UTC: %w", err)
+	}
+
 	query := `
 		SELECT id, family_id, title, description, start_time, end_time,
 			   location, event_type, assigned_to, created_by, created_at, updated_at
@@ -124,7 +203,7 @@ func (s *CalendarService) ListEventsByMember(memberID string, startDate, endDate
 		ORDER BY start_time ASC
 	`
 
-	rows, err := s.db.Query(query, memberID, startDate, endDate)
+	rows, err := s.db.Query(query, memberID, startUTC, endUTC)
 	if err != nil {
 		return []models.CalendarEvent{}, fmt.Errorf("failed to list events by member: %w", err)
 	}
@@ -146,6 +225,27 @@ func (s *CalendarService) ListEventsByMember(memberID string, startDate, endDate
 	// Ensure we always return a non-nil slice
 	if events == nil {
 		events = []models.CalendarEvent{}
+		return events, nil
+	}
+
+	// Convert all event times to the family's local timezone
+	for i := range events {
+		events[i].StartTime, err = s.convertFromUTC(events[i].StartTime, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert start time for event %s: %w", events[i].ID, err)
+		}
+		events[i].EndTime, err = s.convertFromUTC(events[i].EndTime, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert end time for event %s: %w", events[i].ID, err)
+		}
+		events[i].CreatedAt, err = s.convertFromUTC(events[i].CreatedAt, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert created_at for event %s: %w", events[i].ID, err)
+		}
+		events[i].UpdatedAt, err = s.convertFromUTC(events[i].UpdatedAt, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert updated_at for event %s: %w", events[i].ID, err)
+		}
 	}
 
 	return events, nil
@@ -153,8 +253,23 @@ func (s *CalendarService) ListEventsByMember(memberID string, startDate, endDate
 
 // CreateEvent creates a new calendar event
 func (s *CalendarService) CreateEvent(familyID, createdBy string, req *models.CreateCalendarEventRequest) (*models.CalendarEvent, error) {
+	familyTimezone, err := s.getFamilyTimezone(familyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event creation: %w", err)
+	}
+
+	startTimeUTC, err := s.convertToUTC(req.StartTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start time to UTC: %w", err)
+	}
+
+	endTimeUTC, err := s.convertToUTC(req.EndTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end time to UTC: %w", err)
+	}
+
 	eventID := generateEventID()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	query := `
 		INSERT INTO calendar_events (id, family_id, title, description, start_time, end_time,
@@ -162,8 +277,8 @@ func (s *CalendarService) CreateEvent(familyID, createdBy string, req *models.Cr
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := s.db.Exec(query,
-		eventID, familyID, req.Title, req.Description, req.StartTime, req.EndTime,
+	_, err = s.db.Exec(query,
+		eventID, familyID, req.Title, req.Description, startTimeUTC, endTimeUTC,
 		req.Location, req.EventType, req.AssignedTo, createdBy, now, now,
 	)
 
@@ -176,9 +291,19 @@ func (s *CalendarService) CreateEvent(familyID, createdBy string, req *models.Cr
 
 // UpdateEvent updates an existing calendar event
 func (s *CalendarService) UpdateEvent(eventID string, req *models.UpdateCalendarEventRequest) (*models.CalendarEvent, error) {
+	familyID, err := s.getFamilyIDForEvent(eventID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family for event %s: %w", eventID, err)
+	}
+
+	familyTimezone, err := s.getFamilyTimezone(familyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event update: %w", err)
+	}
+
 	// Build dynamic update query
-	setParts := []string{"updated_at = CURRENT_TIMESTAMP"}
-	args := []interface{}{}
+	setParts := []string{"updated_at = ?"}
+	args := []interface{}{time.Now().UTC()}
 
 	if req.Title != nil {
 		setParts = append(setParts, "title = ?")
@@ -189,12 +314,20 @@ func (s *CalendarService) UpdateEvent(eventID string, req *models.UpdateCalendar
 		args = append(args, *req.Description)
 	}
 	if req.StartTime != nil {
+		startTimeUTC, convErr := s.convertToUTC(*req.StartTime, familyTimezone)
+		if convErr != nil {
+			return nil, fmt.Errorf("failed to convert start time to UTC: %w", convErr)
+		}
 		setParts = append(setParts, "start_time = ?")
-		args = append(args, *req.StartTime)
+		args = append(args, startTimeUTC)
 	}
 	if req.EndTime != nil {
+		endTimeUTC, convErr := s.convertToUTC(*req.EndTime, familyTimezone)
+		if convErr != nil {
+			return nil, fmt.Errorf("failed to convert end time to UTC: %w", convErr)
+		}
 		setParts = append(setParts, "end_time = ?")
-		args = append(args, *req.EndTime)
+		args = append(args, endTimeUTC)
 	}
 	if req.Location != nil {
 		setParts = append(setParts, "location = ?")
@@ -262,6 +395,20 @@ func (s *CalendarService) DeleteEvent(eventID string) error {
 
 // GetUnifiedCalendarEvents returns unified calendar events (from external integrations)
 func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, endDate time.Time) ([]models.UnifiedCalendarEvent, error) {
+	familyTimezone, err := s.getFamilyTimezone(familyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event listing: %w", err)
+	}
+
+	startUTC, err := s.convertToUTC(startDate, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start date to UTC: %w", err)
+	}
+	endUTC, err := s.convertToUTC(endDate, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end date to UTC: %w", err)
+	}
+
 	query := `
 		SELECT id, family_id, title, description, start_time, end_time, location,
 			   all_day, event_type, color, created_by, priority, status, created_at, updated_at
@@ -270,7 +417,7 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 		ORDER BY start_time ASC
 	`
 
-	rows, err := s.db.Query(query, familyID, endDate, startDate) // Note: endDate and startDate are intentionally swapped for the query logic
+	rows, err := s.db.Query(query, familyID, endUTC, startUTC) // Note: endDate and startDate are intentionally swapped for the query logic
 	if err != nil {
 		return []models.UnifiedCalendarEvent{}, fmt.Errorf("failed to list unified calendar events: %w", err)
 	}
@@ -292,6 +439,26 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 	// Ensure we always return a non-nil slice
 	if len(events) == 0 {
 		return []models.UnifiedCalendarEvent{}, nil
+	}
+
+	// Convert all event times to the family's local timezone
+	for i := range events {
+		events[i].StartTime, err = s.convertFromUTC(events[i].StartTime, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert start time for event %s: %w", events[i].ID, err)
+		}
+		events[i].EndTime, err = s.convertFromUTC(events[i].EndTime, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert end time for event %s: %w", events[i].ID, err)
+		}
+		events[i].CreatedAt, err = s.convertFromUTC(events[i].CreatedAt, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert created_at for event %s: %w", events[i].ID, err)
+		}
+		events[i].UpdatedAt, err = s.convertFromUTC(events[i].UpdatedAt, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert updated_at for event %s: %w", events[i].ID, err)
+		}
 	}
 
 	// Step 2: Collect all event IDs
@@ -356,8 +523,23 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 
 // CreateUnifiedCalendarEvent creates a unified calendar event (from external integration)
 func (s *CalendarService) CreateUnifiedCalendarEvent(req *models.CreateUnifiedCalendarEventRequest) (*models.UnifiedCalendarEvent, error) {
+	familyTimezone, err := s.getFamilyTimezone(req.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for unified event creation: %w", err)
+	}
+
+	startTimeUTC, err := s.convertToUTC(req.StartTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start time to UTC: %w", err)
+	}
+
+	endTimeUTC, err := s.convertToUTC(req.EndTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end time to UTC: %w", err)
+	}
+
 	eventID := generateUnifiedEventID()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	query := `
 		INSERT INTO unified_calendar_events (id, family_id, integration_id, external_event_id,
@@ -366,9 +548,9 @@ func (s *CalendarService) CreateUnifiedCalendarEvent(req *models.CreateUnifiedCa
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := s.db.Exec(query,
+	_, err = s.db.Exec(query,
 		eventID, req.FamilyID, req.IntegrationID, req.ExternalEventID,
-		req.Title, req.Description, req.StartTime, req.EndTime, req.Location,
+		req.Title, req.Description, startTimeUTC, endTimeUTC, req.Location,
 		req.Organizer, req.Attendees, now, now,
 	)
 
@@ -414,6 +596,31 @@ func (s *CalendarService) GetUnifiedCalendarEvent(eventID string) (*models.Unifi
 	}
 	if createdBy.Valid {
 		event.CreatedBy = &createdBy.String
+	}
+
+	familyTimezone, err := s.getFamilyTimezone(event.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for event conversion: %w", err)
+	}
+
+	event.StartTime, err = s.convertFromUTC(event.StartTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert start time from UTC: %w", err)
+	}
+
+	event.EndTime, err = s.convertFromUTC(event.EndTime, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert end time from UTC: %w", err)
+	}
+
+	event.CreatedAt, err = s.convertFromUTC(event.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created_at from UTC: %w", err)
+	}
+
+	event.UpdatedAt, err = s.convertFromUTC(event.UpdatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert updated_at from UTC: %w", err)
 	}
 
 	return &event, nil
@@ -473,7 +680,7 @@ func (s *CalendarService) UpdateSyncStatus(userID, status, errorMsg string, even
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := s.db.Exec(query, userID, time.Now(), status, errorMsg, eventsSynced, time.Now())
+	_, err := s.db.Exec(query, userID, time.Now().UTC(), status, errorMsg, eventsSynced, time.Now().UTC())
 	return err
 }
 
@@ -545,9 +752,92 @@ func (s *CalendarService) scanUnifiedCalendarEvent(scanner interface {
 }
 
 func generateEventID() string {
-	return fmt.Sprintf("event_%d", time.Now().UnixNano())
+	return fmt.Sprintf("event_%d", time.Now().UTC().UnixNano())
 }
 
 func generateUnifiedEventID() string {
-	return fmt.Sprintf("unified_event_%d", time.Now().UnixNano())
+	return fmt.Sprintf("unified_event_%d", time.Now().UTC().UnixNano())
+}
+
+// getFamilyIDForMember retrieves the family ID for a given member ID
+func (s *CalendarService) getFamilyIDForMember(memberID string) (string, error) {
+	query := `SELECT family_id FROM family_members WHERE id = ?`
+	var familyID string
+	err := s.db.QueryRow(query, memberID).Scan(&familyID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("member not found")
+		}
+		return "", fmt.Errorf("failed to get family ID for member: %w", err)
+	}
+	return familyID, nil
+}
+
+// getFamilyIDForEvent retrieves the family ID for a given event ID
+func (s *CalendarService) getFamilyIDForEvent(eventID string) (string, error) {
+	query := `SELECT family_id FROM calendar_events WHERE id = ?`
+	var familyID string
+	err := s.db.QueryRow(query, eventID).Scan(&familyID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", fmt.Errorf("event not found")
+		}
+		return "", fmt.Errorf("failed to get family ID for event: %w", err)
+	}
+	return familyID, nil
+}
+
+// convertToUTC converts a time from a family's timezone to UTC
+func (s *CalendarService) convertToUTC(t time.Time, familyTimezone string) (time.Time, error) {
+	if familyTimezone == "" || familyTimezone == "UTC" {
+		return t.UTC(), nil
+	}
+
+	loc, err := time.LoadLocation(familyTimezone)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid timezone %s: %w", familyTimezone, err)
+	}
+
+	// If the time is naive (no timezone info), treat it as being in the family's timezone
+	if t.Location() == time.UTC || t.Location().String() == "UTC" {
+		// Create a new time in the family's timezone with the same date/time components
+		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), loc).UTC(), nil
+	}
+
+	// If it already has timezone info, convert to UTC
+	return t.UTC(), nil
+}
+
+// convertFromUTC converts a UTC time to a family's timezone for display
+func (s *CalendarService) convertFromUTC(utcTime time.Time, familyTimezone string) (time.Time, error) {
+	if familyTimezone == "" || familyTimezone == "UTC" {
+		return utcTime.UTC(), nil
+	}
+
+	loc, err := time.LoadLocation(familyTimezone)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid timezone %s: %w", familyTimezone, err)
+	}
+
+	return utcTime.In(loc), nil
+}
+
+// getFamilyTimezone retrieves the timezone for a family
+func (s *CalendarService) getFamilyTimezone(familyID string) (string, error) {
+	query := `SELECT timezone FROM families WHERE id = ?`
+	var timezone sql.NullString
+
+	err := s.db.QueryRow(query, familyID).Scan(&timezone)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "UTC", nil // Default to UTC if family not found
+		}
+		return "", fmt.Errorf("failed to get family timezone: %w", err)
+	}
+
+	if !timezone.Valid || timezone.String == "" {
+		return "UTC", nil
+	}
+
+	return timezone.String, nil
 }

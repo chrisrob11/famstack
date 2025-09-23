@@ -12,6 +12,7 @@ import (
 type Family struct {
 	ID        string    `json:"id" db:"id"`
 	Name      string    `json:"name" db:"name"`
+	Timezone  string    `json:"timezone" db:"timezone"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
@@ -101,6 +102,15 @@ func IsValidUserRole(role string) bool {
 	}
 }
 
+// IsValidTimezone checks if a timezone is valid using Go's time.LoadLocation
+func IsValidTimezone(timezone string) bool {
+	if timezone == "" {
+		return false
+	}
+	_, err := time.LoadLocation(timezone)
+	return err == nil
+}
+
 // Validate validates the task and returns validation errors
 func (t *Task) Validate() error {
 	validator := validation.NewValidator()
@@ -167,7 +177,7 @@ func (t *Task) SetDefaults() {
 	// Note: FamilyID should be set explicitly by the caller, not defaulted
 
 	if t.CreatedAt.IsZero() {
-		t.CreatedAt = time.Now()
+		t.CreatedAt = time.Now().UTC()
 	}
 
 	if t.Priority == 0 {
@@ -201,7 +211,7 @@ func (t *Task) Complete() error {
 	}
 
 	t.Status = TaskStatusCompleted
-	now := time.Now()
+	now := time.Now().UTC()
 	t.CompletedAt = &now
 
 	return nil
@@ -219,4 +229,38 @@ func (t *Task) Reopen() error {
 	t.CompletedAt = nil
 
 	return nil
+}
+
+// Validate validates the family and returns validation errors
+func (f *Family) Validate() error {
+	validator := validation.NewValidator()
+
+	// Validate name
+	validator.Required("name", f.Name)
+	validator.MinLength("name", f.Name, 1)
+	validator.MaxLength("name", f.Name, 255)
+
+	// Validate timezone
+	validator.Required("timezone", f.Timezone)
+	if !IsValidTimezone(f.Timezone) {
+		validator.AddError("timezone", "Invalid timezone identifier")
+	}
+
+	return validator.ToError()
+}
+
+// SetDefaults sets default values for optional fields
+func (f *Family) SetDefaults() {
+	if f.Timezone == "" {
+		f.Timezone = "UTC"
+	}
+
+	if f.CreatedAt.IsZero() {
+		f.CreatedAt = time.Now().UTC()
+	}
+}
+
+// GetLocation returns the time.Location for this family's timezone
+func (f *Family) GetLocation() (*time.Location, error) {
+	return time.LoadLocation(f.Timezone)
 }

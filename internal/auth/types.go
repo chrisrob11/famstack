@@ -60,7 +60,7 @@ type Session struct {
 
 // IsExpired checks if the session has expired
 func (s *Session) IsExpired() bool {
-	return time.Now().After(s.ExpiresAt)
+	return time.Now().UTC().After(s.ExpiresAt)
 }
 
 // CanDowngrade checks if the session can be downgraded to shared mode

@@ -193,7 +193,7 @@ func (s *TasksService) GetTask(taskID string) (*models.Task, error) {
 // CreateTask creates a new task
 func (s *TasksService) CreateTask(familyID, createdBy string, req *models.CreateTaskRequest) (*models.Task, error) {
 	taskID := generateTaskID()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	query := `
 		INSERT INTO tasks (id, family_id, assigned_to, title, description, task_type,
@@ -534,5 +534,5 @@ func isUniqueConstraintViolation(err error) bool {
 }
 
 func generateTaskID() string {
-	return fmt.Sprintf("task_%d", time.Now().UnixNano())
+	return fmt.Sprintf("task_%d", time.Now().UTC().UnixNano())
 }

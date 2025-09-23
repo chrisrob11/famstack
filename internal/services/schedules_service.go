@@ -137,7 +137,7 @@ func (s *SchedulesService) ListActiveSchedules() ([]models.TaskSchedule, error) 
 // CreateSchedule creates a new task schedule
 func (s *SchedulesService) CreateSchedule(familyID, createdBy string, req *models.CreateTaskScheduleRequest) (*models.TaskSchedule, error) {
 	scheduleID := generateScheduleID()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	// For now, map the request to the actual database schema
 	// This is a temporary fix until the request models are updated
@@ -454,5 +454,5 @@ func (s *SchedulesService) GetSchedulesNeedingGeneration() ([]models.TaskSchedul
 }
 
 func generateScheduleID() string {
-	return fmt.Sprintf("schedule_%d", time.Now().UnixNano())
+	return fmt.Sprintf("schedule_%d", time.Now().UTC().UnixNano())
 }
