@@ -62,27 +62,42 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 - [x] Basic positioning (no overlap handling)
 
 ### Milestone 5: Person Identification System (Sessions 9-10)
-**Status:** ❌ Not Started
+**Status:** ✅ Complete
 **Calendar Support Level:** Events with colored person indicators, multi-person support
 **User Validation:** Each event shows person circles, colors are consistent per person
 
-- [ ] Enhance API to embed attendee data to reduce requests
-- [ ] Add `color` and `initial` columns to `family_members` table
-- [ ] Family member color coding system
-- [ ] Add person circles/dots with initials to events
-- [ ] Multi-person events show multiple circles
-- [ ] Consistent color per family member
+- [x] Enhance API to embed attendee data to reduce requests
+- [x] Add `color` and `initial` columns to `family_members` table
+- [x] Family member color coding system
+- [x] Add person circles/dots with initials to events
+- [x] Multi-person events show multiple circles
+- [x] Consistent color per family member
+- [x] Add date navigation arrows to calendar-dev page
 
-### Milestone 6: Event Overlap & Positioning (Sessions 11-13)
+### Milestone 5.5: Proper Timezone-Aware Time Storage (Sessions 10.5-11)
 **Status:** ❌ Not Started
-**Calendar Support Level:** Sophisticated overlap handling, events don't stack
-**User Validation:** Overlapping events appear side-by-side, not on top of each other
+**Calendar Support Level:** Consistent UTC storage with family timezone support
+**User Validation:** Events display at correct local times regardless of system timezone
 
+- [ ] Store all timestamps in UTC using ISO 8601 format (YYYY-MM-DDTHH:MM:SS.SSSZ)
+- [ ] Add `timezone` column to `families` table (e.g., 'America/New_York', 'UTC', etc.)
+- [ ] Update database schema migration for family timezone support
+- [ ] Modify Go API to always store times in UTC and convert based on family timezone
+- [ ] Update frontend to send/receive UTC times and display in family's local timezone
+- [ ] Refactor event creation/seeding scripts to use proper UTC storage
+- [ ] Use SQLite's `datetime('now')` for UTC and timezone modifiers for display
+- [ ] Test timezone conversion accuracy across different family timezones
+
+### Milestone 6: Event Height/Width & Layout Fixes (Sessions 11-13)
+**Status:** ❌ Not Started
+**Calendar Support Level:** Proper event sizing and visual layout
+**User Validation:** Events show correct heights based on duration, proper width allocation
+
+- [ ] Fix event height calculation and CSS constraints
+- [ ] Dynamic event width calculation for better visibility
 - [ ] Refactor layout logic into a dedicated `layout-utils.ts` module
-- [ ] Detect overlapping events
-- [ ] Side-by-side layout for concurrent events
-- [ ] Dynamic width calculation
-- [ ] Smart positioning algorithms
+- [ ] Add event overlap detection for future positioning
+- [ ] Improve event card responsiveness for different durations
 
 ### Milestone 7: Person Filtering (Sessions 14-15)
 **Status:** ❌ Not Started
@@ -195,10 +210,10 @@ web/components/src/calendar/
 
 ## Progress Tracking
 
-**Current Status:** Milestone 4 Complete - Basic Event Rendering
-**Next Session:** Start Milestone 5 - Person Identification System
-**Sessions Completed:** 3/25
-**Estimated Completion:** 5-7 weeks
+**Current Status:** Milestone 5 Complete - Person Identification System
+**Next Session:** Start Milestone 6 - Event Height/Width & Time Storage Fixes
+**Sessions Completed:** 5/25
+**Estimated Completion:** 4-6 weeks
 
 ### Session Log
 - **Session 0 (Planning):** Created development plan and roadmap.
@@ -219,6 +234,14 @@ web/components/src/calendar/
   - Rendered all-day events in the dedicated header section.
   - Implemented positioning logic to render timed events on the main grid.
   - Fixed visual bugs related to event layering and height calculation.
+- **Session 4 (Person Identification System):** ✅ Complete
+  - Added `color` and `initial` columns to `family_members` database table.
+  - Enhanced calendar API to embed full attendee data instead of just IDs.
+  - Created `EventAttendee` interface with name, color, initial, and response status.
+  - Updated event cards to display colored person circles with initials.
+  - Implemented multi-person event support showing multiple circles.
+  - Added date navigation arrows (previous/next day, today button) to calendar-dev page.
+  - Fixed timezone handling issues that were causing events to display at wrong times.
 
 ---
 

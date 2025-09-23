@@ -300,11 +300,14 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 		eventIDs[i] = event.ID
 	}
 
-	// Step 3: Fetch all attendees for these events in a single query
+	// Step 3: Fetch all attendees with full family member data for these events
 	attendeeQuery := `
-		SELECT event_id, user_id
-		FROM unified_calendar_event_attendees
-		WHERE event_id IN (?` + strings.Repeat(",?", len(eventIDs)-1) + `)
+		SELECT a.event_id, a.user_id, a.response_status,
+		       fm.first_name, fm.last_name, fm.initial, fm.color
+		FROM unified_calendar_event_attendees a
+		JOIN family_members fm ON a.user_id = fm.id
+		WHERE a.event_id IN (?` + strings.Repeat(",?", len(eventIDs)-1) + `)
+		ORDER BY a.event_id, fm.display_order, fm.first_name
 	`
 	args := make([]interface{}, len(eventIDs))
 	for i, id := range eventIDs {
@@ -318,13 +321,22 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 	defer attendeeRows.Close()
 
 	// Step 4: Map attendees to their event ID
-	attendeeMap := make(map[string][]string)
+	attendeeMap := make(map[string][]models.EventAttendee)
 	for attendeeRows.Next() {
-		var eventID, userID string
-		if err = attendeeRows.Scan(&eventID, &userID); err != nil {
+		var eventID, userID, responseStatus, firstName, lastName, initial, color string
+		if err = attendeeRows.Scan(&eventID, &userID, &responseStatus, &firstName, &lastName, &initial, &color); err != nil {
 			return nil, fmt.Errorf("failed to scan attendee: %w", err)
 		}
-		attendeeMap[eventID] = append(attendeeMap[eventID], userID)
+
+		attendee := models.EventAttendee{
+			ID:       userID,
+			Name:     firstName + " " + lastName,
+			Initial:  initial,
+			Color:    color,
+			Response: responseStatus,
+		}
+
+		attendeeMap[eventID] = append(attendeeMap[eventID], attendee)
 	}
 	if err = attendeeRows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating attendee rows: %w", err)
@@ -335,7 +347,7 @@ func (s *CalendarService) GetUnifiedCalendarEvents(familyID string, startDate, e
 		if attendees, ok := attendeeMap[event.ID]; ok {
 			events[i].Attendees = attendees
 		} else {
-			events[i].Attendees = []string{} // Ensure it's an empty slice, not nil
+			events[i].Attendees = []models.EventAttendee{} // Ensure it's an empty slice, not nil
 		}
 	}
 

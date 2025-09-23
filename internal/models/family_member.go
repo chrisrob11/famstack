@@ -21,6 +21,8 @@ type FamilyMember struct {
 	LastName      string     `json:"last_name" db:"last_name"`
 	MemberType    MemberType `json:"member_type" db:"member_type"`
 	AvatarURL     *string    `json:"avatar_url,omitempty" db:"avatar_url"`
+	Color         string     `json:"color" db:"color"`     // Hex color for UI display (#rrggbb)
+	Initial       string     `json:"initial" db:"initial"` // Single character initial for person circles
 	Email         *string    `json:"email,omitempty" db:"email"`
 	PasswordHash  *string    `json:"-" db:"password_hash"` // Never expose password hash in JSON
 	Role          *string    `json:"role,omitempty" db:"role"`
@@ -73,6 +75,8 @@ type CreateFamilyMemberRequest struct {
 	LastName     string     `json:"last_name" validate:"required,min=1,max=100"`
 	MemberType   MemberType `json:"member_type" validate:"required,oneof=adult child pet"`
 	AvatarURL    *string    `json:"avatar_url,omitempty" validate:"omitempty,url"`
+	Color        *string    `json:"color,omitempty" validate:"omitempty,hexcolor"`
+	Initial      *string    `json:"initial,omitempty" validate:"omitempty,len=1"`
 	DisplayOrder *int       `json:"display_order,omitempty"`
 }
 
@@ -82,6 +86,8 @@ type UpdateFamilyMemberRequest struct {
 	LastName     *string     `json:"last_name,omitempty" validate:"omitempty,min=1,max=100"`
 	MemberType   *MemberType `json:"member_type,omitempty" validate:"omitempty,oneof=adult child pet"`
 	AvatarURL    *string     `json:"avatar_url,omitempty" validate:"omitempty,url"`
+	Color        *string     `json:"color,omitempty" validate:"omitempty,hexcolor"`
+	Initial      *string     `json:"initial,omitempty" validate:"omitempty,len=1"`
 	DisplayOrder *int        `json:"display_order,omitempty"`
 	IsActive     *bool       `json:"is_active,omitempty"`
 }

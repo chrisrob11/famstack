@@ -1,11 +1,15 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { styleMap } from 'lit/directives/style-map.js';
-import { calendarApiService, UnifiedCalendarEvent, GetEventsOptions } from './services/calendar-api.js';
+import {
+  calendarApiService,
+  UnifiedCalendarEvent,
+  GetEventsOptions,
+} from './services/calendar-api.js';
 import './components/event-card.js';
 
-const TIME_SLOT_HEIGHT_PX = 15;
-const PIXEL_PER_MINUTE = TIME_SLOT_HEIGHT_PX / 15;
+const TIME_SLOT_HEIGHT_PX = 20; // Increased from 15 to 20 pixels per 15-minute slot
+const PIXEL_PER_MINUTE = TIME_SLOT_HEIGHT_PX / 15; // Now 1.33 pixels per minute
 
 @customElement('daily-calendar')
 export class DailyCalendar extends LitElement {
@@ -265,14 +269,15 @@ export class DailyCalendar extends LitElement {
   private renderTimedEvents() {
     return html`
       ${this._timedEvents.map(event => {
-        const startTime = new Date(event.start_time);
-        const endTime = new Date(event.end_time);
+        // Parse as local time instead of UTC to avoid timezone issues
+        const startTime = new Date(event.start_time.replace('Z', ''));
+        const endTime = new Date(event.end_time.replace('Z', ''));
 
         const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
         const durationMinutes = (endTime.getTime() - startTime.getTime()) / 60000;
 
         const top = startMinutes * PIXEL_PER_MINUTE;
-        const height = durationMinutes * PIXEL_PER_MINUTE - 2; // -2 for a small gap
+        const height = Math.max(durationMinutes * PIXEL_PER_MINUTE - 2, 20); // Minimum 20px height
 
         const eventStyles = {
           top: `${top}px`,
@@ -302,9 +307,7 @@ export class DailyCalendar extends LitElement {
             </div>
           `
         )}
-        <div class="events-container">
-          ${this.renderTimedEvents()}
-        </div>
+        <div class="events-container">${this.renderTimedEvents()}</div>
       </div>
     `;
   }
@@ -325,9 +328,7 @@ export class DailyCalendar extends LitElement {
         <div id="all-day-heading" class="all-day-label" role="rowheader">All Day</div>
         <div class="all-day-events" role="grid">
           ${this._allDayEvents.length > 0
-            ? this._allDayEvents.map(
-                event => html`<event-card .event=${event}></event-card>`
-              )
+            ? this._allDayEvents.map(event => html`<event-card .event=${event}></event-card>`)
             : html`<span class="all-day-placeholder">No all-day events</span>`}
         </div>
       </div>
