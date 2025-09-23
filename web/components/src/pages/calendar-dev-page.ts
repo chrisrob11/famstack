@@ -2,14 +2,18 @@ import { BasePage } from './base-page.js';
 import { ComponentConfig } from '../common/types.js';
 
 export class CalendarDevPage extends BasePage {
+  private currentDate: string;
+
   constructor(container: HTMLElement, config: ComponentConfig) {
     super(container, config, 'calendar-dev');
+    this.currentDate = new Date().toISOString().split('T')[0]!;
   }
 
   async init(): Promise<void> {
     this.render();
     this.loadCalendarComponent();
     this.setupEventListeners();
+    this.updateDateDisplay();
   }
 
   private render(): void {
@@ -24,13 +28,19 @@ export class CalendarDevPage extends BasePage {
             <span class="status-badge">🔄 12h/24h Time Format</span>
           </div>
           <div class="dev-controls">
+            <div class="date-navigation">
+              <button id="prev-day" title="Previous day">‹</button>
+              <span id="current-date">Loading...</span>
+              <button id="next-day" title="Next day">›</button>
+              <button id="today" title="Go to today">Today</button>
+            </div>
             <label>
               <input type="checkbox" id="time-format-toggle"> Use 24-hour format
             </label>
           </div>
         </div>
         <div class="component-container">
-          <daily-calendar></daily-calendar>
+          <daily-calendar date="${this.currentDate}"></daily-calendar>
         </div>
       </div>
     `;
@@ -89,6 +99,53 @@ export class CalendarDevPage extends BasePage {
           margin-top: 1rem;
           padding-top: 1rem;
           border-top: 1px solid #e9ecef;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 1rem;
+        }
+
+        .date-navigation {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+        }
+
+        .date-navigation button {
+          background: #3b82f6;
+          color: white;
+          border: none;
+          padding: 0.5rem 0.75rem;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 0.875rem;
+          font-weight: 500;
+          transition: background-color 0.2s;
+        }
+
+        .date-navigation button:hover {
+          background: #2563eb;
+        }
+
+        .date-navigation button:active {
+          background: #1d4ed8;
+        }
+
+        #prev-day, #next-day {
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          font-size: 1.2rem;
+          border-radius: 50%;
+        }
+
+        #current-date {
+          font-weight: 600;
+          color: #1f2937;
+          font-size: 0.95rem;
+          min-width: 140px;
+          text-align: center;
         }
 
         .dev-controls label {
@@ -152,11 +209,67 @@ export class CalendarDevPage extends BasePage {
   private setupEventListeners(): void {
     const toggle = this.container.querySelector('#time-format-toggle') as HTMLInputElement;
     const calendar = this.container.querySelector('daily-calendar') as any;
+    const prevButton = this.container.querySelector('#prev-day') as HTMLButtonElement;
+    const nextButton = this.container.querySelector('#next-day') as HTMLButtonElement;
+    const todayButton = this.container.querySelector('#today') as HTMLButtonElement;
 
     if (toggle && calendar) {
       toggle.addEventListener('change', () => {
         calendar.use24Hour = toggle.checked;
       });
+    }
+
+    if (prevButton) {
+      prevButton.addEventListener('click', () => {
+        this.changeDate(-1);
+      });
+    }
+
+    if (nextButton) {
+      nextButton.addEventListener('click', () => {
+        this.changeDate(1);
+      });
+    }
+
+    if (todayButton) {
+      todayButton.addEventListener('click', () => {
+        this.goToToday();
+      });
+    }
+  }
+
+  private changeDate(days: number): void {
+    const date = new Date(this.currentDate);
+    date.setDate(date.getDate() + days);
+    this.currentDate = date.toISOString().split('T')[0]!;
+    this.updateCalendar();
+    this.updateDateDisplay();
+  }
+
+  private goToToday(): void {
+    this.currentDate = new Date().toISOString().split('T')[0]!;
+    this.updateCalendar();
+    this.updateDateDisplay();
+  }
+
+  private updateCalendar(): void {
+    const calendar = this.container.querySelector('daily-calendar') as any;
+    if (calendar) {
+      calendar.date = this.currentDate;
+    }
+  }
+
+  private updateDateDisplay(): void {
+    const dateDisplay = this.container.querySelector('#current-date');
+    if (dateDisplay) {
+      const date = new Date(this.currentDate);
+      const options: Intl.DateTimeFormatOptions = {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      };
+      dateDisplay.textContent = date.toLocaleDateString('en-US', options);
     }
   }
 

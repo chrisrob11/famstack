@@ -1,3 +1,12 @@
+// Event attendee with display information for person identification
+export interface EventAttendee {
+  id: string;
+  name: string;
+  initial: string;
+  color: string;
+  response: string; // needsAction, accepted, declined, tentative
+}
+
 // Corresponds to the Go model: internal/models/calendar.go
 export interface UnifiedCalendarEvent {
   id: string;
@@ -14,7 +23,7 @@ export interface UnifiedCalendarEvent {
   status: string;
   created_at: string;
   updated_at: string;
-  attendees: string[]; // Array of family member IDs
+  attendees: EventAttendee[]; // Array of attendees with full display data
 }
 
 export interface GetEventsOptions {

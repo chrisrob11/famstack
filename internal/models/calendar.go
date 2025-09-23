@@ -18,6 +18,15 @@ type CalendarEvent struct {
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// EventAttendee represents an attendee with display information for events
+type EventAttendee struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Initial  string `json:"initial"`
+	Color    string `json:"color"`
+	Response string `json:"response"` // needsAction, accepted, declined, tentative
+}
+
 // UnifiedCalendarEvent represents a calendar event from external integrations
 type UnifiedCalendarEvent struct {
 	ID          string    `json:"id" db:"id"`
@@ -36,9 +45,9 @@ type UnifiedCalendarEvent struct {
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 
-	// Attendees is a constructed field, not a direct DB column. It's populated
-	// by a separate query to the unified_calendar_event_attendees table.
-	Attendees []string `json:"attendees"`
+	// Attendees is a constructed field with full family member display data.
+	// This replaces the previous []string approach to provide richer UI data.
+	Attendees []EventAttendee `json:"attendees"`
 }
 
 // EventType constants
