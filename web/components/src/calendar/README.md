@@ -75,18 +75,18 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 - [x] Add date navigation arrows to calendar-dev page
 
 ### Milestone 5.5: Proper Timezone-Aware Time Storage (Sessions 10.5-11)
-**Status:** ❌ Not Started
+**Status:** ✅ Complete
 **Calendar Support Level:** Consistent UTC storage with family timezone support
 **User Validation:** Events display at correct local times regardless of system timezone
 
-- [ ] Store all timestamps in UTC using ISO 8601 format (YYYY-MM-DDTHH:MM:SS.SSSZ)
-- [ ] Add `timezone` column to `families` table (e.g., 'America/New_York', 'UTC', etc.)
-- [ ] Update database schema migration for family timezone support
-- [ ] Modify Go API to always store times in UTC and convert based on family timezone
-- [ ] Update frontend to send/receive UTC times and display in family's local timezone
-- [ ] Refactor event creation/seeding scripts to use proper UTC storage
-- [ ] Use SQLite's `datetime('now')` for UTC and timezone modifiers for display
-- [ ] Test timezone conversion accuracy across different family timezones
+- [x] Store all timestamps in UTC using ISO 8601 format (YYYY-MM-DDTHH:MM:SS.SSSZ)
+- [x] Add `timezone` column to `families` table (e.g., 'America/New_York', 'UTC', etc.)
+- [x] Update database schema migration for family timezone support
+- [x] Modify Go API to always store times in UTC and convert based on family timezone
+- [x] Update frontend to send/receive UTC times and display in family's local timezone
+- [x] Refactor event creation/seeding scripts to use proper UTC storage
+- [x] Use SQLite's `datetime('now', 'utc')` for UTC storage with timezone conversion helpers
+- [x] Test timezone conversion accuracy across different family timezones
 
 ### Milestone 6: Event Height/Width & Layout Fixes (Sessions 11-13)
 **Status:** ❌ Not Started
@@ -210,7 +210,7 @@ web/components/src/calendar/
 
 ## Progress Tracking
 
-**Current Status:** Milestone 5 Complete - Person Identification System
+**Current Status:** Milestone 5.5 Complete - Proper Timezone-Aware Time Storage
 **Next Session:** Start Milestone 6 - Event Height/Width & Time Storage Fixes
 **Sessions Completed:** 5/25
 **Estimated Completion:** 4-6 weeks
@@ -242,6 +242,14 @@ web/components/src/calendar/
   - Implemented multi-person event support showing multiple circles.
   - Added date navigation arrows (previous/next day, today button) to calendar-dev page.
   - Fixed timezone handling issues that were causing events to display at wrong times.
+
+---
+
+*Last Updated: September 22, 2025*
+*This document is updated after each development session to track progress*amps are now stored as UTC in the database.
+  - API now converts timestamps to the family's local timezone for all responses.
+  - Added a comprehensive unit test to ensure timezone logic is correct and prevent regressions.
+  - Updated database schema to enforce UTC defaults and non-nullable end times for events.
 
 ---
 

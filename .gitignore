@@ -62,6 +62,7 @@ yarn-error.log*
 # Editor/IDE files
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

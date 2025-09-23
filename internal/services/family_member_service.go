@@ -71,7 +71,7 @@ func (s *FamilyMemberService) GetFamilyMember(memberID string) (*models.FamilyMe
 // CreateFamilyMember creates a new family member
 func (s *FamilyMemberService) CreateFamilyMember(familyID string, req *models.CreateFamilyMemberRequest) (*models.FamilyMember, error) {
 	// Generate ID
-	memberID := fmt.Sprintf("member-%d", time.Now().UnixNano())
+	memberID := fmt.Sprintf("member-%d", time.Now().UTC().UnixNano())
 
 	// Set default display order if not provided
 	displayOrder := 0

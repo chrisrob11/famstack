@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS families (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT (datetime('now', 'utc'))
 );
 
 -- Create family_members table (combines users and family member info)
@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS family_members (
     is_active BOOLEAN DEFAULT TRUE,
 
     -- Metadata
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE
 );
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     priority INTEGER DEFAULT 0,
     due_date DATETIME,
     created_by TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
     completed_at DATETIME,
     schedule_id TEXT REFERENCES task_schedules(id) ON DELETE SET NULL,
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS task_schedules (
     points INTEGER DEFAULT 0,
     active BOOLEAN DEFAULT true,
     last_generated_date DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES family_members(id) ON DELETE CASCADE,
     FOREIGN KEY (assigned_to) REFERENCES family_members(id) ON DELETE SET NULL
@@ -97,15 +97,15 @@ CREATE TABLE IF NOT EXISTS calendar_events (
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
     start_time DATETIME NOT NULL,
-    end_time DATETIME,
+    end_time DATETIME NOT NULL,
     location TEXT DEFAULT '',
     all_day BOOLEAN DEFAULT FALSE,
     status TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'tentative', 'cancelled')),
     visibility TEXT DEFAULT 'public' CHECK (visibility IN ('public', 'private')),
     raw_data TEXT, -- JSON blob of original event data
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
+    synced_at DATETIME DEFAULT (datetime('now', 'utc')),
     is_recurring BOOLEAN DEFAULT FALSE,
     recurrence_rules TEXT, -- JSON array of RRULE strings
     recurring_event_id TEXT, -- Parent recurring event ID
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS unified_calendar_events (
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
     start_time DATETIME NOT NULL,
-    end_time DATETIME,
+    end_time DATETIME NOT NULL,
     location TEXT DEFAULT '',
     all_day BOOLEAN DEFAULT FALSE,
     event_type TEXT DEFAULT 'event' CHECK (event_type IN ('event', 'task', 'appointment', 'reminder')),
@@ -128,8 +128,8 @@ CREATE TABLE IF NOT EXISTS unified_calendar_events (
     created_by TEXT,
     priority INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'completed')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES family_members(id) ON DELETE SET NULL
 );
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS unified_calendar_to_calendar_event_rel (
     unified_event_id TEXT NOT NULL,
     calendar_event_id TEXT NOT NULL,
     relationship_type TEXT DEFAULT 'source' CHECK (relationship_type IN ('source', 'merged', 'duplicate')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
     FOREIGN KEY (unified_event_id) REFERENCES unified_calendar_events(id) ON DELETE CASCADE,
     FOREIGN KEY (calendar_event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
     UNIQUE(unified_event_id, calendar_event_id)
@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS unified_calendar_event_attendees (
     event_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     response_status TEXT DEFAULT 'needsAction' CHECK (response_status IN ('needsAction', 'accepted', 'declined', 'tentative')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
     FOREIGN KEY (event_id) REFERENCES unified_calendar_events(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES family_members(id) ON DELETE CASCADE,
     UNIQUE(event_id, user_id)
@@ -168,9 +168,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     priority INTEGER NOT NULL DEFAULT 0,
     max_retries INTEGER NOT NULL DEFAULT 3,
     retry_count INTEGER NOT NULL DEFAULT 0,
-    run_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    run_at DATETIME NOT NULL DEFAULT (datetime('now', 'utc')),
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
     queued_at DATETIME,
     started_at DATETIME,
     completed_at DATETIME,
@@ -189,8 +189,8 @@ CREATE TABLE IF NOT EXISTS scheduled_jobs (
     cron_expr TEXT NOT NULL,
     enabled BOOLEAN NOT NULL DEFAULT true,
     next_run_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
     last_run_at DATETIME
 );
 
@@ -201,7 +201,7 @@ CREATE TABLE IF NOT EXISTS job_metrics (
     job_type TEXT NOT NULL,
     status TEXT NOT NULL,
     duration_ms INTEGER, -- Duration in milliseconds
-    recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    recorded_at DATETIME DEFAULT (datetime('now', 'utc'))
 );
 
 -- Create OAuth tokens table for storing third-party integrations
@@ -215,8 +215,8 @@ CREATE TABLE oauth_tokens (
     expires_at DATETIME NOT NULL,
     scope TEXT,
     created_by TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES family_members(id) ON DELETE CASCADE,
@@ -236,8 +236,8 @@ CREATE TABLE calendar_sync_settings (
     sync_error TEXT,
     events_synced INTEGER DEFAULT 0,
     created_by TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES family_members(id) ON DELETE CASCADE,
@@ -252,7 +252,7 @@ CREATE TABLE oauth_states (
     provider TEXT NOT NULL,
     expires_at DATETIME NOT NULL,
     created_by TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (created_by) REFERENCES family_members(id) ON DELETE CASCADE
 );
@@ -271,8 +271,8 @@ CREATE TABLE integrations (
     last_sync_at DATETIME,
     last_error TEXT,
     created_by TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES family_members(id) ON DELETE CASCADE
@@ -287,8 +287,8 @@ CREATE TABLE integration_oauth_credentials (
     token_type TEXT DEFAULT 'Bearer',
     expires_at DATETIME,
     scope TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (integration_id) REFERENCES integrations(id) ON DELETE CASCADE,
     UNIQUE(integration_id) -- One OAuth credential per integration
@@ -302,8 +302,8 @@ CREATE TABLE integration_api_credentials (
     credential_name TEXT,           -- 'api_key', 'username', 'password', etc
     credential_value TEXT NOT NULL, -- encrypted
     expires_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
+    updated_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (integration_id) REFERENCES integrations(id) ON DELETE CASCADE
 );
@@ -318,7 +318,7 @@ CREATE TABLE integration_sync_history (
     error_message TEXT,
     started_at DATETIME NOT NULL,
     completed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT (datetime('now', 'utc')),
 
     FOREIGN KEY (integration_id) REFERENCES integrations(id) ON DELETE CASCADE
 );

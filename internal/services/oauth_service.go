@@ -134,7 +134,7 @@ func (s *OAuthService) GetState(state string) (*OAuthState, error) {
 	}
 
 	// Check if state has expired (do this in Go to handle timezone properly)
-	if time.Now().After(stateData.ExpiresAt) {
+	if time.Now().UTC().After(stateData.ExpiresAt) {
 		return nil, fmt.Errorf("state expired")
 	}
 

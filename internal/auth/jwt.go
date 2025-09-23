@@ -52,7 +52,7 @@ func GenerateSecretKeyHex() (string, error) {
 
 // CreateToken creates a new JWT token for a user session
 func (j *JWTManager) CreateToken(userID, familyID string, role Role, duration time.Duration) (string, error) {
-	now := time.Now()
+	now := time.Now().UTC()
 
 	claims := &JWTClaims{
 		UserID:       userID,
@@ -79,7 +79,7 @@ func (j *JWTManager) CreateDowngradedToken(originalClaims *JWTClaims) (string, e
 		return "", fmt.Errorf("cannot downgrade: already in shared mode")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	claims := &JWTClaims{
 		UserID:       originalClaims.UserID,
@@ -106,7 +106,7 @@ func (j *JWTManager) CreateUpgradedToken(sharedClaims *JWTClaims) (string, error
 		return "", fmt.Errorf("cannot upgrade: not in shared mode")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 
 	claims := &JWTClaims{
 		UserID:       sharedClaims.UserID,
@@ -147,12 +147,12 @@ func (j *JWTManager) ValidateToken(tokenString string) (*JWTClaims, error) {
 	}
 
 	// Check if token is expired
-	if time.Now().After(claims.ExpiresAt.Time) {
+	if time.Now().UTC().After(claims.ExpiresAt.Time) {
 		return nil, fmt.Errorf("token has expired")
 	}
 
 	// Check if token is not yet valid
-	if time.Now().Before(claims.NotBefore.Time) {
+	if time.Now().UTC().Before(claims.NotBefore.Time) {
 		return nil, fmt.Errorf("token not yet valid")
 	}
 
@@ -161,7 +161,7 @@ func (j *JWTManager) ValidateToken(tokenString string) (*JWTClaims, error) {
 
 // RefreshToken creates a new token with extended expiration
 func (j *JWTManager) RefreshToken(claims *JWTClaims, duration time.Duration) (string, error) {
-	now := time.Now()
+	now := time.Now().UTC()
 
 	newClaims := &JWTClaims{
 		UserID:       claims.UserID,
@@ -205,7 +205,7 @@ func (j *JWTManager) IsTokenExpired(tokenString string) (bool, error) {
 	}
 
 	if claims, ok := token.Claims.(*JWTClaims); ok {
-		return time.Now().After(claims.ExpiresAt.Time), nil
+		return time.Now().UTC().After(claims.ExpiresAt.Time), nil
 	}
 
 	return true, nil // Assume expired if we can't parse

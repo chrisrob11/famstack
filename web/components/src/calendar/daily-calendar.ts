@@ -6,6 +6,7 @@ import {
   UnifiedCalendarEvent,
   GetEventsOptions,
 } from './services/calendar-api.js';
+
 import './components/event-card.js';
 
 const TIME_SLOT_HEIGHT_PX = 20; // Increased from 15 to 20 pixels per 15-minute slot
@@ -269,9 +270,10 @@ export class DailyCalendar extends LitElement {
   private renderTimedEvents() {
     return html`
       ${this._timedEvents.map(event => {
-        // Parse as local time instead of UTC to avoid timezone issues
-        const startTime = new Date(event.start_time.replace('Z', ''));
-        const endTime = new Date(event.end_time.replace('Z', ''));
+        // The API now returns timezone-aware ISO 8601 strings.
+        // new Date() will correctly parse these into the browser's local time.
+        const startTime = new Date(event.start_time);
+        const endTime = new Date(event.end_time);
 
         const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
         const durationMinutes = (endTime.getTime() - startTime.getTime()) / 60000;
