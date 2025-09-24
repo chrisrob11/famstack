@@ -130,21 +130,29 @@ func (h *FamilyAPIHandler) UpdateFamily(w http.ResponseWriter, r *http.Request) 
 
 	// Parse request body
 	var req struct {
-		Name string `json:"name"`
+		Name     string `json:"name"`
+		Timezone string `json:"timezone"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Name == "" {
-		http.Error(w, "Family name is required", http.StatusBadRequest)
-		return
+	// Build update request with provided fields
+	updateReq := &models.UpdateFamilyRequest{}
+
+	if req.Name != "" {
+		updateReq.Name = &req.Name
 	}
 
-	// Update family name
-	updateReq := &models.UpdateFamilyRequest{
-		Name: &req.Name,
+	if req.Timezone != "" {
+		updateReq.Timezone = &req.Timezone
+	}
+
+	// Validate that at least one field is provided
+	if updateReq.Name == nil && updateReq.Timezone == nil {
+		http.Error(w, "At least one field (name or timezone) is required", http.StatusBadRequest)
+		return
 	}
 	family, err := h.familiesService.UpdateFamily(familyID, updateReq)
 	if err != nil {
