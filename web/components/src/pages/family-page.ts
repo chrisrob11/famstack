@@ -556,45 +556,57 @@ export class FamilyPage extends BasePage {
 
     // Common timezones organized by regions
     const timezones = [
-      { group: 'US & Canada', timezones: [
-        { value: 'America/New_York', label: 'Eastern Time (New York)' },
-        { value: 'America/Chicago', label: 'Central Time (Chicago)' },
-        { value: 'America/Denver', label: 'Mountain Time (Denver)' },
-        { value: 'America/Los_Angeles', label: 'Pacific Time (Los Angeles)' },
-        { value: 'America/Anchorage', label: 'Alaska Time (Anchorage)' },
-        { value: 'Pacific/Honolulu', label: 'Hawaii Time (Honolulu)' },
-        { value: 'America/Toronto', label: 'Eastern Time (Toronto)' },
-        { value: 'America/Vancouver', label: 'Pacific Time (Vancouver)' }
-      ]},
-      { group: 'Europe', timezones: [
-        { value: 'Europe/London', label: 'London, UK' },
-        { value: 'Europe/Paris', label: 'Paris, France' },
-        { value: 'Europe/Berlin', label: 'Berlin, Germany' },
-        { value: 'Europe/Rome', label: 'Rome, Italy' },
-        { value: 'Europe/Madrid', label: 'Madrid, Spain' },
-        { value: 'Europe/Amsterdam', label: 'Amsterdam, Netherlands' },
-        { value: 'Europe/Stockholm', label: 'Stockholm, Sweden' },
-        { value: 'Europe/Moscow', label: 'Moscow, Russia' }
-      ]},
-      { group: 'Asia Pacific', timezones: [
-        { value: 'Asia/Tokyo', label: 'Tokyo, Japan' },
-        { value: 'Asia/Shanghai', label: 'Beijing, China' },
-        { value: 'Asia/Hong_Kong', label: 'Hong Kong' },
-        { value: 'Asia/Singapore', label: 'Singapore' },
-        { value: 'Asia/Seoul', label: 'Seoul, South Korea' },
-        { value: 'Asia/Kolkata', label: 'Mumbai, India' },
-        { value: 'Australia/Sydney', label: 'Sydney, Australia' },
-        { value: 'Australia/Melbourne', label: 'Melbourne, Australia' },
-        { value: 'Pacific/Auckland', label: 'Auckland, New Zealand' }
-      ]},
-      { group: 'Others', timezones: [
-        { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
-        { value: 'America/Sao_Paulo', label: 'São Paulo, Brazil' },
-        { value: 'America/Mexico_City', label: 'Mexico City, Mexico' },
-        { value: 'Africa/Johannesburg', label: 'Johannesburg, South Africa' },
-        { value: 'Africa/Cairo', label: 'Cairo, Egypt' },
-        { value: 'Asia/Dubai', label: 'Dubai, UAE' }
-      ]}
+      {
+        group: 'US & Canada',
+        timezones: [
+          { value: 'America/New_York', label: 'Eastern Time (New York)' },
+          { value: 'America/Chicago', label: 'Central Time (Chicago)' },
+          { value: 'America/Denver', label: 'Mountain Time (Denver)' },
+          { value: 'America/Los_Angeles', label: 'Pacific Time (Los Angeles)' },
+          { value: 'America/Anchorage', label: 'Alaska Time (Anchorage)' },
+          { value: 'Pacific/Honolulu', label: 'Hawaii Time (Honolulu)' },
+          { value: 'America/Toronto', label: 'Eastern Time (Toronto)' },
+          { value: 'America/Vancouver', label: 'Pacific Time (Vancouver)' },
+        ],
+      },
+      {
+        group: 'Europe',
+        timezones: [
+          { value: 'Europe/London', label: 'London, UK' },
+          { value: 'Europe/Paris', label: 'Paris, France' },
+          { value: 'Europe/Berlin', label: 'Berlin, Germany' },
+          { value: 'Europe/Rome', label: 'Rome, Italy' },
+          { value: 'Europe/Madrid', label: 'Madrid, Spain' },
+          { value: 'Europe/Amsterdam', label: 'Amsterdam, Netherlands' },
+          { value: 'Europe/Stockholm', label: 'Stockholm, Sweden' },
+          { value: 'Europe/Moscow', label: 'Moscow, Russia' },
+        ],
+      },
+      {
+        group: 'Asia Pacific',
+        timezones: [
+          { value: 'Asia/Tokyo', label: 'Tokyo, Japan' },
+          { value: 'Asia/Shanghai', label: 'Beijing, China' },
+          { value: 'Asia/Hong_Kong', label: 'Hong Kong' },
+          { value: 'Asia/Singapore', label: 'Singapore' },
+          { value: 'Asia/Seoul', label: 'Seoul, South Korea' },
+          { value: 'Asia/Kolkata', label: 'Mumbai, India' },
+          { value: 'Australia/Sydney', label: 'Sydney, Australia' },
+          { value: 'Australia/Melbourne', label: 'Melbourne, Australia' },
+          { value: 'Pacific/Auckland', label: 'Auckland, New Zealand' },
+        ],
+      },
+      {
+        group: 'Others',
+        timezones: [
+          { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+          { value: 'America/Sao_Paulo', label: 'São Paulo, Brazil' },
+          { value: 'America/Mexico_City', label: 'Mexico City, Mexico' },
+          { value: 'Africa/Johannesburg', label: 'Johannesburg, South Africa' },
+          { value: 'Africa/Cairo', label: 'Cairo, Egypt' },
+          { value: 'Asia/Dubai', label: 'Dubai, UAE' },
+        ],
+      },
     ];
 
     // Clear existing options
@@ -786,7 +798,7 @@ export class FamilyPage extends BasePage {
         credentials: 'include',
         body: JSON.stringify({
           name: familyName,
-          timezone: familyTimezone
+          timezone: familyTimezone,
         }),
       });
 

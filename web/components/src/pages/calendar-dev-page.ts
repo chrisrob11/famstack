@@ -6,7 +6,14 @@ export class CalendarDevPage extends BasePage {
 
   constructor(container: HTMLElement, config: ComponentConfig) {
     super(container, config, 'calendar-dev');
-    this.currentDate = new Date().toISOString().split('T')[0]!;
+    // Use local date instead of UTC date to avoid timezone issues
+    const today = new Date();
+    this.currentDate =
+      today.getFullYear() +
+      '-' +
+      String(today.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(today.getDate()).padStart(2, '0');
   }
 
   async init(): Promise<void> {

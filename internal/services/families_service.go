@@ -234,3 +234,24 @@ func validateTimezone(timezone string) error {
 
 	return nil
 }
+
+// GetFamilyTimezone retrieves the timezone for a family using the provided database connection
+// This is a utility function that can be used by other services
+func GetFamilyTimezone(db *database.Fascade, familyID string) (string, error) {
+	query := `SELECT timezone FROM families WHERE id = ?`
+	var timezone sql.NullString
+
+	err := db.QueryRow(query, familyID).Scan(&timezone)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "UTC", nil // Default to UTC if family not found
+		}
+		return "", fmt.Errorf("failed to get family timezone: %w", err)
+	}
+
+	if !timezone.Valid || timezone.String == "" {
+		return "UTC", nil // Default to UTC if timezone is null or empty
+	}
+
+	return timezone.String, nil
+}
