@@ -40,7 +40,13 @@ export class FamilyPage extends BasePage {
                 <label for="family-name">Family Name</label>
                 <input type="text" id="family-name" class="form-input" placeholder="Our Family">
               </div>
-              <button class="btn btn-secondary" id="save-settings-btn">Save Family Name</button>
+              <div class="setting-group">
+                <label for="family-timezone">Family Timezone</label>
+                <select id="family-timezone" class="form-input">
+                  <option value="">Loading timezones...</option>
+                </select>
+              </div>
+              <button class="btn btn-secondary" id="save-settings-btn">Save Settings</button>
             </div>
           </div>
         </div>
@@ -87,6 +93,7 @@ export class FamilyPage extends BasePage {
     `;
 
     this.addStyles();
+    this.populateTimezones();
     this.loadFamilyData();
   }
 
@@ -532,10 +539,87 @@ export class FamilyPage extends BasePage {
 
   private populateSettings(settings: any): void {
     const familyNameInput = document.getElementById('family-name') as HTMLInputElement;
+    const familyTimezoneSelect = document.getElementById('family-timezone') as HTMLSelectElement;
 
     if (familyNameInput && settings.name) {
       familyNameInput.value = settings.name;
     }
+
+    if (familyTimezoneSelect && settings.timezone) {
+      familyTimezoneSelect.value = settings.timezone;
+    }
+  }
+
+  private populateTimezones(): void {
+    const timezoneSelect = document.getElementById('family-timezone') as HTMLSelectElement;
+    if (!timezoneSelect) return;
+
+    // Common timezones organized by regions
+    const timezones = [
+      { group: 'US & Canada', timezones: [
+        { value: 'America/New_York', label: 'Eastern Time (New York)' },
+        { value: 'America/Chicago', label: 'Central Time (Chicago)' },
+        { value: 'America/Denver', label: 'Mountain Time (Denver)' },
+        { value: 'America/Los_Angeles', label: 'Pacific Time (Los Angeles)' },
+        { value: 'America/Anchorage', label: 'Alaska Time (Anchorage)' },
+        { value: 'Pacific/Honolulu', label: 'Hawaii Time (Honolulu)' },
+        { value: 'America/Toronto', label: 'Eastern Time (Toronto)' },
+        { value: 'America/Vancouver', label: 'Pacific Time (Vancouver)' }
+      ]},
+      { group: 'Europe', timezones: [
+        { value: 'Europe/London', label: 'London, UK' },
+        { value: 'Europe/Paris', label: 'Paris, France' },
+        { value: 'Europe/Berlin', label: 'Berlin, Germany' },
+        { value: 'Europe/Rome', label: 'Rome, Italy' },
+        { value: 'Europe/Madrid', label: 'Madrid, Spain' },
+        { value: 'Europe/Amsterdam', label: 'Amsterdam, Netherlands' },
+        { value: 'Europe/Stockholm', label: 'Stockholm, Sweden' },
+        { value: 'Europe/Moscow', label: 'Moscow, Russia' }
+      ]},
+      { group: 'Asia Pacific', timezones: [
+        { value: 'Asia/Tokyo', label: 'Tokyo, Japan' },
+        { value: 'Asia/Shanghai', label: 'Beijing, China' },
+        { value: 'Asia/Hong_Kong', label: 'Hong Kong' },
+        { value: 'Asia/Singapore', label: 'Singapore' },
+        { value: 'Asia/Seoul', label: 'Seoul, South Korea' },
+        { value: 'Asia/Kolkata', label: 'Mumbai, India' },
+        { value: 'Australia/Sydney', label: 'Sydney, Australia' },
+        { value: 'Australia/Melbourne', label: 'Melbourne, Australia' },
+        { value: 'Pacific/Auckland', label: 'Auckland, New Zealand' }
+      ]},
+      { group: 'Others', timezones: [
+        { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+        { value: 'America/Sao_Paulo', label: 'São Paulo, Brazil' },
+        { value: 'America/Mexico_City', label: 'Mexico City, Mexico' },
+        { value: 'Africa/Johannesburg', label: 'Johannesburg, South Africa' },
+        { value: 'Africa/Cairo', label: 'Cairo, Egypt' },
+        { value: 'Asia/Dubai', label: 'Dubai, UAE' }
+      ]}
+    ];
+
+    // Clear existing options
+    timezoneSelect.innerHTML = '';
+
+    // Add placeholder option
+    const placeholderOption = document.createElement('option');
+    placeholderOption.value = '';
+    placeholderOption.textContent = 'Select timezone...';
+    timezoneSelect.appendChild(placeholderOption);
+
+    // Add timezone options grouped by region
+    timezones.forEach(group => {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = group.group;
+
+      group.timezones.forEach(tz => {
+        const option = document.createElement('option');
+        option.value = tz.value;
+        option.textContent = tz.label;
+        optgroup.appendChild(option);
+      });
+
+      timezoneSelect.appendChild(optgroup);
+    });
   }
 
   private showAddMemberModal(): void {
@@ -660,10 +744,18 @@ export class FamilyPage extends BasePage {
 
   private async handleSaveSettings(): Promise<void> {
     const familyNameInput = document.getElementById('family-name') as HTMLInputElement;
+    const familyTimezoneSelect = document.getElementById('family-timezone') as HTMLSelectElement;
 
     const familyName = familyNameInput?.value?.trim();
+    const familyTimezone = familyTimezoneSelect?.value?.trim();
+
     if (!familyName) {
       alert('Please enter a family name');
+      return;
+    }
+
+    if (!familyTimezone) {
+      alert('Please select a family timezone');
       return;
     }
 
@@ -692,17 +784,20 @@ export class FamilyPage extends BasePage {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify({ name: familyName }),
+        body: JSON.stringify({
+          name: familyName,
+          timezone: familyTimezone
+        }),
       });
 
       if (response.ok) {
-        alert('Family name saved successfully');
+        alert('Family settings saved successfully');
       } else {
-        alert('Failed to save family name');
+        alert('Failed to save family settings. Please check that the timezone is valid.');
       }
     } catch (error) {
-      logger.error('Failed to save family name:', error);
-      alert('Failed to save family name');
+      logger.error('Failed to save family settings:', error);
+      alert('Failed to save family settings');
     }
   }
 

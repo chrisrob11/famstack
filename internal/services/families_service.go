@@ -3,6 +3,7 @@ package services
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"famstack/internal/database"
@@ -21,11 +22,11 @@ func NewFamiliesService(db *database.Fascade) *FamiliesService {
 
 // GetFamily returns a family by ID
 func (s *FamiliesService) GetFamily(familyID string) (*models.Family, error) {
-	query := `SELECT id, name, created_at FROM families WHERE id = ?`
+	query := `SELECT id, name, timezone, created_at FROM families WHERE id = ?`
 
 	var family models.Family
 	err := s.db.QueryRow(query, familyID).Scan(
-		&family.ID, &family.Name, &family.CreatedAt,
+		&family.ID, &family.Name, &family.Timezone, &family.CreatedAt,
 	)
 
 	if err != nil {
@@ -40,7 +41,7 @@ func (s *FamiliesService) GetFamily(familyID string) (*models.Family, error) {
 
 // ListFamilies returns all families (mainly for admin purposes)
 func (s *FamiliesService) ListFamilies() ([]models.Family, error) {
-	query := `SELECT id, name, created_at FROM families ORDER BY created_at DESC`
+	query := `SELECT id, name, timezone, created_at FROM families ORDER BY created_at DESC`
 
 	rows, err := s.db.Query(query)
 	if err != nil {
@@ -51,7 +52,7 @@ func (s *FamiliesService) ListFamilies() ([]models.Family, error) {
 	var families []models.Family
 	for rows.Next() {
 		var family models.Family
-		if scanErr := rows.Scan(&family.ID, &family.Name, &family.CreatedAt); scanErr != nil {
+		if scanErr := rows.Scan(&family.ID, &family.Name, &family.Timezone, &family.CreatedAt); scanErr != nil {
 			return nil, fmt.Errorf("failed to scan family: %w", scanErr)
 		}
 		families = append(families, family)
@@ -69,9 +70,12 @@ func (s *FamiliesService) CreateFamily(name string) (*models.Family, error) {
 	familyID := generateFamilyID()
 	now := time.Now().UTC()
 
-	query := `INSERT INTO families (id, name, created_at) VALUES (?, ?, ?)`
+	// Use server's local timezone as default for new families
+	serverTimezone := time.Now().Location().String()
 
-	_, err := s.db.Exec(query, familyID, name, now)
+	query := `INSERT INTO families (id, name, timezone, created_at) VALUES (?, ?, ?, ?)`
+
+	_, err := s.db.Exec(query, familyID, name, serverTimezone, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create family: %w", err)
 	}
@@ -79,20 +83,45 @@ func (s *FamiliesService) CreateFamily(name string) (*models.Family, error) {
 	return &models.Family{
 		ID:        familyID,
 		Name:      name,
+		Timezone:  serverTimezone,
 		CreatedAt: now,
 	}, nil
 }
 
 // UpdateFamily updates a family's information
 func (s *FamiliesService) UpdateFamily(familyID string, req *models.UpdateFamilyRequest) (*models.Family, error) {
-	// For now, only name can be updated
-	if req.Name == nil {
+	// Check if there are any changes to make
+	if req.Name == nil && req.Timezone == nil {
 		return s.GetFamily(familyID) // No changes
 	}
 
-	query := `UPDATE families SET name = ? WHERE id = ?`
+	// Validate timezone if provided
+	if req.Timezone != nil {
+		if err := validateTimezone(*req.Timezone); err != nil {
+			return nil, fmt.Errorf("invalid timezone: %w", err)
+		}
+	}
 
-	result, err := s.db.Exec(query, *req.Name, familyID)
+	// Build dynamic query based on what fields are being updated
+	var setParts []string
+	var args []any
+
+	if req.Name != nil {
+		setParts = append(setParts, "name = ?")
+		args = append(args, *req.Name)
+	}
+
+	if req.Timezone != nil {
+		setParts = append(setParts, "timezone = ?")
+		args = append(args, *req.Timezone)
+	}
+
+	// Add familyID to args for the WHERE clause
+	args = append(args, familyID)
+
+	query := fmt.Sprintf("UPDATE families SET %s WHERE id = ?", strings.Join(setParts, ", "))
+
+	result, err := s.db.Exec(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update family: %w", err)
 	}
@@ -189,4 +218,19 @@ func (s *FamiliesService) GetFamilyStatistics(familyID string) (*models.FamilySt
 
 func generateFamilyID() string {
 	return fmt.Sprintf("fam_%d", time.Now().UTC().UnixNano())
+}
+
+// validateTimezone checks if a timezone string is valid
+func validateTimezone(timezone string) error {
+	if timezone == "" {
+		return fmt.Errorf("timezone cannot be empty")
+	}
+
+	// Try to load the timezone location to validate it
+	_, err := time.LoadLocation(timezone)
+	if err != nil {
+		return fmt.Errorf("invalid timezone: %w", err)
+	}
+
+	return nil
 }

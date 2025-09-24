@@ -26,7 +26,8 @@ type UpdateTaskRequest struct {
 
 // Family request models
 type UpdateFamilyRequest struct {
-	Name *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Name     *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Timezone *string `json:"timezone,omitempty" validate:"omitempty"`
 }
 
 // Calendar event request models
