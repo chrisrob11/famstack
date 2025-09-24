@@ -61,8 +61,25 @@ func (s *SchedulesService) GetSchedule(scheduleID string) (*models.TaskSchedule,
 	if timeOfDay.Valid {
 		schedule.TimeOfDay = &timeOfDay.String
 	}
+	// Get family timezone for conversions
+	familyTimezone, err := GetFamilyTimezone(s.db, schedule.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for schedule conversion: %w", err)
+	}
+
 	if lastGeneratedDate.Valid {
-		schedule.LastGeneratedDate = &lastGeneratedDate.Time
+		// Convert LastGeneratedDate from UTC to family timezone
+		convertedLastGenerated, convErr := ConvertFromUTC(lastGeneratedDate.Time, familyTimezone)
+		if convErr != nil {
+			return nil, fmt.Errorf("failed to convert last generated date from UTC: %w", convErr)
+		}
+		schedule.LastGeneratedDate = &convertedLastGenerated
+	}
+
+	// Convert CreatedAt from UTC to family timezone
+	schedule.CreatedAt, err = ConvertFromUTC(schedule.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created at from UTC: %w", err)
 	}
 
 	return &schedule, nil
@@ -359,8 +376,25 @@ func (s *SchedulesService) scanTaskSchedule(scanner interface {
 	if timeOfDay.Valid {
 		schedule.TimeOfDay = &timeOfDay.String
 	}
+	// Get family timezone for conversions
+	familyTimezone, err := GetFamilyTimezone(s.db, schedule.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for schedule conversion: %w", err)
+	}
+
 	if lastGeneratedDate.Valid {
-		schedule.LastGeneratedDate = &lastGeneratedDate.Time
+		// Convert LastGeneratedDate from UTC to family timezone
+		convertedLastGenerated, convErr := ConvertFromUTC(lastGeneratedDate.Time, familyTimezone)
+		if convErr != nil {
+			return nil, fmt.Errorf("failed to convert last generated date from UTC: %w", convErr)
+		}
+		schedule.LastGeneratedDate = &convertedLastGenerated
+	}
+
+	// Convert CreatedAt from UTC to family timezone
+	schedule.CreatedAt, err = ConvertFromUTC(schedule.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created at from UTC: %w", err)
 	}
 
 	return &schedule, nil

@@ -241,6 +241,12 @@ func (s *FamilyMemberService) scanFamilyMember(scanner interface {
 		return nil, err
 	}
 
+	// Get family timezone for conversions
+	familyTimezone, err := GetFamilyTimezone(s.db, member.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for family member conversion: %w", err)
+	}
+
 	// Handle nullable fields
 	if email.Valid {
 		member.Email = &email.String
@@ -249,7 +255,23 @@ func (s *FamilyMemberService) scanFamilyMember(scanner interface {
 		member.Role = &role.String
 	}
 	if lastLoginAt.Valid {
-		member.LastLoginAt = &lastLoginAt.Time
+		// Convert LastLoginAt from UTC to family timezone
+		convertedLastLogin, convErr := ConvertFromUTC(lastLoginAt.Time, familyTimezone)
+		if convErr != nil {
+			return nil, fmt.Errorf("failed to convert last login time from UTC: %w", convErr)
+		}
+		member.LastLoginAt = &convertedLastLogin
+	}
+
+	// Convert CreatedAt and UpdatedAt from UTC to family timezone
+	member.CreatedAt, err = ConvertFromUTC(member.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created at from UTC: %w", err)
+	}
+
+	member.UpdatedAt, err = ConvertFromUTC(member.UpdatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert updated at from UTC: %w", err)
 	}
 
 	return &member, nil
@@ -273,6 +295,12 @@ func (s *FamilyMemberService) scanFamilyMemberWithStats(scanner interface {
 		return nil, err
 	}
 
+	// Get family timezone for conversions
+	familyTimezone, err := GetFamilyTimezone(s.db, member.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for family member conversion: %w", err)
+	}
+
 	// Handle nullable fields
 	if email.Valid {
 		member.Email = &email.String
@@ -281,7 +309,23 @@ func (s *FamilyMemberService) scanFamilyMemberWithStats(scanner interface {
 		member.Role = &role.String
 	}
 	if lastLoginAt.Valid {
-		member.LastLoginAt = &lastLoginAt.Time
+		// Convert LastLoginAt from UTC to family timezone
+		convertedLastLogin, convErr := ConvertFromUTC(lastLoginAt.Time, familyTimezone)
+		if convErr != nil {
+			return nil, fmt.Errorf("failed to convert last login time from UTC: %w", convErr)
+		}
+		member.LastLoginAt = &convertedLastLogin
+	}
+
+	// Convert CreatedAt and UpdatedAt from UTC to family timezone
+	member.CreatedAt, err = ConvertFromUTC(member.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created at from UTC: %w", err)
+	}
+
+	member.UpdatedAt, err = ConvertFromUTC(member.UpdatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert updated at from UTC: %w", err)
 	}
 
 	// Calculate completion rate

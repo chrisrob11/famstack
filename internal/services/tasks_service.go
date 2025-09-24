@@ -195,6 +195,21 @@ func (s *TasksService) CreateTask(familyID, createdBy string, req *models.Create
 	taskID := generateTaskID()
 	now := time.Now().UTC()
 
+	// Get family timezone and convert DueDate to UTC if provided
+	var dueDateUTC *time.Time
+	if req.DueDate != nil {
+		familyTimezone, err := GetFamilyTimezone(s.db, familyID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get family timezone for task creation: %w", err)
+		}
+
+		convertedDueDate, err := ConvertToUTC(*req.DueDate, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert due date to UTC: %w", err)
+		}
+		dueDateUTC = &convertedDueDate
+	}
+
 	query := `
 		INSERT INTO tasks (id, family_id, assigned_to, title, description, task_type,
 						  status, priority, due_date, created_by, created_at)
@@ -203,7 +218,7 @@ func (s *TasksService) CreateTask(familyID, createdBy string, req *models.Create
 
 	_, err := s.db.Exec(query,
 		taskID, familyID, req.AssignedTo, req.Title, req.Description,
-		req.TaskType, "pending", req.Priority, req.DueDate,
+		req.TaskType, "pending", req.Priority, dueDateUTC,
 		createdBy, now,
 	)
 
@@ -216,6 +231,16 @@ func (s *TasksService) CreateTask(familyID, createdBy string, req *models.Create
 
 // UpdateTask updates an existing task
 func (s *TasksService) UpdateTask(taskID string, req *models.UpdateTaskRequest) (*models.Task, error) {
+	// Get familyID for timezone conversions if needed
+	var familyID string
+	if req.DueDate != nil {
+		query := `SELECT family_id FROM tasks WHERE id = ?`
+		err := s.db.QueryRow(query, taskID).Scan(&familyID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get family ID for task: %w", err)
+		}
+	}
+
 	// Build dynamic update query
 	setParts := []string{"updated_at = CURRENT_TIMESTAMP"}
 	args := []any{}
@@ -248,8 +273,19 @@ func (s *TasksService) UpdateTask(taskID string, req *models.UpdateTaskRequest) 
 		args = append(args, *req.Priority)
 	}
 	if req.DueDate != nil {
+		// Get family timezone and convert DueDate to UTC before storing
+		familyTimezone, err := GetFamilyTimezone(s.db, familyID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get family timezone for task update: %w", err)
+		}
+
+		convertedDueDate, err := ConvertToUTC(*req.DueDate, familyTimezone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert due date to UTC: %w", err)
+		}
+
 		setParts = append(setParts, "due_date = ?")
-		args = append(args, *req.DueDate)
+		args = append(args, convertedDueDate)
 	}
 
 	if len(setParts) == 1 { // Only updated_at
@@ -384,19 +420,41 @@ func (s *TasksService) scanTask(scanner interface {
 		return nil, err
 	}
 
+	// Get family timezone for conversions
+	familyTimezone, err := GetFamilyTimezone(s.db, task.FamilyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get family timezone for task conversion: %w", err)
+	}
+
 	// Handle nullable fields
 	if assignedTo.Valid {
 		task.AssignedTo = &assignedTo.String
 	}
 	if dueDate.Valid {
 		if parsed, parseErr := time.Parse(time.RFC3339, dueDate.String); parseErr == nil {
-			task.DueDate = &parsed
+			// Convert DueDate from UTC to family timezone
+			convertedDueDate, convErr := ConvertFromUTC(parsed, familyTimezone)
+			if convErr != nil {
+				return nil, fmt.Errorf("failed to convert due date from UTC: %w", convErr)
+			}
+			task.DueDate = &convertedDueDate
 		}
 	}
 	if completedAt.Valid {
 		if parsed, parseErr := time.Parse(time.RFC3339, completedAt.String); parseErr == nil {
-			task.CompletedAt = &parsed
+			// Convert CompletedAt from UTC to family timezone
+			convertedCompletedAt, convErr := ConvertFromUTC(parsed, familyTimezone)
+			if convErr != nil {
+				return nil, fmt.Errorf("failed to convert completed at from UTC: %w", convErr)
+			}
+			task.CompletedAt = &convertedCompletedAt
 		}
+	}
+
+	// Convert CreatedAt from UTC to family timezone
+	task.CreatedAt, err = ConvertFromUTC(task.CreatedAt, familyTimezone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert created at from UTC: %w", err)
 	}
 
 	return &task, nil

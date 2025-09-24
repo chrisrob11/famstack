@@ -83,8 +83,7 @@ func TestGetUnifiedCalendarEvents_TimezoneConversion(t *testing.T) {
 }
 
 func TestTimezoneConversions(t *testing.T) {
-	// Create a mock calendar service for testing
-	service := &CalendarService{}
+	// Testing timezone conversion helpers
 
 	tests := []struct {
 		name           string
@@ -127,7 +126,7 @@ func TestTimezoneConversions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test conversion to UTC
-			utcTime, err := service.convertToUTC(tt.inputTime, tt.familyTimezone)
+			utcTime, err := ConvertToUTC(tt.inputTime, tt.familyTimezone)
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
@@ -145,7 +144,7 @@ func TestTimezoneConversions(t *testing.T) {
 			}
 
 			// Test round trip: convert back from UTC
-			localTime, err := service.convertFromUTC(utcTime, tt.familyTimezone)
+			localTime, err := ConvertFromUTC(utcTime, tt.familyTimezone)
 			if err != nil {
 				t.Errorf("Unexpected error converting from UTC: %v", err)
 				return
@@ -169,7 +168,7 @@ func TestTimezoneConversions(t *testing.T) {
 }
 
 func TestTimezoneRoundTripWithSpecificTimes(t *testing.T) {
-	service := &CalendarService{}
+	// Testing timezone conversion helpers
 
 	// Test specific scenarios that are important for calendar applications
 	testCases := []struct {
@@ -216,14 +215,14 @@ func TestTimezoneRoundTripWithSpecificTimes(t *testing.T) {
 				tc.localHour, tc.localMinute, 0, 0, time.UTC)
 
 			// Convert to UTC for storage
-			utcTime, err := service.convertToUTC(naiveTime, tc.familyTimezone)
+			utcTime, err := ConvertToUTC(naiveTime, tc.familyTimezone)
 			if err != nil {
 				t.Errorf("Error converting to UTC: %v", err)
 				return
 			}
 
 			// Convert back for display
-			displayTime, err := service.convertFromUTC(utcTime, tc.familyTimezone)
+			displayTime, err := ConvertFromUTC(utcTime, tc.familyTimezone)
 			if err != nil {
 				t.Errorf("Error converting from UTC: %v", err)
 				return
@@ -243,7 +242,7 @@ func TestTimezoneRoundTripWithSpecificTimes(t *testing.T) {
 }
 
 func TestTimezoneEdgeCases(t *testing.T) {
-	service := &CalendarService{}
+	// Testing timezone conversion helpers
 
 	// Test daylight saving time transitions
 	t.Run("DST Spring Forward", func(t *testing.T) {
@@ -251,13 +250,13 @@ func TestTimezoneEdgeCases(t *testing.T) {
 		// Test a time that would be in the "gap"
 		gapTime := time.Date(2023, 3, 12, 2, 30, 0, 0, time.UTC) // 2:30 AM (doesn't exist)
 
-		utcTime, err := service.convertToUTC(gapTime, "America/New_York")
+		utcTime, err := ConvertToUTC(gapTime, "America/New_York")
 		if err != nil {
 			t.Errorf("Error handling DST gap: %v", err)
 			return
 		}
 
-		displayTime, err := service.convertFromUTC(utcTime, "America/New_York")
+		displayTime, err := ConvertFromUTC(utcTime, "America/New_York")
 		if err != nil {
 			t.Errorf("Error converting back from DST gap: %v", err)
 		}
@@ -271,13 +270,13 @@ func TestTimezoneEdgeCases(t *testing.T) {
 		// Test a time that would be ambiguous
 		ambiguousTime := time.Date(2023, 11, 5, 1, 30, 0, 0, time.UTC) // 1:30 AM (exists twice)
 
-		utcTime, err := service.convertToUTC(ambiguousTime, "America/New_York")
+		utcTime, err := ConvertToUTC(ambiguousTime, "America/New_York")
 		if err != nil {
 			t.Errorf("Error handling DST ambiguity: %v", err)
 			return
 		}
 
-		displayTime, err := service.convertFromUTC(utcTime, "America/New_York")
+		displayTime, err := ConvertFromUTC(utcTime, "America/New_York")
 		if err != nil {
 			t.Errorf("Error converting back from DST ambiguity: %v", err)
 		}
