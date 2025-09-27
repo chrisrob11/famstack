@@ -1,86 +1,34 @@
-# Calendar Integration Skeleton
+# Calendar Integration
 
-This directory contains the skeleton structure for Google Calendar OAuth integration and sync functionality.
+Code for connecting to external calendars (Google, Outlook, etc.).
 
-## Structure Created
+## Current status
 
-### 1. OAuth System (`internal/oauth/`)
-- `types.go` - OAuth token and configuration types
-- `service.go` - OAuth flow management (auth URL generation, callback handling, token refresh)
+❌ **Not working yet** - The code structure exists but isn't connected
 
-### 2. Google Calendar Client (`internal/calendar/`)
-- `google_client.go` - Google Calendar API client for fetching events and calendars
+## What exists
 
-### 3. Background Sync Job (`internal/jobs/`)
-- `calendar_sync.go` - Background job for periodic calendar synchronization
+- Basic database tables for OAuth tokens
+- Skeleton code for Google Calendar API
+- Background job framework for syncing
 
-### 4. Database Schema (`internal/database/migrations/`)
-- `014_add_oauth_integrations.sql` - OAuth tokens and sync settings tables
+## What's missing
 
-### 5. Web Interface
-- `web/templates/calendar-settings.html.tmpl` - OAuth integration UI
-- `internal/handlers/oauth_handlers.go` - OAuth flow HTTP handlers
+- Actual Google API integration
+- OAuth flow implementation
+- Sync logic to import events
 
-## Next Steps for Implementation
+## To implement
 
-### 1. Add Google Libraries to go.mod
-```bash
-go get golang.org/x/oauth2
-go get google.golang.org/api/calendar/v3
-go get google.golang.org/api/option
-```
+1. Add Google OAuth libraries to go.mod
+2. Wire up the OAuth flow handlers
+3. Implement event syncing from Google Calendar
+4. Add error handling and rate limiting
 
-### 2. Update OAuth Service
-Replace manual HTTP calls with `golang.org/x/oauth2` library:
-- Use `oauth2.Config` for authorization flows
-- Automatic token refresh handling
-- Better security with PKCE support
+## Files
 
-### 3. Update Google Calendar Client
-Replace manual API calls with `google.golang.org/api/calendar/v3`:
-- Use official `calendar.Service`
-- Proper error handling and pagination
-- Type safety with generated structs
+- `google_client.go` - Google Calendar API (skeleton)
+- `../oauth/` - OAuth token management (skeleton)
+- `../jobs/calendar_sync.go` - Background sync job (skeleton)
 
-### 4. Add Encryption Integration
-Update OAuth service to use existing encryption service:
-- Encrypt `access_token` and `refresh_token` before database storage
-- Decrypt when retrieving tokens for API calls
-
-### 5. Wire Up Job System
-- Register `CalendarSyncHandler` with job system
-- Fix job system integration issues
-- Add periodic scheduling for automatic sync
-
-### 6. Add Route Registration
-Add OAuth routes to server configuration:
-```go
-// In server setup
-mux.HandleFunc("/oauth/google/connect", oauthHandlers.HandleGoogleConnect)
-mux.HandleFunc("/oauth/google/callback", oauthHandlers.HandleGoogleCallback)
-mux.HandleFunc("/calendar-settings", oauthHandlers.HandleCalendarSettings)
-```
-
-### 7. Environment Configuration
-Add Google OAuth configuration:
-```bash
-GOOGLE_OAUTH_CLIENT_ID=your_client_id
-GOOGLE_OAUTH_CLIENT_SECRET=your_client_secret
-GOOGLE_OAUTH_REDIRECT_URL=http://localhost:8080/oauth/google/callback
-```
-
-## Benefits of Using Official Libraries
-
-1. **OAuth2 Library**: Handles token refresh, expiration, and security automatically
-2. **Google Calendar API**: Type-safe, well-documented, handles pagination and rate limiting
-3. **Maintenance**: Libraries are maintained by Google and Go team
-4. **Security**: Built-in protection against common OAuth vulnerabilities
-
-## Current Status
-
-✅ **Skeleton Structure**: Complete foundation for OAuth integration
-❌ **Implementation**: Requires switching to official libraries and wiring up components
-❌ **Testing**: Need to add unit tests and integration tests
-❌ **Configuration**: Need environment-based configuration management
-
-The skeleton provides a solid foundation that can be easily converted to use official Google libraries for production-ready calendar integration.
+The calendar system works with manual events, but external calendar sync is not implemented yet.
