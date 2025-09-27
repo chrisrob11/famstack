@@ -378,6 +378,16 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 			}
 		})))
 
+	// Calendar Days API route - new layered calendar endpoint
+	mux.Handle("/api/v1/calendar/days", authMiddleware.RequireEntityAction(auth.EntityCalendar, auth.ActionRead)(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == "GET" {
+				calendarAPIHandler.GetCalendarDays(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		})))
+
 	// Authentication API routes
 	mux.HandleFunc("/auth/login", authHandler.HandleLogin)
 	mux.HandleFunc("/auth/logout", authHandler.HandleLogout)

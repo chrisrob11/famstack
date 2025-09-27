@@ -1,33 +1,42 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { styleMap } from 'lit/directives/style-map.js';
+import { TimeFormatter } from './utils/time-formatter.js';
+import { CALENDAR_CONFIG } from './calendar-config.js';
 import {
   calendarApiService,
-  UnifiedCalendarEvent,
-  GetEventsOptions,
-} from './services/calendar-api.js';
+  type DayView,
+  type CalendarViewEvent,
+} from './calendar-api.js';
+import { styleMap } from 'lit/directives/style-map.js';
 
-import './components/event-card.js';
-
-const TIME_SLOT_HEIGHT_PX = 20; // Increased from 15 to 20 pixels per 15-minute slot
-const PIXEL_PER_MINUTE = TIME_SLOT_HEIGHT_PX / 15; // Now 1.33 pixels per minute
+// import './event-card.js'; // Not needed in layered approach
 
 @customElement('daily-calendar')
 export class DailyCalendar extends LitElement {
+  constructor() {
+    super();
+    this._timeFormatter = new TimeFormatter(this.use24Hour);
+  }
+
   @property({ type: String })
   date = new Date().toISOString().split('T')[0];
 
   @property({ type: Boolean, attribute: 'use-24hour' })
   use24Hour = false;
 
-  @state()
-  private _events: UnifiedCalendarEvent[] = [];
+  @property({ type: Array })
+  people: string[] = [];
 
   @state()
-  private _allDayEvents: UnifiedCalendarEvent[] = [];
+  private _dayView: DayView | null = null;
 
   @state()
-  private _timedEvents: UnifiedCalendarEvent[] = [];
+  private _isLoading = false;
+
+  @state()
+  private _errorState: string | null = null;
+
+  private _timeFormatter: TimeFormatter;
 
   static override styles = css`
     :host {
@@ -35,7 +44,7 @@ export class DailyCalendar extends LitElement {
       --calendar-text: #333;
       --grid-border: #e1e5e9;
       --hour-text: #6c757d;
-      --time-slot-height: ${TIME_SLOT_HEIGHT_PX}px;
+      --time-slot-height: ${CALENDAR_CONFIG.TIME_SLOT_HEIGHT}px;
       --hour-line-color: #dee2e6;
 
       display: block;
@@ -44,307 +53,349 @@ export class DailyCalendar extends LitElement {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--calendar-bg);
       color: var(--calendar-text);
+      overflow: hidden;
     }
 
     .calendar-container {
+      height: 100%;
       display: flex;
       flex-direction: column;
-      height: 100%;
-      padding: 16px;
-      box-sizing: border-box;
     }
 
-    .header {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 20px 0;
-      border-bottom: 2px solid var(--grid-border);
-      margin-bottom: 0;
-      background: white;
-      border-radius: 8px 8px 0 0;
-    }
-
-    .date-title {
-      font-size: 24px;
-      font-weight: 600;
-      color: #2c3e50;
-    }
-
-    .all-day-section {
-      background: white;
-      border-bottom: 2px solid var(--grid-border);
-      min-height: 60px;
-      padding: 12px 16px;
-      display: flex;
-      align-items: center;
-      font-size: 14px;
-      color: var(--hour-text);
-    }
-
-    .all-day-label {
-      width: 20px;
-      font-weight: 600;
-      text-align: right;
-      padding-right: 2px;
-      border-right: 2px solid var(--grid-border);
-      margin-right: 16px;
-    }
-
-    .all-day-events {
+    .time-grid {
       flex: 1;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-    }
-
-    .all-day-placeholder {
-      color: #adb5bd;
-      font-style: italic;
-    }
-
-    .time-grid-container {
-      flex: 1;
-      background: white;
-      border-radius: 0 0 8px 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-      position: relative;
-    }
-
-    .grid-content {
+      display: grid;
+      grid-template-rows: repeat(96, var(--time-slot-height)); /* 96 * 15min = 24 hours */
       position: relative;
       overflow-y: auto;
+      border-left: 1px solid var(--grid-border);
+    }
+
+    .time-labels {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 60px;
       height: 100%;
+      background: var(--calendar-bg);
+      border-right: 1px solid var(--grid-border);
+      z-index: 10;
     }
 
-    .time-row {
-      display: flex;
-      height: var(--time-slot-height);
-      border-bottom: 1px solid #f1f3f5;
-    }
-
-    .time-row.hour-boundary {
-      border-bottom: 2px solid var(--hour-line-color);
-    }
-
-    .time-row:last-child {
-      border-bottom: none;
-    }
-
-    .time-label-cell {
-      width: 40px;
-      background: #f8f9fa;
-      border-right: 2px solid var(--grid-border);
-      padding-right: 2px;
-      padding-left: 7px;
-      text-align: right;
+    .hour-label {
+      position: absolute;
+      left: 8px;
+      transform: translateY(-50%);
       font-size: 12px;
-      font-weight: 500;
       color: var(--hour-text);
-      display: flex;
-      align-items: flex-start;
-      padding-top: 2px;
+      font-weight: 500;
     }
 
-    .time-slot {
-      flex: 1;
-      position: relative;
+    .hour-line {
+      position: absolute;
+      left: 60px;
+      right: 0;
+      height: 1px;
+      background: var(--hour-line-color);
+      z-index: 5;
     }
 
     .events-container {
       position: absolute;
+      left: 60px;
+      right: 8px;
       top: 0;
-      left: 42px; /* Width of label cell + border */
-      right: 0;
-      bottom: 0;
-      z-index: 1;
+      height: 100%;
     }
 
-    .event-wrapper {
+    .calendar-event {
       position: absolute;
-      left: 2px;
-      right: 8px; /* Gap on the right side */
-      overflow: hidden;
-    }
-
-    .grid-content::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .grid-content::-webkit-scrollbar-track {
-      background: #f1f1f1;
-    }
-
-    .grid-content::-webkit-scrollbar-thumb {
-      background: #c1c1c1;
+      pointer-events: auto;
       border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      overflow: hidden;
+      box-sizing: border-box;
+      min-height: 20px;
+      margin-bottom: 3px; /* Add gap between adjacent events */
     }
 
-    .grid-content::-webkit-scrollbar-thumb:hover {
-      background: #a8a8a8;
+    .calendar-event:hover {
+      border-color: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      z-index: 100;
+      transform: scale(1.02);
     }
 
-    @media (max-width: 1024px) {
-      .calendar-container {
-        padding: 8px;
-      }
+    .calendar-event:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+      z-index: 101;
+    }
 
-      .header {
-        padding: 16px 0;
-      }
+    .loading-spinner {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+      font-size: 14px;
+      color: var(--hour-text);
+    }
 
-      .date-title {
-        font-size: 20px;
-      }
+    .error-message {
+      padding: 16px;
+      background: #fee;
+      color: #c00;
+      border-radius: 4px;
+      margin: 16px;
+    }
+
+    .event-content {
+      position: relative;
+      height: 100%;
+      width: 100%;
+    }
+
+    .event-title {
+      position: absolute;
+      left: 4px;
+      right: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+
+    .event-title.short-event {
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .event-title.long-event {
+      top: 4px;
+    }
+
+    .event-attendees {
+      position: absolute;
+      bottom: 4px;
+      right: 4px;
+      display: flex;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+
+    .event-attendees.centered {
+      top: 50%;
+      bottom: auto;
+      transform: translateY(-50%);
+    }
+
+    .attendee-avatar {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .attendee-avatar.small {
+      width: 12px;
+      height: 12px;
+      font-size: 8px;
     }
   `;
 
-  private async _fetchEvents() {
-    const options: GetEventsOptions = {};
-    if (this.date) {
-      options.date = this.date;
+  override connectedCallback() {
+    super.connectedCallback();
+    this._loadCalendarData();
+  }
+
+  override updated(changedProperties: Map<string, any>) {
+    if (changedProperties.has('date') || changedProperties.has('people')) {
+      this._loadCalendarData();
     }
-    this._events = await calendarApiService.getUnifiedCalendarEvents(options);
-    this._processEvents();
   }
 
-  private _processEvents() {
-    this._allDayEvents = this._events.filter(e => e.all_day);
-    this._timedEvents = this._events.filter(e => !e.all_day);
-  }
+  private async _loadCalendarData() {
+    this._isLoading = true;
+    this._errorState = null;
 
-  private formatDate(dateString: string | undefined): string {
-    if (!dateString) {
-      dateString = new Date().toISOString().split('T')[0];
-    }
-    const date = new Date(dateString!);
-    return date.toLocaleDateString(undefined, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  }
+    try {
+      const options: any = {
+        startDate: this.date,
+        endDate: this.date,
+      };
 
-  private generateTimeSlots() {
-    const slots = [];
-    const startHour = 0; // Start at midnight (12 AM)
-    const endHour = 24;
-
-    for (let hour = startHour; hour < endHour; hour++) {
-      for (let quarter = 0; quarter < 4; quarter++) {
-        const minutes = quarter * 15;
-        const isHourBoundary = quarter === 0;
-        const timeString = this.formatTimeSlot(hour, minutes);
-
-        slots.push({
-          hour,
-          minutes,
-          timeString,
-          isHourBoundary,
-          position: ((hour - startHour) * 4 + quarter) * TIME_SLOT_HEIGHT_PX,
-        });
+      if (this.people.length > 0) {
+        options.people = this.people;
       }
-    }
 
-    return slots;
-  }
+      const response = await calendarApiService.getCalendarDays(options);
 
-  private formatTimeSlot(hour: number, minutes: number): string {
-    if (this.use24Hour) {
-      // 24-hour format
-      const hourStr = hour.toString().padStart(2, '0');
-      return minutes === 0 ? `${hourStr}:00` : `${hourStr}:${minutes.toString().padStart(2, '0')}`;
-    } else {
-      // 12-hour format
-      const period = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-      return minutes === 0
-        ? `${displayHour} ${period}`
-        : `${displayHour}:${minutes.toString().padStart(2, '0')} ${period}`;
+      this._dayView = response.days.find(day => day.date === this.date) || null;
+    } catch (error) {
+      this._errorState = error instanceof Error ? error.message : 'Failed to load calendar data';
+      this._dayView = null;
+    } finally {
+      this._isLoading = false;
     }
   }
 
-  private renderTimedEvents() {
+  private _renderTimeGrid() {
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
     return html`
-      ${this._timedEvents.map(event => {
-        // The API now returns timezone-aware ISO 8601 strings.
-        // new Date() will correctly parse these into the browser's local time.
-        const startTime = new Date(event.start_time);
-        const endTime = new Date(event.end_time);
-
-        const startMinutes = startTime.getHours() * 60 + startTime.getMinutes();
-        const durationMinutes = (endTime.getTime() - startTime.getTime()) / 60000;
-
-        const top = startMinutes * PIXEL_PER_MINUTE;
-        const height = Math.max(durationMinutes * PIXEL_PER_MINUTE - 2, 20); // Minimum 20px height
-
-        const eventStyles = {
-          top: `${top}px`,
-          height: `${height}px`,
-        };
-
-        return html`
-          <div class="event-wrapper" style=${styleMap(eventStyles)}>
-            <event-card .event=${event}></event-card>
-          </div>
-        `;
-      })}
-    `;
-  }
-
-  private renderTimeGrid() {
-    const slots = this.generateTimeSlots();
-    return html`
-      <div class="grid-content" role="grid" aria-label="Daily calendar time grid">
-        ${slots.map(
-          slot => html`
-            <div class="time-row ${slot.isHourBoundary ? 'hour-boundary' : ''}" role="row">
-              <div class="time-label-cell" role="rowheader">
-                ${slot.isHourBoundary ? slot.timeString : ''}
-              </div>
-              <div class="time-slot" role="gridcell" aria-label=${slot.timeString}></div>
+      <div class="time-labels">
+        ${hours.map(
+          hour => html`
+            <div class="hour-label" style="top: ${hour * 4 * CALENDAR_CONFIG.TIME_SLOT_HEIGHT}px">
+              ${this._timeFormatter.formatTimeSlot(hour, 0)}
             </div>
           `
         )}
-        <div class="events-container">${this.renderTimedEvents()}</div>
+      </div>
+
+      ${hours.map(
+        hour => html`
+          <div
+            class="hour-line"
+            style="top: ${hour * 4 * CALENDAR_CONFIG.TIME_SLOT_HEIGHT}px"
+          ></div>
+        `
+      )}
+    `;
+  }
+
+  private _renderEventLayers() {
+    if (!this._dayView || this._dayView.layers.length === 0) {
+      return html``;
+    }
+
+    // Collect all events from all layers into a single list
+    const allEvents: CalendarViewEvent[] = [];
+    for (const layer of this._dayView.layers) {
+      allEvents.push(...layer.events);
+    }
+
+    return html`
+      <div class="events-container">${allEvents.map(event => this._renderEvent(event))}</div>
+    `;
+  }
+
+  private _renderEvent(event: CalendarViewEvent) {
+    const topPx = event.startSlot * CALENDAR_CONFIG.TIME_SLOT_HEIGHT;
+    // Subtract 3px from height to account for margin-bottom gap
+    const heightPx = (event.endSlot - event.startSlot) * CALENDAR_CONFIG.TIME_SLOT_HEIGHT - 3;
+
+    // Check if event is 15 minutes or less (1 slot = 15 minutes)
+    const isShortEvent = event.endSlot - event.startSlot <= 1;
+    const titleClass = isShortEvent ? 'event-title short-event' : 'event-title long-event';
+
+    // Calculate width and position based on overlap group
+    const widthPercent = 100 / event.overlapGroup;
+    const leftPercent = event.overlapIndex * widthPercent;
+
+    return html`
+      <div
+        class="calendar-event"
+        style=${styleMap({
+          top: `${topPx}px`,
+          height: `${heightPx}px`,
+          width: `${widthPercent}%`,
+          left: `${leftPercent}%`,
+          backgroundColor: event.color,
+          color: this._getContrastColor(event.color),
+        })}
+        tabindex="0"
+        @click=${() => this._handleEventClick(event)}
+        @keydown=${(e: KeyboardEvent) => this._handleEventKeydown(e, event)}
+      >
+        <div class="event-content">
+          <div class="${titleClass}">${event.title}</div>
+          ${event.attendees && event.attendees.length > 0
+            ? html`
+                <div class="event-attendees ${isShortEvent ? 'centered' : ''}">
+                  ${event.attendees.slice(0, 3).map(
+                    attendee => html`
+                      <div
+                        class="attendee-avatar ${isShortEvent ? 'small' : ''}"
+                        style=${styleMap({
+                          backgroundColor: attendee.color,
+                        })}
+                        title="${attendee.name}"
+                      >
+                        ${attendee.initial}
+                      </div>
+                    `
+                  )}
+                  ${event.attendees.length > 3
+                    ? html`
+                        <div
+                          class="attendee-avatar ${isShortEvent ? 'small' : ''}"
+                          style="background-color: #666;"
+                          title="${event.attendees.length - 3} more attendees"
+                        >
+                          +${event.attendees.length - 3}
+                        </div>
+                      `
+                    : ''}
+                </div>
+              `
+            : ''}
+        </div>
       </div>
     `;
   }
 
-  override firstUpdated() {
-    this._fetchEvents();
-    // Scroll to 7 AM on initial load
-    const gridContent = this.shadowRoot?.querySelector('.grid-content') as HTMLElement;
-    if (gridContent) {
-      const scrollTo7AM = 7 * 4 * TIME_SLOT_HEIGHT_PX; // 7 hours * 4 quarters * height
-      gridContent.scrollTop = scrollTo7AM;
+  private _getContrastColor(backgroundColor: string): string {
+    // Simple contrast calculation - in a real app you'd want something more sophisticated
+    const color = backgroundColor.replace('#', '');
+    const r = parseInt(color.substring(0, 2), 16);
+    const g = parseInt(color.substring(2, 4), 16);
+    const b = parseInt(color.substring(4, 6), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128 ? '#000' : '#fff';
+  }
+
+  private _handleEventClick(event: CalendarViewEvent) {
+    // Dispatch custom event for parent components to handle
+    this.dispatchEvent(
+      new CustomEvent('event-click', {
+        detail: { event },
+        bubbles: true,
+      })
+    );
+  }
+
+  private _handleEventKeydown(e: KeyboardEvent, event: CalendarViewEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      this._handleEventClick(event);
     }
   }
 
-  private renderAllDaySection() {
-    return html`
-      <div class="all-day-section" role="region" aria-labelledby="all-day-heading">
-        <div id="all-day-heading" class="all-day-label" role="rowheader">All Day</div>
-        <div class="all-day-events" role="grid">
-          ${this._allDayEvents.length > 0
-            ? this._allDayEvents.map(event => html`<event-card .event=${event}></event-card>`)
-            : html`<span class="all-day-placeholder">No all-day events</span>`}
-        </div>
-      </div>
-    `;
-  }
-
   override render() {
+    if (this._isLoading) {
+      return html` <div class="loading-spinner">Loading calendar...</div> `;
+    }
+
+    if (this._errorState) {
+      return html` <div class="error-message">Error: ${this._errorState}</div> `;
+    }
+
     return html`
       <div class="calendar-container">
-        <div class="header">
-          <h1 class="date-title">${this.formatDate(this.date)}</h1>
-        </div>
-        ${this.renderAllDaySection()}
-        <div class="time-grid-container">${this.renderTimeGrid()}</div>
+        <div class="time-grid">${this._renderTimeGrid()} ${this._renderEventLayers()}</div>
       </div>
     `;
   }

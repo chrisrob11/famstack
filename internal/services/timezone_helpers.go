@@ -17,7 +17,8 @@ func ConvertToUTC(t time.Time, timezone string) (time.Time, error) {
 	}
 
 	// If the time is naive (no timezone info), treat it as being in the specified timezone
-	if t.Location() == time.UTC || t.Location().String() == "UTC" {
+	if t.Location() ==
+		time.UTC || t.Location().String() == "UTC" {
 		// Create a new time in the specified timezone with the same date/time components
 		return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), loc).UTC(), nil
 	}

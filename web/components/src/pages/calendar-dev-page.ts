@@ -44,10 +44,13 @@ export class CalendarDevPage extends BasePage {
             <label>
               <input type="checkbox" id="time-format-toggle"> Use 24-hour format
             </label>
+            <label>
+              <input type="checkbox" id="debug-borders-toggle" checked> Debug borders
+            </label>
           </div>
         </div>
         <div class="component-container">
-          <daily-calendar date="${this.currentDate}"></daily-calendar>
+          <daily-calendar date="${this.currentDate}" debug-borders></daily-calendar>
         </div>
       </div>
     `;
@@ -173,7 +176,7 @@ export class CalendarDevPage extends BasePage {
           flex: 1;
           display: flex;
           width: 100%;
-          overflow: hidden;
+          overflow: visible;
         }
 
         daily-calendar {
@@ -215,6 +218,7 @@ export class CalendarDevPage extends BasePage {
 
   private setupEventListeners(): void {
     const toggle = this.container.querySelector('#time-format-toggle') as HTMLInputElement;
+    const debugToggle = this.container.querySelector('#debug-borders-toggle') as HTMLInputElement;
     const calendar = this.container.querySelector('daily-calendar') as any;
     const prevButton = this.container.querySelector('#prev-day') as HTMLButtonElement;
     const nextButton = this.container.querySelector('#next-day') as HTMLButtonElement;
@@ -223,6 +227,12 @@ export class CalendarDevPage extends BasePage {
     if (toggle && calendar) {
       toggle.addEventListener('change', () => {
         calendar.use24Hour = toggle.checked;
+      });
+    }
+
+    if (debugToggle && calendar) {
+      debugToggle.addEventListener('change', () => {
+        calendar.debugBorders = debugToggle.checked;
       });
     }
 

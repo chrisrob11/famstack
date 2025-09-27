@@ -10,11 +10,11 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 **Status:** ❌ Not Started
 
 **Before Milestone 1:** Review and validate calendar event data structure
-- [ ] Audit current API response format from calendar integrations
-- [ ] Ensure we have: `id`, `title`, `start_time`, `end_time`, `all_day`, `attendees`, `source`
-- [ ] Add missing fields if needed (location, description, color hints)
-- [ ] Create test data sets for development
-- [ ] Validate family member data includes color/initial info
+- [x] Audit current API response format from calendar integrations
+- [x] Ensure we have: `id`, `title`, `start_time`, `end_time`, `all_day`, `attendees`, `source`
+- [x] Add missing fields if needed (location, description, color hints)
+- [x] Create test data sets for development
+- [x] Validate family member data includes color/initial info
 
 ---
 
@@ -93,11 +93,10 @@ Build a Web Component (using Lit) for a family-focused daily calendar view that 
 **Calendar Support Level:** Proper event sizing and visual layout
 **User Validation:** Events show correct heights based on duration, proper width allocation
 
-- [ ] Fix event height calculation and CSS constraints
-- [ ] Dynamic event width calculation for better visibility
-- [ ] Refactor layout logic into a dedicated `layout-utils.ts` module
-- [ ] Add event overlap detection for future positioning
-- [ ] Improve event card responsiveness for different durations
+- [X] Fix event height calculation and CSS constraints
+- [x] Dynamic event width calculation for better visibility
+- [X] Add event overlap detection for future positioning
+- [X] Improve event card responsiveness for different durations
 
 ### Milestone 7: Person Filtering (Sessions 14-15)
 **Status:** ❌ Not Started

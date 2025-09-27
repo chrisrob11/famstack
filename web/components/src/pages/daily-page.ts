@@ -289,25 +289,6 @@ export class DailyPage extends BasePage {
           border-bottom: none;
         }
 
-        .time-label {
-          min-width: 4rem;
-          font-weight: 500;
-        }
-
-        .event-content {
-          margin-left: 1rem;
-          flex: 1;
-        }
-
-        .event-item {
-          background: #fef3c7;
-          border-left: 3px solid #f59e0b;
-          padding: 0.5rem 0.75rem;
-          border-radius: 0.375rem;
-          font-size: 0.875rem;
-          color: #92400e;
-        }
-
         /* Responsive design */
         @media (max-width: 1200px) {
           .daily-chores {
