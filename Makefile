@@ -4,13 +4,15 @@
 # Variables
 BINARY_NAME=famstack
 BINARY_PATH=./$(BINARY_NAME)
+VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "development")
+LDFLAGS=-ldflags="-s -w -X 'famstack/internal/cmds.Version=$(VERSION)'"
 
 # Build the application
 build: build-ts build-go ## Build TypeScript components and Go binary
 
 build-go: ## Build Go binary
-	@echo "Building Go binary..."
-	CGO_ENABLED=0 go build -ldflags="-s -w" -o $(BINARY_PATH) ./cmd/famstack
+	@echo "Building Go binary (version: $(VERSION))..."
+	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BINARY_PATH) ./cmd/famstack
 
 build-ts: install-node-deps ## Build TypeScript components
 	@echo "Building TypeScript components..."

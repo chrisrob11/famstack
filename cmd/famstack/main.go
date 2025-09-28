@@ -11,12 +11,15 @@ import (
 
 func main() {
 	app := &cli.App{
-		Name:  "famstack",
-		Usage: "Family task management system",
+		Name:    "famstack",
+		Usage:   "Family task management system",
+		Version: cmds.Version,
 		Commands: []*cli.Command{
 			cmds.StartCommand(),
 			cmds.EncryptionCommand(),
 			cmds.UserCommand(),
+			cmds.UpdateCommand(),
+			cmds.VersionCommand(),
 		},
 	}
 

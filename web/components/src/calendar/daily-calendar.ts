@@ -2,11 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { TimeFormatter } from './utils/time-formatter.js';
 import { CALENDAR_CONFIG } from './calendar-config.js';
-import {
-  calendarApiService,
-  type DayView,
-  type CalendarViewEvent,
-} from './calendar-api.js';
+import { calendarApiService, type DayView, type CalendarViewEvent } from './calendar-api.js';
 import { styleMap } from 'lit/directives/style-map.js';
 
 // import './event-card.js'; // Not needed in layered approach

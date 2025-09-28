@@ -16,7 +16,7 @@ A family heads-up display for daily tasks and schedules. Shows today's calendar 
 ### Option 1: Download and run (easiest)
 
 1. **Download the file for your computer:**
-   - Go to [releases](https://github.com/famstack/famstack/releases)
+   - Go to [releases](https://github.com/chrisrob11/famstack/releases)
    - Download `famstack-linux-amd64` (Linux)
    - Download `famstack-darwin-amd64` (Mac)
    - Download `famstack-windows-amd64.exe` (Windows)
@@ -46,7 +46,7 @@ A family heads-up display for daily tasks and schedules. Shows today's calendar 
 
 ```bash
 # Download the code
-git clone https://github.com/famstack/famstack.git
+git clone https://github.com/chrisrob11/famstack.git
 cd famstack
 
 # Build it
@@ -60,6 +60,23 @@ make build
 ```
 
 Then open http://localhost:8080
+
+## Updating
+
+### Check for updates
+```bash
+./famstack update check
+```
+
+### Install latest version
+```bash
+./famstack update install
+```
+
+### Show current version
+```bash
+./famstack update version
+```
 
 ## Configuration
 
