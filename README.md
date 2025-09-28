@@ -4,6 +4,18 @@
 
 A family heads-up display for daily tasks and schedules. Shows today's calendar events and chores on a shared screen.
 
+## What it looks like now
+
+Here's what FamStack looks like when you open it:
+
+![FamStack Home Page](docs/homepage.png)
+
+**What you see:**
+- **Our Family Hub**: Shows your family name with a colored avatar
+- **Today's date**: Click the arrows to see yesterday or tomorrow
+- **Daily chores**: Each family member gets their own column for tasks
+- **Today's schedule**: All your meetings and events in a timeline view
+
 ## What it does
 
 - Track family tasks and chores
@@ -102,12 +114,14 @@ make lint       # Check code
 
 ## What works
 
-- Task management (create, edit, delete tasks)
-- Family member management
-- Simple calendar view
-- User accounts and login
-- SQLite database storage
-- Basic OAuth integration (stores secrets securely)
+- **Daily view**: See tasks and calendar events on one screen
+- **Task management**: Create, edit, delete, and assign tasks to family members
+- **Family members**: Add people to your family with names and colored avatars
+- **Calendar display**: Shows your events with times and colors
+- **Date browsing**: Click arrows to see different days
+- **Login system**: Each person can have their own account
+- **Local storage**: Everything saves to a file on your computer
+- **Basic integrations**: Framework for connecting external calendars (not fully working yet)
 
 ## What's missing
 
