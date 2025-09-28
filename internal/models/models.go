@@ -40,6 +40,7 @@ type Task struct {
 	DueDate     *time.Time `json:"due_date" db:"due_date"`
 	CreatedBy   string     `json:"created_by" db:"created_by"`
 	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at" db:"updated_at"`
 	CompletedAt *time.Time `json:"completed_at" db:"completed_at"`
 }
 
@@ -180,6 +181,10 @@ func (t *Task) SetDefaults() {
 		t.CreatedAt = time.Now().UTC()
 	}
 
+	if t.UpdatedAt.IsZero() {
+		t.UpdatedAt = time.Now().UTC()
+	}
+
 	if t.Priority == 0 {
 		t.Priority = 1 // Default priority
 	}
@@ -213,6 +218,7 @@ func (t *Task) Complete() error {
 	t.Status = TaskStatusCompleted
 	now := time.Now().UTC()
 	t.CompletedAt = &now
+	t.UpdatedAt = now
 
 	return nil
 }
@@ -227,6 +233,7 @@ func (t *Task) Reopen() error {
 
 	t.Status = TaskStatusPending
 	t.CompletedAt = nil
+	t.UpdatedAt = time.Now().UTC()
 
 	return nil
 }

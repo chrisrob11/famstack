@@ -1,8 +1,7 @@
 import { BasePage } from './base-page.js';
 import { ComponentConfig } from '../common/types.js';
 import { FamilyTasks } from '../tasks/family-tasks.js';
-import { CalendarService } from '../calendar-events/calendar-events-service.js';
-import { CalendarEvents } from '../calendar-events/calendar-events.js';
+import '../calendar/daily-calendar.js';
 
 /**
  * DailyPage - Main daily view combining tasks and calendar
@@ -10,13 +9,11 @@ import { CalendarEvents } from '../calendar-events/calendar-events.js';
  */
 export class DailyPage extends BasePage {
   private familyTasks?: FamilyTasks;
-  private calendarEvents?: CalendarEvents;
-  private calendarService: CalendarService;
+  private dailyCalendar?: HTMLElement;
   private currentDate: Date = new Date();
 
   constructor(container: HTMLElement, config: ComponentConfig) {
     super(container, config, 'daily');
-    this.calendarService = new CalendarService(config);
   }
 
   async init(): Promise<void> {
@@ -71,7 +68,9 @@ export class DailyPage extends BasePage {
 
           <div class="daily-right-panel">
             <h2>Schedule</h2>
-            <div id="calendar-events-container" class="daily-schedule"></div>
+            <div id="calendar-container" class="daily-schedule">
+              <daily-calendar id="daily-calendar"></daily-calendar>
+            </div>
           </div>
         </div>
       </div>
@@ -182,6 +181,13 @@ export class DailyPage extends BasePage {
           border-radius: 1rem;
           padding: 1.5rem;
           box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          height: 600px;
+          overflow: hidden;
+        }
+
+        #daily-calendar {
+          width: 100%;
+          height: 100%;
         }
 
         /* Family member task sections */
@@ -352,16 +358,11 @@ export class DailyPage extends BasePage {
       this.familyTasks = new FamilyTasks(tasksContainer, this.config);
     }
 
-    // Initialize calendar events component (right side - Today's Schedule)
-    const calendarEventsContainer = this.container.querySelector(
-      '#calendar-events-container'
-    ) as HTMLElement;
-    if (calendarEventsContainer) {
-      this.calendarEvents = new CalendarEvents(
-        calendarEventsContainer,
-        this.config,
-        this.calendarService
-      );
+    // Initialize daily calendar component (right side - Today's Schedule)
+    this.dailyCalendar = this.container.querySelector('#daily-calendar') as HTMLElement;
+    if (this.dailyCalendar) {
+      // Set initial date on the calendar
+      this.updateCalendarDate();
     }
 
     // Set up event listeners
@@ -413,14 +414,19 @@ export class DailyPage extends BasePage {
       currentDateElement.textContent = dateFormatter.format(this.currentDate);
     }
 
-    // Update calendar events component
-    if (this.calendarEvents) {
-      this.calendarEvents.setDate(date);
-    }
+    // Update daily calendar component
+    this.updateCalendarDate();
 
     // Update family tasks for the selected date
     if (this.familyTasks) {
       this.familyTasks.setDate(date);
+    }
+  }
+
+  private updateCalendarDate(): void {
+    if (this.dailyCalendar) {
+      const dateStr = this.currentDate.toISOString().split('T')[0];
+      (this.dailyCalendar as any).date = dateStr;
     }
   }
 
@@ -436,18 +442,15 @@ export class DailyPage extends BasePage {
     if (this.familyTasks) {
       await this.familyTasks.refresh();
     }
-    if (this.calendarEvents) {
-      await this.calendarEvents.refresh();
-    }
+    // The Lit calendar component will auto-refresh when its date property changes
+    this.updateCalendarDate();
   }
 
   override destroy(): void {
     if (this.familyTasks) {
       this.familyTasks.destroy();
     }
-    if (this.calendarEvents) {
-      this.calendarEvents.destroy();
-    }
+    // No explicit cleanup needed for Lit components
 
     // Remove styles
     const styles = document.getElementById('daily-page-styles');
