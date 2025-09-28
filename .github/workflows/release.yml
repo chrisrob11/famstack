@@ -38,13 +38,25 @@ jobs:
     - name: Install dependencies
       run: make install-tools
 
-    - name: Generate version tag
+    - name: Generate clean semantic version
       id: version
       run: |
-        # Use clean semantic version tags when available, fallback to git describe
-        VERSION=$(git describe --tags --exact-match 2>/dev/null || git describe --tags --always --dirty 2>/dev/null || echo "development")
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "Generated version: ${VERSION}"
+        # Get the latest tag and increment patch version
+        LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+        echo "Latest tag: ${LATEST_TAG}"
+
+        # Extract version numbers (remove 'v' prefix)
+        VERSION_NUM=${LATEST_TAG#v}
+
+        # Split version into parts
+        IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_NUM"
+
+        # Increment patch version
+        NEW_PATCH=$((PATCH + 1))
+        NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+
+        echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+        echo "Generated clean version: ${NEW_VERSION}"
 
     - name: Check if tag already exists
       id: check_tag
