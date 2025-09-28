@@ -124,7 +124,7 @@ func (s *TasksService) getActiveFamilyMembers(familyID string) ([]TaskMember, er
 func (s *TasksService) getTasksForFamily(familyID, dateFilter string) ([]models.Task, error) {
 	query := `
 		SELECT id, family_id, assigned_to, title, description, task_type, status,
-			   priority, due_date, created_by, created_at, completed_at
+			   priority, due_date, created_by, created_at, updated_at, completed_at
 		FROM tasks
 		WHERE family_id = ? AND SUBSTR(due_date, 1, 10) = ?
 		ORDER BY created_at DESC
@@ -151,7 +151,7 @@ func (s *TasksService) getTasksForFamily(familyID, dateFilter string) ([]models.
 func (s *TasksService) GetTask(taskID string) (*models.Task, error) {
 	query := `
 		SELECT id, family_id, assigned_to, title, description, task_type, status,
-			   priority, due_date, created_by, created_at, completed_at
+			   priority, due_date, created_by, created_at, updated_at, completed_at
 		FROM tasks
 		WHERE id = ?
 	`
@@ -162,7 +162,7 @@ func (s *TasksService) GetTask(taskID string) (*models.Task, error) {
 	err := s.db.QueryRow(query, taskID).Scan(
 		&task.ID, &task.FamilyID, &assignedTo, &task.Title, &task.Description,
 		&task.TaskType, &task.Status, &task.Priority, &dueDate,
-		&task.CreatedBy, &task.CreatedAt, &completedAt,
+		&task.CreatedBy, &task.CreatedAt, &task.UpdatedAt, &completedAt,
 	)
 
 	if err != nil {
@@ -212,14 +212,14 @@ func (s *TasksService) CreateTask(familyID, createdBy string, req *models.Create
 
 	query := `
 		INSERT INTO tasks (id, family_id, assigned_to, title, description, task_type,
-						  status, priority, due_date, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+						  status, priority, due_date, created_by, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.db.Exec(query,
 		taskID, familyID, req.AssignedTo, req.Title, req.Description,
 		req.TaskType, "pending", req.Priority, dueDateUTC,
-		createdBy, now,
+		createdBy, now, now,
 	)
 
 	if err != nil {
@@ -343,7 +343,7 @@ func (s *TasksService) DeleteTask(taskID string) error {
 func (s *TasksService) ListTasksByMember(memberID string) ([]models.Task, error) {
 	query := `
 		SELECT id, family_id, assigned_to, title, description, task_type, status,
-			   priority, due_date, created_by, created_at, completed_at
+			   priority, due_date, created_by, created_at, updated_at, completed_at
 		FROM tasks
 		WHERE assigned_to = ?
 		ORDER BY created_at DESC
@@ -375,7 +375,7 @@ func (s *TasksService) ListTasksByMember(memberID string) ([]models.Task, error)
 func (s *TasksService) ListTasksForFamily(familyID string) ([]models.Task, error) {
 	query := `
 		SELECT id, family_id, assigned_to, title, description, task_type, status,
-			   priority, due_date, created_by, created_at, completed_at
+			   priority, due_date, created_by, created_at, updated_at, completed_at
 		FROM tasks
 		WHERE family_id = ?
 		ORDER BY created_at DESC
@@ -414,7 +414,7 @@ func (s *TasksService) scanTask(scanner interface {
 	err := scanner.Scan(
 		&task.ID, &task.FamilyID, &assignedTo, &task.Title, &task.Description,
 		&task.TaskType, &task.Status, &task.Priority, &dueDate,
-		&task.CreatedBy, &task.CreatedAt, &completedAt,
+		&task.CreatedBy, &task.CreatedAt, &task.UpdatedAt, &completedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -509,8 +509,8 @@ func (s *TasksService) BulkCreateTasks(familyID, createdBy string, tasks []BulkT
 
 		query := `
 			INSERT INTO tasks (id, family_id, assigned_to, title, description, task_type,
-							  status, priority, due_date, created_by, schedule_id)
-			VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+							  status, priority, due_date, created_by, schedule_id, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
 		`
 
 		stmt, err := tx.Prepare(query)
@@ -521,6 +521,7 @@ func (s *TasksService) BulkCreateTasks(familyID, createdBy string, tasks []BulkT
 
 		for _, task := range tasks {
 			taskID := generateTaskID()
+			now := time.Now().UTC()
 			var assignedToValue any
 			if task.AssignedTo != nil {
 				assignedToValue = *task.AssignedTo
@@ -538,7 +539,7 @@ func (s *TasksService) BulkCreateTasks(familyID, createdBy string, tasks []BulkT
 			_, err = stmt.Exec(
 				taskID, familyID, assignedToValue, task.Title, task.Description,
 				task.TaskType, task.Priority, dueDateValue,
-				createdBy, task.ScheduleID,
+				createdBy, task.ScheduleID, now, now,
 			)
 			if err != nil {
 				if isUniqueConstraintViolation(err) {
