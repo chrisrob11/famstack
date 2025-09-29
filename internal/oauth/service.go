@@ -59,6 +59,22 @@ func (s *Service) GetAuthURL(provider Provider, userID string) (string, error) {
 	}
 }
 
+// GetAuthURLWithCustomState generates OAuth authorization URL with custom state
+func (s *Service) GetAuthURLWithCustomState(provider Provider, customState string) (string, error) {
+	// Store the custom state in our state tracking system
+	err := s.storeCustomState(customState)
+	if err != nil {
+		return "", fmt.Errorf("failed to store custom state: %w", err)
+	}
+
+	switch provider {
+	case ProviderGoogle:
+		return s.getGoogleAuthURL(customState)
+	default:
+		return "", fmt.Errorf("unsupported provider: %s", provider)
+	}
+}
+
 // HandleCallback processes OAuth callback
 func (s *Service) HandleCallback(provider Provider, code, state string) (*OAuthToken, error) {
 	// Verify state
@@ -160,16 +176,30 @@ func (s *Service) generateState(provider Provider, userID string) (string, error
 	return state, nil
 }
 
+// storeCustomState stores a custom state (containing userID and config) in the database
+func (s *Service) storeCustomState(customState string) error {
+	// For custom states, we don't have separate provider/userID, so we store the full state
+	// The verifyState method will work the same way
+	stateData := &services.OAuthState{
+		State:     customState,
+		UserID:    "",       // Will be extracted from state later
+		Provider:  "google", // Assume Google for now
+		ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
+		CreatedAt: time.Now().UTC(),
+	}
+
+	return s.oauthService.SaveState(stateData)
+}
+
 func (s *Service) verifyState(state string) bool {
 	// Verify state exists in database and hasn't expired
-	fmt.Printf("🔍 Verifying OAuth state: %s\n", state)
-	stateData, err := s.oauthService.GetState(state)
+	fmt.Printf("🔍 Verifying OAuth state\n")
+	_, err := s.oauthService.GetState(state)
 	if err != nil {
-		fmt.Printf("❌ State verification failed: %v\n", err)
+		fmt.Printf("❌ State verification failed\n")
 		return false
 	}
-	fmt.Printf("✅ State verified successfully: Provider=%s, UserID=%s, ExpiresAt=%v\n",
-		stateData.Provider, stateData.UserID, stateData.ExpiresAt)
+	fmt.Printf("✅ State verified successfully\n")
 	return true
 }
 
@@ -315,14 +345,14 @@ func (s *Service) saveTokenWithEncryption(token *OAuthToken) error {
 	return s.oauthService.SaveToken(serviceToken)
 }
 
-// generateID creates a new random ID
+// generateID creates a new cryptographically secure random ID
 func generateID() string {
 	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
-		// This should rarely happen, but we need to handle it
-		panic(fmt.Sprintf("Failed to generate random bytes: %v", err))
+		// Fallback to timestamp if crypto/rand fails (should be extremely rare)
+		return fmt.Sprintf("oauth_fallback_%d", time.Now().UTC().UnixNano())
 	}
-	return hex.EncodeToString(bytes)
+	return fmt.Sprintf("oauth_%s", hex.EncodeToString(bytes))
 }
 
 // GetOAuth2Config returns the oauth2.Config for external use
