@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -90,7 +91,10 @@ type Integration struct {
 	DisplayName     string          `json:"display_name" db:"display_name"`
 	Description     string          `json:"description" db:"description"`
 	Settings        string          `json:"settings" db:"settings"` // JSON
+	SettingsType    *string         `json:"settings_type" db:"settings_type"`
+	Enabled         bool            `json:"enabled" db:"enabled"`
 	LastSyncAt      *time.Time      `json:"last_sync_at" db:"last_sync_at"`
+	LastSyncToken   *string         `json:"last_sync_token" db:"last_sync_token"`
 	LastError       *string         `json:"last_error" db:"last_error"`
 	CreatedAt       time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at" db:"updated_at"`
@@ -150,6 +154,7 @@ type CreateIntegrationRequest struct {
 	DisplayName     string          `json:"display_name" validate:"required"`
 	Description     string          `json:"description"`
 	Settings        map[string]any  `json:"settings"`
+	SettingsType    string          `json:"settings_type"`
 }
 
 // UpdateIntegrationRequest represents a request to update an integration
@@ -196,6 +201,11 @@ func (s *IntegrationsService) CreateIntegration(familyID, userID string, req *Cr
 		settingsJSON = string(data)
 	}
 
+	var settingsType *string
+	if req.SettingsType != "" {
+		settingsType = &req.SettingsType
+	}
+
 	integration := &Integration{
 		ID:              generateID(),
 		FamilyID:        familyID,
@@ -207,6 +217,10 @@ func (s *IntegrationsService) CreateIntegration(familyID, userID string, req *Cr
 		DisplayName:     req.DisplayName,
 		Description:     req.Description,
 		Settings:        settingsJSON,
+		SettingsType:    settingsType,
+		Enabled:         true, // New integrations are enabled by default
+		LastSyncAt:      nil,
+		LastSyncToken:   nil,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 	}
@@ -214,15 +228,17 @@ func (s *IntegrationsService) CreateIntegration(familyID, userID string, req *Cr
 	query := `
 		INSERT INTO integrations
 		(id, family_id, created_by, integration_type, provider, auth_method, status,
-		 display_name, description, settings, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 display_name, description, settings, settings_type, enabled, last_sync_at,
+		 last_sync_token, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.db.Exec(query,
 		integration.ID, integration.FamilyID, integration.CreatedBy,
 		integration.IntegrationType, integration.Provider, integration.AuthMethod,
 		integration.Status, integration.DisplayName, integration.Description,
-		integration.Settings, integration.CreatedAt, integration.UpdatedAt,
+		integration.Settings, integration.SettingsType, integration.Enabled,
+		integration.LastSyncAt, integration.LastSyncToken, integration.CreatedAt, integration.UpdatedAt,
 	)
 
 	if err != nil {
@@ -236,8 +252,8 @@ func (s *IntegrationsService) CreateIntegration(familyID, userID string, req *Cr
 func (s *IntegrationsService) GetIntegration(integrationID string) (*Integration, error) {
 	query := `
 		SELECT id, family_id, created_by, integration_type, provider, auth_method,
-		       status, display_name, description, settings, last_sync_at,
-		       last_error, created_at, updated_at
+		       status, display_name, description, settings, settings_type, enabled,
+		       last_sync_at, last_sync_token, last_error, created_at, updated_at
 		FROM integrations
 		WHERE id = ?
 	`
@@ -247,7 +263,8 @@ func (s *IntegrationsService) GetIntegration(integrationID string) (*Integration
 		&integration.ID, &integration.FamilyID, &integration.CreatedBy,
 		&integration.IntegrationType, &integration.Provider, &integration.AuthMethod,
 		&integration.Status, &integration.DisplayName, &integration.Description,
-		&integration.Settings, &integration.LastSyncAt, &integration.LastError,
+		&integration.Settings, &integration.SettingsType, &integration.Enabled,
+		&integration.LastSyncAt, &integration.LastSyncToken, &integration.LastError,
 		&integration.CreatedAt, &integration.UpdatedAt,
 	)
 
@@ -583,8 +600,14 @@ func (s *IntegrationsService) InitiateOAuth(integrationID, host string) (string,
 	}
 }
 
-// generateID creates a new random ID
+// generateID creates a new cryptographically secure random ID
 func generateID() string {
-	// Simple implementation - in production you might want something more robust
-	return fmt.Sprintf("%d", time.Now().UTC().UnixNano())
+	// Use crypto/rand for secure random generation
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		// Fallback to timestamp if crypto/rand fails (should be extremely rare)
+		return fmt.Sprintf("fallback_%d", time.Now().UTC().UnixNano())
+	}
+	// Convert to hex string for safe use in URLs and databases
+	return fmt.Sprintf("int_%x", bytes)
 }

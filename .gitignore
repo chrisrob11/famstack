@@ -67,6 +67,7 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+*.bak
 .DS_Store
 
 # Logs

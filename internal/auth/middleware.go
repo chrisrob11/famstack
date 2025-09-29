@@ -163,12 +163,11 @@ func (m *Middleware) extractResourceOwnerID(r *http.Request, entity Entity) *str
 
 	switch entity {
 	case EntityTask:
-		// For tasks, we might need to query the database to get the assigned_to field
-		// This is a simplified implementation
-		return nil // TODO: Implement task ownership lookup
+		// For tasks, extract owner ID from the task
+		return extractTaskOwnerID(r)
 	case EntityCalendar:
-		// For calendar events, similar logic
-		return nil // TODO: Implement calendar event ownership lookup
+		// For calendar events, extract owner ID from the event
+		return extractCalendarEventOwnerID(r)
 	case EntityFamily:
 		// For families, the user's family_id should match the family being accessed
 		// Extract family ID from URL path (e.g., /api/v1/families/{family_id})
@@ -252,5 +251,21 @@ func GetUserFromContext(ctx context.Context) *models.FamilyMember {
 	if user, ok := ctx.Value(UserContextKey).(*models.FamilyMember); ok {
 		return user
 	}
+	return nil
+}
+
+// extractTaskOwnerID extracts the owner ID for a task resource
+func extractTaskOwnerID(r *http.Request) *string {
+	// In a real implementation, this would query the database to get the task's assigned_to field
+	// For now, return nil to indicate authorization should be handled by family-level access
+	// TODO: Implement database query to get task.assigned_to or task.family_id
+	return nil
+}
+
+// extractCalendarEventOwnerID extracts the owner ID for a calendar event resource
+func extractCalendarEventOwnerID(r *http.Request) *string {
+	// In a real implementation, this would query the database to get the event's created_by field
+	// For now, return nil to indicate authorization should be handled by family-level access
+	// TODO: Implement database query to get event.created_by or event.family_id
 	return nil
 }
