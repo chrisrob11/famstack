@@ -1,265 +1,285 @@
 /**
- * Add Integration Modal component
- * Modal for creating new integrations
+ * AddIntegrationModal Component
+ *
+ * Role: Modal dialog for creating new integrations
+ * Responsibilities:
+ * - Provide form interface for integration creation
+ * - Handle category and provider selection with dynamic updates
+ * - Validate form data before submission
+ * - Display authentication method information
+ * - Dispatch creation events with form data
+ * - Manage modal visibility and form reset
  */
 
-import { ComponentConfig } from '../common/types.js';
+import { LitElement, html, css } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
 import {
   INTEGRATION_CATEGORIES,
   getProvidersByCategory,
   AUTH_DESCRIPTIONS,
 } from './integration-types.js';
-import { loadCSS } from '../common/dom-utils.js';
-import { logger } from '../common/logger.js';
+import { EVENTS } from '../common/constants.js';
+import { buttonStyles, modalStyles, formStyles } from '../common/shared-styles.js';
 
-export class AddIntegrationModal {
-  private container: HTMLElement;
-  private config: ComponentConfig;
-  private modal?: HTMLElement;
+@customElement('add-integration-modal')
+export class AddIntegrationModal extends LitElement {
+  @state()
+  private isVisible = false;
 
-  constructor(container: HTMLElement, config: ComponentConfig) {
-    this.container = container;
-    this.config = config;
-  }
+  @state()
+  private selectedType = '';
 
-  async init(): Promise<void> {
-    await this.loadStyles();
-    this.render();
-    this.setupEventListeners();
-  }
+  @state()
+  private selectedProvider = '';
 
-  private async loadStyles(): Promise<void> {
-    try {
-      await Promise.all([
-        loadCSS('/components/src/integrations/styles/modal.css', 'modal-styles'),
-        loadCSS(
-          '/components/src/integrations/styles/add-integration.css',
-          'add-integration-styles'
-        ),
-      ]);
-    } catch (error) {
-      logger.styleError('AddIntegrationModal', error);
-    }
-  }
+  @state()
+  private selectedAuthMethod = '';
 
-  private render(): void {
-    const modalHtml = `
-      <div id="add-integration-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h2>Add New Integration</h2>
-            <button class="close-btn" data-action="close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <form id="add-integration-form">
-              <div class="form-group">
-                <label for="integration-type">Category</label>
-                <select id="integration-type" name="integration_type" required>
-                  <option value="">Select a category</option>
-                  ${INTEGRATION_CATEGORIES.map(
-                    cat => `<option value="${cat.key}">${cat.label}</option>`
-                  ).join('')}
-                </select>
-              </div>
+  @state()
+  private providers: Array<{ value: string; label: string; auth: string }> = [];
 
-              <div class="form-group">
-                <label for="provider">Provider</label>
-                <select id="provider" name="provider" required>
-                  <option value="">Select a provider</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="display-name">Display Name</label>
-                <input type="text" id="display-name" name="display_name" required
-                       placeholder="e.g., John's Google Calendar">
-              </div>
-
-              <div class="form-group">
-                <label for="description">Description (optional)</label>
-                <textarea id="description" name="description" rows="3"
-                          placeholder="Brief description of this integration"></textarea>
-              </div>
-
-              <div id="auth-method-info" class="auth-info" style="display: none;">
-                <div class="info-box">
-                  <h4>Authentication Method: <span id="auth-method-name"></span></h4>
-                  <p id="auth-method-description"></p>
-                </div>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button class="btn btn-secondary" data-action="close">Cancel</button>
-            <button class="btn btn-primary" id="create-integration-btn">Add Integration</button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    this.container.insertAdjacentHTML('beforeend', modalHtml);
-    this.modal = document.getElementById('add-integration-modal') as HTMLElement;
-  }
-
-  private setupEventListeners(): void {
-    if (!this.modal) return;
-
-    // Close modal handlers
-    this.modal.addEventListener('click', e => {
-      const target = e.target as HTMLElement;
-
-      if (target.getAttribute('data-action') === 'close' || target === this.modal) {
-        this.hide();
+  static override styles = [
+    buttonStyles,
+    modalStyles,
+    formStyles,
+    css`
+      :host {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1000;
+        display: none;
       }
-    });
 
-    // Form handlers
-    const integrationTypeSelect = document.getElementById('integration-type');
-    const providerSelect = document.getElementById('provider');
-    const createBtn = document.getElementById('create-integration-btn');
-
-    if (integrationTypeSelect) {
-      integrationTypeSelect.addEventListener('change', () => this.updateProviders());
-    }
-
-    if (providerSelect) {
-      providerSelect.addEventListener('change', () => this.updateAuthMethod());
-    }
-
-    if (createBtn) {
-      createBtn.addEventListener('click', () => this.handleCreate());
-    }
-
-    // Escape key to close
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && this.isVisible()) {
-        this.hide();
+      :host([visible]) {
+        display: flex;
       }
-    });
+
+      .auth-info {
+        margin-top: 16px;
+        padding: 16px;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+      }
+
+      .info-box h4 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #495057;
+      }
+
+      .info-box p {
+        margin: 0;
+        font-size: 13px;
+        color: #6c757d;
+        line-height: 1.4;
+      }
+    `
+  ];
+
+  override connectedCallback() {
+    super.connectedCallback();
+    this.addEventListener('keydown', this.handleKeyDown);
   }
 
-  private updateProviders(): void {
-    const typeSelect = document.getElementById('integration-type') as HTMLSelectElement;
-    const providerSelect = document.getElementById('provider') as HTMLSelectElement;
-    const selectedType = typeSelect.value;
+  override disconnectedCallback() {
+    super.disconnectedCallback();
+    this.removeEventListener('keydown', this.handleKeyDown);
+  }
 
-    // Clear existing options
-    providerSelect.innerHTML = '<option value="">Select a provider</option>';
-
-    if (selectedType) {
-      const providers = getProvidersByCategory(selectedType);
-      providers.forEach(provider => {
-        const option = document.createElement('option');
-        option.value = provider.value;
-        option.textContent = provider.label;
-        option.setAttribute('data-auth', provider.auth);
-        providerSelect.appendChild(option);
-      });
+  private handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && this.isVisible) {
+      this.hide();
     }
+  };
 
-    // Clear auth method info
-    const authInfo = document.getElementById('auth-method-info');
-    if (authInfo) {
-      authInfo.style.display = 'none';
+  private handleBackdropClick(e: Event) {
+    if (e.target === e.currentTarget) {
+      this.hide();
     }
   }
 
-  private updateAuthMethod(): void {
-    const providerSelect = document.getElementById('provider') as HTMLSelectElement;
-    const selectedOption = providerSelect.options[providerSelect.selectedIndex];
+  private handleTypeChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    this.selectedType = target.value;
+    this.selectedProvider = '';
+    this.selectedAuthMethod = '';
 
-    if (selectedOption && selectedOption.getAttribute('data-auth')) {
-      const authMethod = selectedOption.getAttribute('data-auth')!;
-      const authMethodName = document.getElementById('auth-method-name');
-      const authMethodDescription = document.getElementById('auth-method-description');
-      const authInfo = document.getElementById('auth-method-info');
-
-      if (authMethodName && authMethodDescription && authInfo) {
-        authMethodName.textContent = authMethod.toUpperCase();
-        authMethodDescription.textContent =
-          AUTH_DESCRIPTIONS[authMethod] || 'Authentication method information not available.';
-        authInfo.style.display = 'block';
-      }
+    if (this.selectedType) {
+      this.providers = getProvidersByCategory(this.selectedType);
     } else {
-      const authInfo = document.getElementById('auth-method-info');
-      if (authInfo) {
-        authInfo.style.display = 'none';
-      }
+      this.providers = [];
     }
   }
 
-  private async handleCreate(): Promise<void> {
-    const form = document.getElementById('add-integration-form') as HTMLFormElement;
-    if (!form.checkValidity()) {
-      form.reportValidity();
+  private handleProviderChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    this.selectedProvider = target.value;
+
+    const selectedOption = target.options[target.selectedIndex];
+    this.selectedAuthMethod = selectedOption?.getAttribute('data-auth') || '';
+  }
+
+  private async handleCreate() {
+    const form = this.shadowRoot?.querySelector('#add-integration-form') as HTMLFormElement;
+    if (!form || !form.checkValidity()) {
+      form?.reportValidity();
       return;
     }
 
     const formData = new FormData(form);
-    const providerSelect = document.getElementById('provider') as HTMLSelectElement;
-    const selectedOption = providerSelect.options[providerSelect.selectedIndex];
 
     const integrationData = {
       integration_type: formData.get('integration_type'),
       provider: formData.get('provider'),
-      auth_method: selectedOption?.getAttribute('data-auth') || null,
+      auth_method: this.selectedAuthMethod || null,
       display_name: formData.get('display_name'),
       description: formData.get('description') || '',
       settings: {},
     };
 
-    // Dispatch event to parent component
-    this.container.dispatchEvent(
-      new CustomEvent('create-integration', {
+    this.dispatchEvent(
+      new CustomEvent(EVENTS.CREATE_INTEGRATION, {
         detail: integrationData,
         bubbles: true,
       })
     );
+
+    this.hide();
   }
 
   show(): void {
-    if (this.modal) {
-      this.modal.style.display = 'flex';
+    this.isVisible = true;
+    this.setAttribute('visible', '');
 
-      // Focus on first input
-      const firstInput = this.modal.querySelector('select, input') as HTMLElement;
+    this.updateComplete.then(() => {
+      const firstInput = this.shadowRoot?.querySelector('select, input') as HTMLElement;
       if (firstInput) {
         firstInput.focus();
       }
-    }
+    });
   }
 
   hide(): void {
-    if (this.modal) {
-      this.modal.style.display = 'none';
-      this.resetForm();
-    }
+    this.isVisible = false;
+    this.removeAttribute('visible');
+    this.resetForm();
   }
 
   private resetForm(): void {
-    const form = document.getElementById('add-integration-form') as HTMLFormElement;
-    if (form) {
-      form.reset();
-    }
+    this.selectedType = '';
+    this.selectedProvider = '';
+    this.selectedAuthMethod = '';
+    this.providers = [];
 
-    const authInfo = document.getElementById('auth-method-info');
-    if (authInfo) {
-      authInfo.style.display = 'none';
-    }
-
-    const providerSelect = document.getElementById('provider') as HTMLSelectElement;
-    if (providerSelect) {
-      providerSelect.innerHTML = '<option value="">Select a provider</option>';
-    }
+    this.updateComplete.then(() => {
+      const form = this.shadowRoot?.querySelector('#add-integration-form') as HTMLFormElement;
+      form?.reset();
+    });
   }
 
-  private isVisible(): boolean {
-    return this.modal ? this.modal.style.display === 'flex' : false;
-  }
-
-  destroy(): void {
-    if (this.modal) {
-      this.modal.remove();
+  override render() {
+    if (!this.isVisible) {
+      return html``;
     }
+
+    return html`
+      <div class="modal" @click=${this.handleBackdropClick}>
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Add New Integration</h2>
+            <button class="close-btn" @click=${this.hide} aria-label="Close">&times;</button>
+          </div>
+          <div class="modal-body">
+            <form id="add-integration-form">
+              <div class="form-group">
+                <label for="integration-type">Category</label>
+                <select
+                  id="integration-type"
+                  name="integration_type"
+                  required
+                  .value=${this.selectedType}
+                  @change=${this.handleTypeChange}
+                >
+                  <option value="">Select a category</option>
+                  ${INTEGRATION_CATEGORIES.map(
+                    cat => html`<option value="${cat.key}">${cat.label}</option>`
+                  )}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="provider">Provider</label>
+                <select
+                  id="provider"
+                  name="provider"
+                  required
+                  .value=${this.selectedProvider}
+                  @change=${this.handleProviderChange}
+                >
+                  <option value="">Select a provider</option>
+                  ${this.providers.map(
+                    provider => html`
+                      <option value="${provider.value}" data-auth="${provider.auth}">
+                        ${provider.label}
+                      </option>
+                    `
+                  )}
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="display-name">Display Name</label>
+                <input
+                  type="text"
+                  id="display-name"
+                  name="display_name"
+                  required
+                  placeholder="e.g., John's Google Calendar"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="description">Description (optional)</label>
+                <textarea
+                  id="description"
+                  name="description"
+                  rows="3"
+                  placeholder="Brief description of this integration"
+                ></textarea>
+              </div>
+
+              ${this.selectedAuthMethod
+                ? html`
+                    <div class="auth-info">
+                      <div class="info-box">
+                        <h4>Authentication Method: ${this.selectedAuthMethod.toUpperCase()}</h4>
+                        <p>
+                          ${AUTH_DESCRIPTIONS[this.selectedAuthMethod] ||
+                          'Authentication method information not available.'}
+                        </p>
+                      </div>
+                    </div>
+                  `
+                : ''}
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" @click=${this.hide}>Cancel</button>
+            <button class="btn btn-primary" @click=${this.handleCreate}>Add Integration</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'add-integration-modal': AddIntegrationModal;
   }
 }

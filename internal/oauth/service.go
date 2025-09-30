@@ -3,7 +3,9 @@ package oauth
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -178,11 +180,28 @@ func (s *Service) generateState(provider Provider, userID string) (string, error
 
 // storeCustomState stores a custom state (containing userID and config) in the database
 func (s *Service) storeCustomState(customState string) error {
+	// Decode the base64 state
+	stateBytes, err := base64.URLEncoding.DecodeString(customState)
+	if err != nil {
+		return fmt.Errorf("failed to decode state: %w", err)
+	}
+
+	// Unmarshal state data to get user_id
+	var stateMap map[string]string
+	if err := json.Unmarshal(stateBytes, &stateMap); err != nil {
+		return fmt.Errorf("failed to unmarshal state data: %w", err)
+	}
+
+	userID, ok := stateMap["user_id"]
+	if !ok {
+		return fmt.Errorf("user_id not found in state")
+	}
+
 	// For custom states, we don't have separate provider/userID, so we store the full state
 	// The verifyState method will work the same way
 	stateData := &services.OAuthState{
 		State:     customState,
-		UserID:    "",       // Will be extracted from state later
+		UserID:    userID,
 		Provider:  "google", // Assume Google for now
 		ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
 		CreatedAt: time.Now().UTC(),
@@ -232,6 +251,7 @@ func (s *Service) handleGoogleCallback(code, state string) (*OAuthToken, error) 
 	ctx := context.Background()
 	token, err := s.googleConfig.Exchange(ctx, code)
 	if err != nil {
+		fmt.Printf("Error exchanging code for token: %v\n", err)
 		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
 	}
 

@@ -4,19 +4,14 @@
 
 import { BasePage } from './base-page.js';
 import { ComponentConfig } from '../common/types.js';
-import { OAuthStatus } from '../integrations/oauth-status.js';
-import { CategoryTabs } from '../integrations/category-tabs.js';
-import { IntegrationGrid } from '../integrations/integration-grid.js';
-import { AddIntegrationModal } from '../integrations/add-integration-modal.js';
-import { OAuthConfigModal } from '../integrations/oauth-config-modal.js';
+import '../integrations/oauth-status.js';
+import '../integrations/category-tabs.js';
+import '../integrations/integration-grid.js';
+import '../integrations/add-integration-modal.js';
+import '../integrations/oauth-config-modal.js';
 import { logger } from '../common/logger.js';
 
 export class IntegrationsPage extends BasePage {
-  private oauthStatus?: OAuthStatus;
-  private categoryTabs?: CategoryTabs;
-  private integrationGrid?: IntegrationGrid;
-  private addIntegrationModal?: AddIntegrationModal;
-  private oauthConfigModal?: OAuthConfigModal;
 
   constructor(container: HTMLElement, config: ComponentConfig) {
     super(container, config, 'integrations');
@@ -46,14 +41,18 @@ export class IntegrationsPage extends BasePage {
           </div>
         </div>
 
-        <!-- OAuth Status will be initialized here -->
-        <div id="oauth-status-container"></div>
+        <!-- OAuth Status -->
+        <oauth-status></oauth-status>
 
-        <!-- Category Tabs will be initialized here -->
-        <div id="category-tabs-container"></div>
+        <!-- Category Tabs -->
+        <category-tabs active-category="all"></category-tabs>
 
-        <!-- Integration Grid will be initialized here -->
-        <div id="integration-grid-container"></div>
+        <!-- Integration Grid -->
+        <integration-grid current-category="all"></integration-grid>
+
+        <!-- Modals -->
+        <add-integration-modal></add-integration-modal>
+        <oauth-config-modal></oauth-config-modal>
       </div>
     `;
 
@@ -152,34 +151,35 @@ export class IntegrationsPage extends BasePage {
 
     if (oauthSettingsBtn) {
       oauthSettingsBtn.addEventListener('click', () => {
-        if (this.oauthConfigModal) {
-          this.oauthConfigModal.show();
+        const modal = this.container.querySelector('oauth-config-modal') as any;
+        if (modal) {
+          modal.show();
         }
       });
     }
 
     if (addIntegrationBtn) {
       addIntegrationBtn.addEventListener('click', () => {
-        if (this.addIntegrationModal) {
-          this.addIntegrationModal.show();
+        const modal = this.container.querySelector('add-integration-modal') as any;
+        if (modal) {
+          modal.show();
         }
       });
     }
 
     // Component event listeners
     this.container.addEventListener('category-changed', (e: any) => {
-      if (this.integrationGrid) {
-        this.integrationGrid.setCategory(e.detail.category);
+      const integrationGrid = this.container.querySelector('integration-grid') as any;
+      if (integrationGrid) {
+        integrationGrid.setAttribute('current-category', e.detail.category);
       }
     });
 
     this.container.addEventListener('create-integration', async (e: any) => {
       try {
-        if (this.integrationGrid) {
-          await this.integrationGrid.addIntegration(e.detail);
-          if (this.addIntegrationModal) {
-            this.addIntegrationModal.hide();
-          }
+        const integrationGrid = this.container.querySelector('integration-grid') as any;
+        if (integrationGrid) {
+          await integrationGrid.addIntegration(e.detail);
         }
       } catch (error) {
         logger.error('Failed to create integration:', error);
@@ -192,8 +192,9 @@ export class IntegrationsPage extends BasePage {
     this.container.addEventListener('delete-integration', async (e: any) => {
       if (confirm('Are you sure you want to delete this integration?')) {
         try {
-          if (this.integrationGrid) {
-            await this.integrationGrid.deleteIntegration(e.detail.id);
+          const integrationGrid = this.container.querySelector('integration-grid') as any;
+          if (integrationGrid) {
+            await integrationGrid.deleteIntegration(e.detail.id);
           }
         } catch (error) {
           logger.error('Failed to delete integration:', error);
@@ -204,69 +205,38 @@ export class IntegrationsPage extends BasePage {
       }
     });
 
+    this.container.addEventListener('configure-integration', (_e: any) => {
+      const modal = this.container.querySelector('oauth-config-modal') as any;
+      if (modal) {
+        modal.show();
+      }
+    });
+
     this.container.addEventListener('oauth-updated', () => {
-      if (this.oauthStatus) {
-        this.oauthStatus.refresh();
+      const oauthStatus = this.container.querySelector('oauth-status') as any;
+      if (oauthStatus) {
+        oauthStatus.refresh();
       }
     });
   }
 
   private async initializeComponents(): Promise<void> {
-    // Initialize OAuth Status
-    const oauthStatusContainer = document.getElementById('oauth-status-container');
-    if (oauthStatusContainer) {
-      this.oauthStatus = new OAuthStatus(oauthStatusContainer, this.config);
-      await this.oauthStatus.init();
-    }
-
-    // Initialize Category Tabs
-    const categoryTabsContainer = document.getElementById('category-tabs-container');
-    if (categoryTabsContainer) {
-      this.categoryTabs = new CategoryTabs(categoryTabsContainer, this.config);
-      this.categoryTabs.init();
-    }
-
-    // Initialize Integration Grid
-    const integrationGridContainer = document.getElementById('integration-grid-container');
-    if (integrationGridContainer) {
-      this.integrationGrid = new IntegrationGrid(integrationGridContainer, this.config);
-      await this.integrationGrid.init();
-    }
-
-    // Initialize Modals
-    this.addIntegrationModal = new AddIntegrationModal(this.container, this.config);
-    this.addIntegrationModal.init();
-
-    this.oauthConfigModal = new OAuthConfigModal(this.container, this.config);
-    this.oauthConfigModal.init();
+    // Components are now initialized automatically as custom elements
+    // No explicit initialization needed
   }
 
   async refresh(): Promise<void> {
-    if (this.oauthStatus) {
-      await this.oauthStatus.refresh();
+    const oauthStatus = this.container.querySelector('oauth-status') as any;
+    if (oauthStatus && oauthStatus.refresh) {
+      await oauthStatus.refresh();
     }
-    if (this.integrationGrid) {
-      await this.integrationGrid.refresh();
+    const integrationGrid = this.container.querySelector('integration-grid') as any;
+    if (integrationGrid && integrationGrid.refresh) {
+      await integrationGrid.refresh();
     }
   }
 
   override destroy(): void {
-    if (this.oauthStatus) {
-      this.oauthStatus.destroy();
-    }
-    if (this.categoryTabs) {
-      this.categoryTabs.destroy();
-    }
-    if (this.integrationGrid) {
-      this.integrationGrid.destroy();
-    }
-    if (this.addIntegrationModal) {
-      this.addIntegrationModal.destroy();
-    }
-    if (this.oauthConfigModal) {
-      this.oauthConfigModal.destroy();
-    }
-
     // Remove styles
     const styles = document.getElementById('integrations-page-styles');
     if (styles) {

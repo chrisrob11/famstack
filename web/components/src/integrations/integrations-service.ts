@@ -1,6 +1,14 @@
 /**
- * Centralized Integrations Service
- * Handles all integration-related API calls and data mapping
+ * IntegrationsService
+ *
+ * Role: Core API service for integration CRUD operations
+ * Responsibilities:
+ * - Handle HTTP requests for integration data (GET, POST, PATCH, DELETE)
+ * - Map backend data formats to frontend Integration objects
+ * - Manage request headers and CSRF tokens
+ * - Provide filtering and pagination support
+ * - Handle API errors and response parsing
+ * - Expose methods for sync and test operations
  */
 
 import { Integration, OAuthConfig } from './integration-types.js';

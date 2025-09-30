@@ -1,5 +1,13 @@
 /**
- * Type definitions for integrations
+ * IntegrationTypes
+ *
+ * Role: Type definitions, constants, and utility functions for integrations
+ * Responsibilities:
+ * - Define TypeScript interfaces for Integration, Provider, OAuthConfig
+ * - Export integration categories and provider configurations
+ * - Provide utility functions for icons, labels, and provider lookups
+ * - Maintain authentication method descriptions
+ * - Define status labels and category mappings
  */
 
 export interface Provider {
