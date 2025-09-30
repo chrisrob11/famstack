@@ -1,82 +1,126 @@
 /**
- * Integration Grid component
- * Displays and manages the list of integrations
+ * IntegrationGrid Component
+ *
+ * Role: Displays a grid layout of integration cards and coordinates user actions
+ * Responsibilities:
+ * - Renders integration cards in a responsive grid layout
+ * - Loads and manages integration data from the API
+ * - Routes user actions (connect, sync, test) to appropriate services
+ * - Dispatches events for parent components to handle
+ * - Provides public methods for external integration management
  */
 
-import { ComponentConfig } from '../common/types.js';
-import {
-  Integration,
-  getCategoryIcon,
-  getProviderLabel,
-  STATUS_LABELS,
-} from './integration-types.js';
+import { LitElement, html, css } from 'lit';
+import { customElement, property, state } from 'lit/decorators.js';
+import { Integration } from './integration-types.js';
 import { integrationsService } from './integrations-service.js';
-import { loadCSS } from '../common/dom-utils.js';
-import { logger } from '../common/logger.js';
+import { integrationOperations } from './integration-operations.js';
+import { errorHandler } from '../common/error-handler.js';
+import { EVENTS } from '../common/constants.js';
+import './integration-card.js';
+import './integration-actions.js';
 
-export class IntegrationGrid {
-  private container: HTMLElement;
-  private config: ComponentConfig;
+@customElement('integration-grid')
+export class IntegrationGrid extends LitElement {
+  @property({ type: String, attribute: 'current-category' })
+  currentCategory = 'all';
+
+  @state()
   private integrations: Integration[] = [];
-  private currentCategory: string = 'all';
 
-  constructor(container: HTMLElement, config: ComponentConfig) {
-    this.container = container;
-    this.config = config;
-  }
+  @state()
+  private isLoading = true;
 
-  async init(): Promise<void> {
-    await this.loadStyles();
-    this.render();
-    this.setupEventListeners();
+  static override styles = css`
+    :host {
+      display: block;
+    }
+
+    .integrations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+
+    .loading {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      color: #6c757d;
+      font-size: 16px;
+    }
+
+    .empty-state {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 40px;
+      color: #6c757d;
+    }
+
+    .empty-state h3 {
+      margin: 0 0 12px 0;
+      font-size: 18px;
+      color: #495057;
+    }
+
+    .empty-state p {
+      margin: 0;
+      font-size: 14px;
+    }
+  `;
+
+  override async connectedCallback() {
+    super.connectedCallback();
     await this.loadIntegrations();
   }
 
-  private async loadStyles(): Promise<void> {
-    try {
-      await loadCSS(
-        '/components/src/integrations/styles/integration-grid.css',
-        'integration-grid-styles'
-      );
-    } catch (error) {
-      logger.styleError('integration grid', error);
+  override updated(changedProperties: Map<string, any>) {
+    if (changedProperties.has('currentCategory')) {
+      this.loadIntegrations();
     }
   }
 
-  private render(): void {
-    this.container.innerHTML = `
-      <div class="integrations-grid">
-        <div class="loading">Loading integrations...</div>
-      </div>
-    `;
+  private async loadIntegrations(): Promise<void> {
+    this.isLoading = true;
+
+    const result = await errorHandler.handleAsync(
+      async () => {
+        const filters = this.currentCategory === 'all' ? {} : { type: this.currentCategory };
+        return await integrationsService.getIntegrations(filters);
+      },
+      { component: 'IntegrationGrid', operation: 'loadIntegrations' },
+      []
+    );
+
+    this.integrations = result || [];
+    this.isLoading = false;
   }
 
-  private setupEventListeners(): void {
-    this.container.addEventListener('click', e => {
-      const target = e.target as HTMLElement;
-      const card = target.closest('.integration-card');
+  private async handleIntegrationAction(e: CustomEvent) {
+    const { action, integrationId } = e.detail;
 
-      if (!card) return;
-
-      const integrationId = card.getAttribute('data-integration-id');
-      if (!integrationId) return;
-
-      if (target.classList.contains('configure-btn')) {
-        this.dispatchEvent('configure-integration', { id: integrationId });
-      } else if (target.classList.contains('delete-btn')) {
-        this.dispatchEvent('delete-integration', { id: integrationId });
-      } else if (target.classList.contains('connect-btn')) {
-        this.handleConnect(integrationId);
-      } else if (target.classList.contains('sync-btn')) {
-        this.handleSync(integrationId);
-      } else if (target.classList.contains('test-btn')) {
-        this.handleTest(integrationId);
-      }
-    });
+    switch (action) {
+      case 'configure':
+        this.dispatchCustomEvent(EVENTS.CONFIGURE_INTEGRATION, { id: integrationId });
+        break;
+      case 'delete':
+        this.dispatchCustomEvent(EVENTS.DELETE_INTEGRATION, { id: integrationId });
+        break;
+      case 'connect':
+        await this.handleConnect(integrationId);
+        break;
+      case 'sync':
+        await this.handleSync(integrationId);
+        break;
+      case 'test':
+        await this.handleTest(integrationId);
+        break;
+    }
   }
 
-  private dispatchEvent(type: string, detail: any): void {
-    this.container.dispatchEvent(
+  private dispatchCustomEvent(type: string, detail: any): void {
+    this.dispatchEvent(
       new CustomEvent(type, {
         detail,
         bubbles: true,
@@ -84,160 +128,117 @@ export class IntegrationGrid {
     );
   }
 
-  async loadIntegrations(category: string = this.currentCategory): Promise<void> {
-    this.currentCategory = category;
-
-    try {
-      const filters = category === 'all' ? {} : { type: category };
-      this.integrations = await integrationsService.getIntegrations(filters);
-    } catch (error) {
-      logger.loadError('integrations', error);
-      this.integrations = [];
-    }
-
-    this.renderIntegrations();
-  }
-
-  private renderIntegrations(): void {
-    const gridContainer = this.container.querySelector('.integrations-grid');
-    if (!gridContainer) return;
-
-    if (this.integrations.length === 0) {
-      gridContainer.innerHTML = `
-        <div class="empty-state">
-          <h3>No integrations found</h3>
-          <p>Add your first integration to get started connecting external services.</p>
-        </div>
-      `;
-      return;
-    }
-
-    gridContainer.innerHTML = this.integrations
-      .map(
-        integration => `
-      <div class="integration-card" data-integration-id="${integration.id}">
-        <div class="integration-header">
-          <div class="integration-icon ${integration.integration_type}">
-            ${getCategoryIcon(integration.integration_type)}
-          </div>
-          <div class="integration-info">
-            <h3>${integration.display_name}</h3>
-            <p class="provider">${getProviderLabel(integration.provider)}</p>
-          </div>
-        </div>
-        <div class="integration-status">
-          <div class="status-indicator ${integration.status}"></div>
-          <span>${STATUS_LABELS[integration.status] || integration.status}</span>
-        </div>
-        ${integration.description ? `<p class="integration-description">${integration.description}</p>` : ''}
-        <div class="integration-actions">
-          ${this.renderIntegrationActions(integration)}
-        </div>
-      </div>
-    `
-      )
-      .join('');
-  }
-
-  private renderIntegrationActions(integration: Integration): string {
-    const actions = [];
-
-    if (
-      integration.status === 'disconnected' ||
-      (integration.status === 'pending' && integration.auth_method === 'oauth2')
-    ) {
-      actions.push(`<button class="btn btn-secondary connect-btn">Connect</button>`);
-    } else if (integration.status === 'connected') {
-      actions.push(`<button class="btn btn-secondary sync-btn">Sync</button>`);
-      actions.push(`<button class="btn btn-secondary test-btn">Test</button>`);
-    }
-
-    actions.push(`<button class="btn btn-secondary configure-btn">Configure</button>`);
-    actions.push(`<button class="btn btn-danger delete-btn">Delete</button>`);
-
-    return actions.join('');
-  }
 
   async addIntegration(integrationData: Partial<Integration>): Promise<boolean> {
-    try {
-      await integrationsService.createIntegration(integrationData);
-      await this.loadIntegrations();
-      return true;
-    } catch (error) {
-      logger.error('Error creating integration:', error);
-      throw error;
-    }
+    const success = await errorHandler.handleAsync(
+      async () => {
+        await integrationsService.createIntegration(integrationData);
+        await this.loadIntegrations();
+        return true;
+      },
+      { component: 'IntegrationGrid', operation: 'addIntegration' }
+    );
+
+    return success || false;
   }
 
   async deleteIntegration(integrationId: string): Promise<boolean> {
-    try {
-      await integrationsService.deleteIntegration(integrationId);
-      await this.loadIntegrations();
-      return true;
-    } catch (error) {
-      logger.error('Error deleting integration:', error);
-      throw error;
-    }
-  }
-
-  async handleConnect(integrationId: string): Promise<void> {
-    try {
-      const result = await integrationsService.connectIntegration(integrationId);
-
-      if (result.authorization_url) {
-        // Redirect to OAuth authorization URL
-        window.location.href = result.authorization_url;
-      } else {
-        // Integration connected successfully
+    const success = await errorHandler.handleAsync(
+      async () => {
+        await integrationsService.deleteIntegration(integrationId);
         await this.loadIntegrations();
-        this.dispatchEvent('integration-connected', { id: integrationId });
+        return true;
+      },
+      { component: 'IntegrationGrid', operation: 'deleteIntegration' }
+    );
+
+    return success || false;
+  }
+
+  private async handleConnect(integrationId: string): Promise<void> {
+    const result = await integrationOperations.connectIntegration(integrationId);
+
+    if (result.success) {
+      if (result.data?.authorization_url) {
+        window.location.href = result.data.authorization_url;
+      } else {
+        await this.loadIntegrations();
+        this.dispatchCustomEvent(EVENTS.INTEGRATION_CONNECTED, { id: integrationId });
       }
-    } catch (error) {
-      logger.error('Error connecting integration:', error);
-      this.dispatchEvent('integration-error', {
-        id: integrationId,
-        error: error instanceof Error ? error.message : 'Failed to connect integration',
-      });
+    } else {
+      errorHandler.dispatchError(this, EVENTS.INTEGRATION_ERROR,
+        new Error(result.message || 'Failed to connect integration'),
+        { id: integrationId });
     }
   }
 
-  async handleSync(integrationId: string): Promise<void> {
-    try {
-      const result = await integrationsService.syncIntegration(integrationId);
-      this.dispatchEvent('integration-synced', { id: integrationId, result });
-      // Reload to get updated status
+  private async handleSync(integrationId: string): Promise<void> {
+    const result = await integrationOperations.syncIntegration(integrationId);
+
+    if (result.success) {
+      this.dispatchCustomEvent(EVENTS.INTEGRATION_SYNCED, { id: integrationId, result: result.data });
       await this.loadIntegrations();
-    } catch (error) {
-      logger.error('Error syncing integration:', error);
-      this.dispatchEvent('integration-error', {
-        id: integrationId,
-        error: error instanceof Error ? error.message : 'Failed to sync integration',
-      });
+    } else {
+      errorHandler.dispatchError(this, EVENTS.INTEGRATION_ERROR,
+        new Error(result.message || 'Failed to sync integration'),
+        { id: integrationId });
     }
   }
 
-  async handleTest(integrationId: string): Promise<void> {
-    try {
-      const result = await integrationsService.testIntegration(integrationId);
-      this.dispatchEvent('integration-tested', { id: integrationId, result });
-    } catch (error) {
-      logger.error('Error testing integration:', error);
-      this.dispatchEvent('integration-error', {
-        id: integrationId,
-        error: error instanceof Error ? error.message : 'Failed to test integration',
-      });
+  private async handleTest(integrationId: string): Promise<void> {
+    const result = await integrationOperations.testIntegration(integrationId);
+
+    if (result.success) {
+      this.dispatchCustomEvent(EVENTS.INTEGRATION_TESTED, { id: integrationId, result: result.data });
+    } else {
+      errorHandler.dispatchError(this, EVENTS.INTEGRATION_ERROR,
+        new Error(result.message || 'Failed to test integration'),
+        { id: integrationId });
     }
   }
 
   setCategory(category: string): void {
-    this.loadIntegrations(category);
+    this.currentCategory = category;
   }
 
   async refresh(): Promise<void> {
     await this.loadIntegrations();
   }
 
-  destroy(): void {
-    // Component cleanup
+  override render() {
+    if (this.isLoading) {
+      return html`
+        <div class="integrations-grid">
+          <div class="loading">Loading integrations...</div>
+        </div>
+      `;
+    }
+
+    if (this.integrations.length === 0) {
+      return html`
+        <div class="integrations-grid">
+          <div class="empty-state">
+            <h3>No integrations found</h3>
+            <p>Add your first integration to get started connecting external services.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="integrations-grid" @integration-action=${this.handleIntegrationAction}>
+        ${this.integrations.map(
+          integration => html`
+            <integration-card .integration=${integration}></integration-card>
+          `
+        )}
+      </div>
+    `;
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'integration-grid': IntegrationGrid;
   }
 }

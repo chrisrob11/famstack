@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configure {{.Provider}} - FamStack</title>
+    <link rel="stylesheet" href="/static/css/design-system.css">
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        .main-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        .page-header {
+            margin-left: 50px;
+        }
+        .form-card {
+            margin-left: 50px;
+        }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 1.5rem;
+            align-items: center;
+        }
+        .settings-grid .form-group {
+            display: contents;
+        }
+        .settings-grid label {
+            font-weight: 500;
+            text-align: right;
+        }
+        .checkbox-group {
+            grid-column: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .form-actions {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        {{template "navigation" .}}
+
+        <main class="main-content">
+            <div class="page-header">
+                <h1>Configure {{.Provider}}</h1>
+                <p>Set your preferences before connecting your account.</p>
+            </div>
+
+            <form action="/oauth/google/connect/configure" method="POST" class="form-card">
+                <h2>Sync Settings</h2>
+
+                <div class="settings-grid">
+                    <div class="form-group">
+                        <label for="sync_frequency_minutes">Sync Frequency (minutes)</label>
+                        <div>
+                            <input type="number" id="sync_frequency_minutes" name="sync_frequency_minutes" 
+                                   value="{{.DefaultConfig.SyncFrequencyMinutes}}" min="15" max="1440" class="form-control">
+                            <small>How often to check for new events. Minimum 15 minutes.</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sync_range_days">Sync Range (days)</label>
+                        <div>
+                            <input type="number" id="sync_range_days" name="sync_range_days" 
+                                   value="{{.DefaultConfig.SyncRangeDays}}" min="1" max="365" class="form-control">
+                            <small>How many days into the future to sync events. Max 365.</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Calendars to Sync</label>
+                        <div>
+                            <input type="text" name="calendars_to_sync" class="form-control" 
+                                   placeholder="Leave empty to sync all calendars">
+                            <small>Comma-separated list of calendar names to sync. e.g., Personal, Work</small>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Event Types</label>
+                        <div class="checkbox-group">
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="sync_all_day_events" name="sync_all_day_events" 
+                                       {{if .DefaultConfig.SyncAllDayEvents}}checked{{end}} class="form-check-input">
+                                <label for="sync_all_day_events">Sync all-day events</label>
+                            </div>
+
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="sync_private_events" name="sync_private_events" 
+                                       {{if .DefaultConfig.SyncPrivateEvents}}checked{{end}} class="form-check-input">
+                                <label for="sync_private_events">Sync private events</label>
+                            </div>
+
+                            <div class="form-group-checkbox">
+                                <input type="checkbox" id="sync_declined_events" name="sync_declined_events" 
+                                       {{if .DefaultConfig.SyncDeclinedEvents}}checked{{end}} class="form-check-input">
+                                <label for="sync_declined_events">Sync declined events</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <a href="/integrations" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Save and Connect</button>
+                </div>
+            </form>
+        </main>
+    </div>
+</body>
+</html>

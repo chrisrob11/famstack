@@ -63,8 +63,8 @@
             </button>
         {{end}}
 
-        <button class="btn btn-small btn-secondary" onclick="editIntegration('{{.ID}}')">
-            Edit
+        <button class="btn btn-small btn-secondary" onclick="configureIntegration('{{.ID}}')">
+            Configure
         </button>
 
         <button class="btn btn-small btn-danger"
@@ -212,16 +212,49 @@ function showIntegrationDetails(integrationId) {
 
 function setupIntegration(integrationId, provider, authMethod) {
     if (authMethod === 'oauth2') {
-        // Redirect to OAuth flow
-        window.location.href = `/oauth/${provider}/connect?integration_id=${integrationId}`;
+        // Check if OAuth is configured first
+        fetch(`/api/v1/config/oauth/${provider}`)
+            .then(response => response.json())
+            .then(config => {
+                if (config.configured) {
+                    // OAuth is configured, proceed with connection
+                    window.location.href = `/oauth/${provider}/connect?integration_id=${integrationId}`;
+                } else {
+                    // OAuth not configured, show configuration modal
+                    alert('OAuth not configured. Please configure OAuth credentials first by clicking the OAuth Settings button.');
+                    if (typeof showOAuthConfigModal === 'function') {
+                        showOAuthConfigModal();
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error checking OAuth config:', error);
+                // Fallback to direct OAuth flow
+                window.location.href = `/oauth/${provider}/connect?integration_id=${integrationId}`;
+            });
     } else {
         // Show credentials input modal
         alert(`Setup for ${authMethod} not implemented yet. This would show a form to enter credentials.`);
     }
 }
 
-function editIntegration(integrationId) {
-    alert('Edit integration not implemented yet. This would show a form to edit the integration settings.');
+function configureIntegration(integrationId) {
+    // Show the OAuth configuration modal
+    if (typeof showOAuthConfigModal === 'function') {
+        showOAuthConfigModal();
+    } else {
+        // Fallback - try to show modal directly
+        const modal = document.getElementById('oauth-config-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            // Load OAuth configuration
+            if (typeof loadOAuthConfiguration === 'function') {
+                loadOAuthConfiguration();
+            }
+        } else {
+            alert('OAuth configuration modal not found. Please refresh the page and try again.');
+        }
+    }
 }
 </script>
 

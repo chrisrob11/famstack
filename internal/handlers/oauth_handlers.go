@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
@@ -148,7 +149,7 @@ func (h *OAuthHandlers) HandleGoogleCallback(w http.ResponseWriter, r *http.Requ
 	fmt.Printf("🔑 Processing OAuth token exchange...\n")
 	token, err := h.oauthService.HandleCallback(oauth.ProviderGoogle, code, state)
 	if err != nil {
-		fmt.Printf("❌ OAuth token exchange failed\n")
+		fmt.Printf("❌ OAuth token exchange failed: %v\n", err)
 		http.Redirect(w, r, "/integrations?error=callback_failed", http.StatusTemporaryRedirect)
 		return
 	}
@@ -399,28 +400,40 @@ func (h *OAuthHandlers) parseCalendarConfig(r *http.Request) (*integrations.Cale
 	config.SyncPrivateEvents = r.FormValue("sync_private_events") == "on"
 	config.SyncDeclinedEvents = r.FormValue("sync_declined_events") == "on"
 
-	// Parse calendars to sync (multiple select) with validation
-	calendarsToSync := r.Form["calendars_to_sync"]
-	if len(calendarsToSync) > 10 {
-		return nil, fmt.Errorf("too many calendars selected, maximum 10 allowed, got %d", len(calendarsToSync))
-	}
+	// Parse calendars to sync
+	calendarsStr := r.FormValue("calendars_to_sync")
+	if calendarsStr != "" {
+		rawCalendars := strings.Split(calendarsStr, ",")
+		calendarsToSync := make([]string, 0, len(rawCalendars))
 
-	// Validate each calendar name
-	for _, calendar := range calendarsToSync {
-		if len(calendar) == 0 || len(calendar) > 100 {
-			return nil, fmt.Errorf("invalid calendar name length, must be 1-100 characters")
-		}
-		// Basic sanitization - allow alphanumeric, spaces, hyphens, underscores
-		for _, char := range calendar {
-			if (char < 'a' || char > 'z') &&
-				(char < 'A' || char > 'Z') &&
-				(char < '0' || char > '9') &&
-				char != ' ' && char != '-' && char != '_' && char != '.' {
-				return nil, fmt.Errorf("invalid character in calendar name: %c", char)
+		for _, calendar := range rawCalendars {
+			trimmed := strings.TrimSpace(calendar)
+			if trimmed != "" {
+				calendarsToSync = append(calendarsToSync, trimmed)
 			}
 		}
+
+		if len(calendarsToSync) > 10 {
+			return nil, fmt.Errorf("too many calendars selected, maximum 10 allowed, got %d", len(calendarsToSync))
+		}
+
+		// Validate each calendar name
+		for _, calendar := range calendarsToSync {
+			if len(calendar) > 100 {
+				return nil, fmt.Errorf("invalid calendar name length, must be 1-100 characters")
+			}
+			// Basic sanitization - allow alphanumeric, spaces, hyphens, underscores
+			for _, char := range calendar {
+				if (char < 'a' || char > 'z') &&
+					(char < 'A' || char > 'Z') &&
+					(char < '0' || char > '9') &&
+					char != ' ' && char != '-' && char != '_' && char != '.' {
+					return nil, fmt.Errorf("invalid character in calendar name: %c", char)
+				}
+			}
+		}
+		config.CalendarsToSync = calendarsToSync
 	}
-	config.CalendarsToSync = calendarsToSync
 
 	// Validate configuration (this will auto-correct some values)
 	if err := config.Validate(); err != nil {
@@ -486,9 +499,21 @@ func (h *OAuthHandlers) decodeConfigFromState(state string) (string, *integratio
 	return userID, &config, nil
 }
 
-// RenderTemplate is a placeholder for template rendering
-// TODO: Implement proper template rendering
 func RenderTemplate(w http.ResponseWriter, templateName string, data any) {
+	// All templates are in the web/templates directory
+	templatePath := fmt.Sprintf("web/templates/%s.html.tmpl", templateName)
+
+	// Parse the specific page template and the navigation template it includes
+	tmpl, err := template.ParseFiles(templatePath, "web/templates/navigation.html.tmpl")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to parse template: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Execute the template
 	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, "<!-- Template: %s -->\n<h1>Calendar Settings</h1>\n<p>OAuth integration page (template rendering not implemented)</p>", templateName)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, fmt.Sprintf("Failed to execute template: %v", err), http.StatusInternalServerError)
+		return
+	}
 }

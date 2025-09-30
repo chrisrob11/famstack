@@ -397,6 +397,7 @@ func (s *Server) setupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/auth/me", authHandler.HandleMe)
 
 	// OAuth integration routes - require authentication
+	mux.Handle("/oauth/google/connect/configure", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleGoogleConnectWithConfig)))
 	mux.Handle("/oauth/google/connect", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleGoogleConnect)))
 	mux.HandleFunc("/oauth/google/callback", oauthHandler.HandleGoogleCallback) // No auth required for callback
 	mux.Handle("/oauth/disconnect/", authMiddleware.RequireAuth(http.HandlerFunc(oauthHandler.HandleDisconnectProvider)))
