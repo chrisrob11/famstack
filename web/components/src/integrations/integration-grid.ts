@@ -128,7 +128,6 @@ export class IntegrationGrid extends LitElement {
     );
   }
 
-
   async addIntegration(integrationData: Partial<Integration>): Promise<boolean> {
     const success = await errorHandler.handleAsync(
       async () => {
@@ -166,9 +165,12 @@ export class IntegrationGrid extends LitElement {
         this.dispatchCustomEvent(EVENTS.INTEGRATION_CONNECTED, { id: integrationId });
       }
     } else {
-      errorHandler.dispatchError(this, EVENTS.INTEGRATION_ERROR,
+      errorHandler.dispatchError(
+        this,
+        EVENTS.INTEGRATION_ERROR,
         new Error(result.message || 'Failed to connect integration'),
-        { id: integrationId });
+        { id: integrationId }
+      );
     }
   }
 
@@ -176,12 +178,18 @@ export class IntegrationGrid extends LitElement {
     const result = await integrationOperations.syncIntegration(integrationId);
 
     if (result.success) {
-      this.dispatchCustomEvent(EVENTS.INTEGRATION_SYNCED, { id: integrationId, result: result.data });
+      this.dispatchCustomEvent(EVENTS.INTEGRATION_SYNCED, {
+        id: integrationId,
+        result: result.data,
+      });
       await this.loadIntegrations();
     } else {
-      errorHandler.dispatchError(this, EVENTS.INTEGRATION_ERROR,
+      errorHandler.dispatchError(
+        this,
+        EVENTS.INTEGRATION_ERROR,
         new Error(result.message || 'Failed to sync integration'),
-        { id: integrationId });
+        { id: integrationId }
+      );
     }
   }
 
@@ -189,11 +197,17 @@ export class IntegrationGrid extends LitElement {
     const result = await integrationOperations.testIntegration(integrationId);
 
     if (result.success) {
-      this.dispatchCustomEvent(EVENTS.INTEGRATION_TESTED, { id: integrationId, result: result.data });
+      this.dispatchCustomEvent(EVENTS.INTEGRATION_TESTED, {
+        id: integrationId,
+        result: result.data,
+      });
     } else {
-      errorHandler.dispatchError(this, EVENTS.INTEGRATION_ERROR,
+      errorHandler.dispatchError(
+        this,
+        EVENTS.INTEGRATION_ERROR,
         new Error(result.message || 'Failed to test integration'),
-        { id: integrationId });
+        { id: integrationId }
+      );
     }
   }
 
@@ -228,9 +242,7 @@ export class IntegrationGrid extends LitElement {
     return html`
       <div class="integrations-grid" @integration-action=${this.handleIntegrationAction}>
         ${this.integrations.map(
-          integration => html`
-            <integration-card .integration=${integration}></integration-card>
-          `
+          integration => html` <integration-card .integration=${integration}></integration-card> `
         )}
       </div>
     `;

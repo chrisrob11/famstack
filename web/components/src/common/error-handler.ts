@@ -48,11 +48,7 @@ export const errorHandler = {
   /**
    * Handle synchronous operations with error logging
    */
-  handleSync<T>(
-    operation: () => T,
-    context: ErrorContext,
-    fallbackValue?: T
-  ): T | undefined {
+  handleSync<T>(operation: () => T, context: ErrorContext, fallbackValue?: T): T | undefined {
     try {
       return operation();
     } catch (error) {
@@ -82,7 +78,7 @@ export const errorHandler = {
     const errorDetail = {
       error: error.message,
       stack: error.stack,
-      ...detail
+      ...detail,
     };
 
     logger.error(`Dispatching error event ${eventName}:`, errorDetail);
@@ -93,5 +89,5 @@ export const errorHandler = {
         bubbles: true,
       })
     );
-  }
+  },
 };

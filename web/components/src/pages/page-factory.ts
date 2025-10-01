@@ -3,6 +3,7 @@ import { PageComponent } from './base-page.js';
 import { DailyPage } from './daily-page.js';
 import { FamilyPage } from '../families/family-page.js';
 import { SchedulesPage } from '../schedules/schedules-page.js';
+import { IntegrationsPage } from './integrations-page.js';
 
 /**
  * Factory for creating page components based on page type
@@ -20,13 +21,15 @@ export class PageFactory {
         return new FamilyPage(container, config);
       case 'schedules':
         return new SchedulesPage(container, config);
+      case 'integrations':
+        return new IntegrationsPage(container, config);
       default:
         return new DailyPage(container, config); // Default to daily page
     }
   }
 
   static getAvailablePageTypes(): string[] {
-    return ['daily', 'family', 'schedules'];
+    return ['daily', 'family', 'schedules', 'integrations'];
   }
 }
 

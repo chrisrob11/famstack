@@ -166,7 +166,9 @@ export class OAuthStatus extends LitElement {
             <h3>🔐 OAuth Configuration</h3>
             <span class="status-badge ${badgeStatus.className}">${badgeStatus.text}</span>
           </div>
-          <p class="status-description">Configure OAuth credentials for external service integrations</p>
+          <p class="status-description">
+            Configure OAuth credentials for external service integrations
+          </p>
           <div class="oauth-providers">
             <div class="provider-status ${this.googleConfigured ? 'configured' : 'not-configured'}">
               <span>🔗</span>

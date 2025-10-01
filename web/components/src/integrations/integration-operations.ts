@@ -40,27 +40,27 @@ export class IntegrationOperations {
         return {
           success: true,
           message: 'OAuth flow initiated',
-          data: { authorization_url: result.authorization_url }
+          data: { authorization_url: result.authorization_url },
         };
       } else if (integration.auth_method === AUTH_METHODS.API_KEY) {
         // For API key integrations, just update status to connected
         await integrationsService.updateIntegration(integrationId, { status: 'connected' });
         return {
           success: true,
-          message: 'Integration connected successfully'
+          message: 'Integration connected successfully',
         };
       } else {
         // For basic auth or other methods
         await integrationsService.updateIntegration(integrationId, { status: 'connected' });
         return {
           success: true,
-          message: 'Integration connected successfully'
+          message: 'Integration connected successfully',
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to connect integration'
+        message: error instanceof Error ? error.message : 'Failed to connect integration',
       };
     }
   }
@@ -82,12 +82,12 @@ export class IntegrationOperations {
 
       return {
         success: true,
-        message: 'Integration disconnected successfully'
+        message: 'Integration disconnected successfully',
       };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to disconnect integration'
+        message: error instanceof Error ? error.message : 'Failed to disconnect integration',
       };
     }
   }
@@ -101,12 +101,12 @@ export class IntegrationOperations {
       return {
         success: true,
         message: result.message || 'Integration synced successfully',
-        data: result
+        data: result,
       };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to sync integration'
+        message: error instanceof Error ? error.message : 'Failed to sync integration',
       };
     }
   }
@@ -120,12 +120,12 @@ export class IntegrationOperations {
       return {
         success: true,
         message: result.message || 'Integration test completed successfully',
-        data: result
+        data: result,
       };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to test integration'
+        message: error instanceof Error ? error.message : 'Failed to test integration',
       };
     }
   }
@@ -140,19 +140,19 @@ export class IntegrationOperations {
       if (integration.auth_method !== AUTH_METHODS.OAUTH2) {
         return {
           success: false,
-          message: 'Token refresh is only available for OAuth integrations'
+          message: 'Token refresh is only available for OAuth integrations',
         };
       }
 
       const result = await oAuthService.refreshOAuth(integrationId);
       return {
         success: result.success,
-        message: result.success ? 'Token refreshed successfully' : 'Failed to refresh token'
+        message: result.success ? 'Token refreshed successfully' : 'Failed to refresh token',
       };
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Failed to refresh integration token'
+        message: error instanceof Error ? error.message : 'Failed to refresh integration token',
       };
     }
   }
@@ -163,7 +163,10 @@ export class IntegrationOperations {
   async bulkOperation(
     integrationIds: string[],
     operation: 'connect' | 'disconnect' | 'sync' | 'test'
-  ): Promise<{ results: Record<string, OperationResult>; summary: { success: number; failed: number } }> {
+  ): Promise<{
+    results: Record<string, OperationResult>;
+    summary: { success: number; failed: number };
+  }> {
     const results: Record<string, OperationResult> = {};
     let successCount = 0;
     let failedCount = 0;
@@ -198,7 +201,7 @@ export class IntegrationOperations {
 
     return {
       results,
-      summary: { success: successCount, failed: failedCount }
+      summary: { success: successCount, failed: failedCount },
     };
   }
 }
