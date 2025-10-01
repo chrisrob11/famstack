@@ -13,11 +13,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Integration } from './integration-types.js';
-import {
-  getCategoryIcon,
-  getProviderLabel,
-  STATUS_LABELS,
-} from './integration-types.js';
+import { getCategoryIcon, getProviderLabel, STATUS_LABELS } from './integration-types.js';
 import { buttonStyles } from '../common/shared-styles.js';
 
 @customElement('integration-card')
@@ -130,7 +126,7 @@ export class IntegrationCard extends LitElement {
         color: #6c757d;
         line-height: 1.4;
       }
-    `
+    `,
   ];
 
   private handleActionClick(action: string) {
@@ -163,7 +159,8 @@ export class IntegrationCard extends LitElement {
           : ''}
         <integration-actions
           .integration=${this.integration}
-          @action-click=${(e: CustomEvent) => this.handleActionClick(e.detail.action)}>
+          @action-click=${(e: CustomEvent) => this.handleActionClick(e.detail.action)}
+        >
         </integration-actions>
       </div>
     `;

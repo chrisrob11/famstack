@@ -89,7 +89,11 @@ export class OAuthService {
   /**
    * Complete OAuth flow (callback handling)
    */
-  async completeOAuth(provider: string, code: string, state?: string): Promise<{ success: boolean; integration_id?: string }> {
+  async completeOAuth(
+    provider: string,
+    code: string,
+    state?: string
+  ): Promise<{ success: boolean; integration_id?: string }> {
     const response = await fetch(`${this.baseUrl}/oauth/${provider}/callback`, {
       method: 'POST',
       headers: this.getHeaders(),

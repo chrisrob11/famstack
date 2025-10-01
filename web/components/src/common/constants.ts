@@ -3,36 +3,36 @@ export const INTEGRATION_STATUS = {
   CONNECTED: 'connected',
   DISCONNECTED: 'disconnected',
   PENDING: 'pending',
-  ERROR: 'error'
+  ERROR: 'error',
 } as const;
 
-export type IntegrationStatus = typeof INTEGRATION_STATUS[keyof typeof INTEGRATION_STATUS];
+export type IntegrationStatus = (typeof INTEGRATION_STATUS)[keyof typeof INTEGRATION_STATUS];
 
 // OAuth Status Constants
 export const OAUTH_STATUS = {
   CONFIGURED: 'configured',
   NOT_CONFIGURED: 'not-configured',
   LOADING: 'loading',
-  ERROR: 'error'
+  ERROR: 'error',
 } as const;
 
-export type OAuthStatus = typeof OAUTH_STATUS[keyof typeof OAUTH_STATUS];
+export type OAuthStatus = (typeof OAUTH_STATUS)[keyof typeof OAUTH_STATUS];
 
 // API Endpoints Configuration
 export const API_ENDPOINTS = {
   OAUTH_GOOGLE_CONFIG: '/api/v1/config/oauth/google',
   INTEGRATIONS: '/api/v1/integrations',
-  OAUTH_CALLBACK_GOOGLE: '/oauth/google/callback'
+  OAUTH_CALLBACK_GOOGLE: '/oauth/google/callback',
 } as const;
 
 // Authentication Methods
 export const AUTH_METHODS = {
   OAUTH2: 'oauth2',
   API_KEY: 'api_key',
-  BASIC: 'basic'
+  BASIC: 'basic',
 } as const;
 
-export type AuthMethod = typeof AUTH_METHODS[keyof typeof AUTH_METHODS];
+export type AuthMethod = (typeof AUTH_METHODS)[keyof typeof AUTH_METHODS];
 
 // Event Names
 export const EVENTS = {
@@ -44,5 +44,5 @@ export const EVENTS = {
   INTEGRATION_SYNCED: 'integration-synced',
   INTEGRATION_TESTED: 'integration-tested',
   INTEGRATION_ERROR: 'integration-error',
-  OAUTH_UPDATED: 'oauth-updated'
+  OAUTH_UPDATED: 'oauth-updated',
 } as const;

@@ -166,6 +166,31 @@ export class IntegrationsService {
   }
 
   /**
+   * Get integration details including sync history
+   */
+  async getIntegrationDetails(id: string): Promise<{
+    integration: Integration;
+    recent_sync_history?: any[];
+  }> {
+    const url = `${this.baseUrl}/integrations/${id}?include_credentials=true`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch integration details: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    return {
+      integration: this.mapIntegration(data.integration || data),
+      recent_sync_history: data.recent_sync_history || [],
+    };
+  }
+
+  /**
    * Create a new integration
    */
   async createIntegration(integrationData: Partial<Integration>): Promise<Integration> {

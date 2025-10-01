@@ -39,7 +39,7 @@ export class IntegrationActions extends LitElement {
         padding: 6px 12px;
         font-size: 12px;
       }
-    `
+    `,
   ];
 
   private handleActionClick(action: string) {
@@ -58,12 +58,10 @@ export class IntegrationActions extends LitElement {
     if (
       this.integration.status === INTEGRATION_STATUS.DISCONNECTED ||
       (this.integration.status === INTEGRATION_STATUS.PENDING &&
-       this.integration.auth_method === AUTH_METHODS.OAUTH2)
+        this.integration.auth_method === AUTH_METHODS.OAUTH2)
     ) {
       actions.push(
-        html`<button
-          class="btn btn-secondary"
-          @click=${() => this.handleActionClick('connect')}>
+        html`<button class="btn btn-secondary" @click=${() => this.handleActionClick('connect')}>
           Connect
         </button>`
       );
@@ -72,16 +70,12 @@ export class IntegrationActions extends LitElement {
     // Sync and Test buttons for connected integrations
     if (this.integration.status === INTEGRATION_STATUS.CONNECTED) {
       actions.push(
-        html`<button
-          class="btn btn-secondary"
-          @click=${() => this.handleActionClick('sync')}>
+        html`<button class="btn btn-secondary" @click=${() => this.handleActionClick('sync')}>
           Sync
         </button>`
       );
       actions.push(
-        html`<button
-          class="btn btn-secondary"
-          @click=${() => this.handleActionClick('test')}>
+        html`<button class="btn btn-secondary" @click=${() => this.handleActionClick('test')}>
           Test
         </button>`
       );
@@ -89,18 +83,14 @@ export class IntegrationActions extends LitElement {
 
     // Configure button (always available)
     actions.push(
-      html`<button
-        class="btn btn-secondary"
-        @click=${() => this.handleActionClick('configure')}>
+      html`<button class="btn btn-secondary" @click=${() => this.handleActionClick('configure')}>
         Configure
       </button>`
     );
 
     // Delete button (always available)
     actions.push(
-      html`<button
-        class="btn btn-danger"
-        @click=${() => this.handleActionClick('delete')}>
+      html`<button class="btn btn-danger" @click=${() => this.handleActionClick('delete')}>
         Delete
       </button>`
     );
@@ -109,11 +99,7 @@ export class IntegrationActions extends LitElement {
   }
 
   override render() {
-    return html`
-      <div class="integration-actions">
-        ${this.renderActionButtons()}
-      </div>
-    `;
+    return html` <div class="integration-actions">${this.renderActionButtons()}</div> `;
   }
 }
 

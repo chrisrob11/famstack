@@ -196,7 +196,7 @@ export class OAuthConfigModal extends LitElement {
       a:hover {
         text-decoration: underline;
       }
-    `
+    `,
   ];
 
   override connectedCallback() {
@@ -230,7 +230,6 @@ export class OAuthConfigModal extends LitElement {
     const target = e.target as HTMLInputElement;
     this.clientSecret = target.value;
   }
-
 
   async show(): Promise<void> {
     this.isVisible = true;
@@ -345,15 +344,19 @@ export class OAuthConfigModal extends LitElement {
             <div class="config-section">
               <div class="config-intro">
                 <h3>Configure OAuth Providers</h3>
-                <p>OAuth credentials allow FamStack to connect to external services on your behalf.
-                Each provider requires you to create an application in their developer console.</p>
+                <p>
+                  OAuth credentials allow FamStack to connect to external services on your behalf.
+                  Each provider requires you to create an application in their developer console.
+                </p>
               </div>
 
               <!-- Google OAuth Configuration -->
               <div class="provider-config">
                 <div class="provider-header">
                   <h4>🔗 Google OAuth</h4>
-                  <span class="config-status ${this.googleConfigured ? 'configured' : 'not-configured'}">
+                  <span
+                    class="config-status ${this.googleConfigured ? 'configured' : 'not-configured'}"
+                  >
                     ${this.googleConfigured ? 'Configured' : 'Not Configured'}
                   </span>
                 </div>
@@ -362,12 +365,20 @@ export class OAuthConfigModal extends LitElement {
                   <details class="instructions-details">
                     <summary>How to get Google OAuth credentials</summary>
                     <ol>
-                      <li>Go to the <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                      <li>
+                        Go to the
+                        <a href="https://console.cloud.google.com/" target="_blank"
+                          >Google Cloud Console</a
+                        >
+                      </li>
                       <li>Create a new project or select an existing one</li>
                       <li>Enable the Google Calendar API</li>
                       <li>Go to "Credentials" and create "OAuth 2.0 Client IDs"</li>
                       <li>Set application type to "Web application"</li>
-                      <li>Add redirect URI: <code>${window.location.origin}/oauth/google/callback</code></li>
+                      <li>
+                        Add redirect URI:
+                        <code>${window.location.origin}/oauth/google/callback</code>
+                      </li>
                       <li>Copy the Client ID and Client Secret below</li>
                     </ol>
                   </details>
@@ -384,7 +395,7 @@ export class OAuthConfigModal extends LitElement {
                         .value=${this.clientId}
                         @input=${this.handleClientIdInput}
                         placeholder="123456789-abc.apps.googleusercontent.com"
-                      >
+                      />
                     </div>
                     <div class="form-group">
                       <label for="google-client-secret">Client Secret</label>
@@ -395,7 +406,7 @@ export class OAuthConfigModal extends LitElement {
                         .value=${this.clientSecret}
                         @input=${this.handleClientSecretInput}
                         placeholder="GOCSPX-your-secret-here"
-                      >
+                      />
                     </div>
                   </div>
                   <div class="form-actions">
@@ -425,7 +436,9 @@ export class OAuthConfigModal extends LitElement {
                   <h4>🔗 Microsoft OAuth</h4>
                   <span class="config-status coming-soon">Coming Soon</span>
                 </div>
-                <p class="coming-soon-text">Microsoft OAuth integration will be available in a future update.</p>
+                <p class="coming-soon-text">
+                  Microsoft OAuth integration will be available in a future update.
+                </p>
               </div>
             </div>
           </div>

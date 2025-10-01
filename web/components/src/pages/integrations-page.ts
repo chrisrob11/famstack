@@ -9,10 +9,10 @@ import '../integrations/category-tabs.js';
 import '../integrations/integration-grid.js';
 import '../integrations/add-integration-modal.js';
 import '../integrations/oauth-config-modal.js';
+import '../integrations/integration-details-modal.js';
 import { logger } from '../common/logger.js';
 
 export class IntegrationsPage extends BasePage {
-
   constructor(container: HTMLElement, config: ComponentConfig) {
     super(container, config, 'integrations');
   }
@@ -53,6 +53,7 @@ export class IntegrationsPage extends BasePage {
         <!-- Modals -->
         <add-integration-modal></add-integration-modal>
         <oauth-config-modal></oauth-config-modal>
+        <integration-details-modal></integration-details-modal>
       </div>
     `;
 
@@ -217,6 +218,27 @@ export class IntegrationsPage extends BasePage {
       if (oauthStatus) {
         oauthStatus.refresh();
       }
+    });
+
+    // Handle clicking on integration cards to show details
+    this.container.addEventListener('click', (e: any) => {
+      const card = e.target.closest('integration-card');
+      if (card && card.integration) {
+        const detailsModal = this.container.querySelector('integration-details-modal') as any;
+        if (detailsModal) {
+          detailsModal.show(card.integration.id);
+        }
+      }
+    });
+
+    // Handle integration connected event to refresh data
+    this.container.addEventListener('integration-connected', async () => {
+      await this.refresh();
+    });
+
+    // Handle integration synced event
+    this.container.addEventListener('integration-synced', async () => {
+      await this.refresh();
     });
   }
 

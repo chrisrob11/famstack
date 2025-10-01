@@ -78,7 +78,7 @@ export class AddIntegrationModal extends LitElement {
         color: #6c757d;
         line-height: 1.4;
       }
-    `
+    `,
   ];
 
   override connectedCallback() {

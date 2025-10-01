@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"strconv"
 	"strings"
@@ -81,13 +80,6 @@ func (h *IntegrationsAPIHandler) ListIntegrations(w http.ResponseWriter, r *http
 	integrationsList, err := h.integrationsService.ListIntegrations(user.FamilyID, query)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to list integrations: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// Check if HTML is requested (for HTMX)
-	if r.Header.Get("HX-Request") == "true" {
-		// Return HTML template for HTMX
-		h.renderIntegrationsListHTML(w, integrationsList)
 		return
 	}
 
@@ -445,25 +437,6 @@ func (h *IntegrationsAPIHandler) InitiateOAuth(w http.ResponseWriter, r *http.Re
 		"authorization_url": authURL,
 	}); err != nil {
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
-}
-
-// renderIntegrationsListHTML renders the integrations list template for HTMX
-func (h *IntegrationsAPIHandler) renderIntegrationsListHTML(w http.ResponseWriter, integrations []services.Integration) {
-	tmpl, err := template.ParseFiles("web/templates/integrations-list.html.tmpl")
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to parse template: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	data := map[string]interface{}{
-		"integrations": integrations,
-	}
-
-	w.Header().Set("Content-Type", "text/html")
-	if err := tmpl.Execute(w, data); err != nil {
-		http.Error(w, fmt.Sprintf("Failed to execute template: %v", err), http.StatusInternalServerError)
 		return
 	}
 }
