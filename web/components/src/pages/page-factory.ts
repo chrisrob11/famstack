@@ -1,7 +1,7 @@
 import { ComponentConfig } from '../common/types.js';
 import { PageComponent } from './base-page.js';
 import { DailyPage } from './daily-page.js';
-import { FamilyPage } from '../families/family-page.js';
+import FamilyPageWrapper from '../families/family-page-wrapper.js';
 import { SchedulesPage } from '../schedules/schedules-page.js';
 import { IntegrationsPage } from './integrations-page.js';
 
@@ -18,7 +18,7 @@ export class PageFactory {
       case 'daily':
         return new DailyPage(container, config);
       case 'family':
-        return new FamilyPage(container, config);
+        return new FamilyPageWrapper(container, config);
       case 'schedules':
         return new SchedulesPage(container, config);
       case 'integrations':
